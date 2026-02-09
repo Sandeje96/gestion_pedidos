@@ -212,8 +212,7 @@ def seed_users_railway():
     from app.models.usuario import Usuario
 
     # Evitar duplicados
-    if Usuario.query.filter_by(username="ventas").first():
-        return "Usuarios ya existen. BORRA ESTE ENDPOINT."
+    
 
 
     Yonathan = Usuario(

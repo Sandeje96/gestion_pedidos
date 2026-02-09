@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["postgresql"]
+
+[phases.install]
+cmds = ["python -m venv /app/.venv", "pip install -r requirements.txt"]
+
+[start]
+cmd = "gunicorn --bind 0.0.0.0:$PORT --timeout 120 --workers 1 run:app"

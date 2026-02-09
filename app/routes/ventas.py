@@ -229,16 +229,24 @@ def eliminar_pedido(pedido_id):
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    producto_nombre = pedido.producto_nombre
+    # Guardar datos antes de eliminar
+    pedido_info = {
+        'id': pedido.id,
+        'producto_nombre': pedido.producto_nombre,
+        'cliente_id': pedido.cliente_id
+    }
+    
+    # Eliminar el pedido
     db.session.delete(pedido)
     db.session.commit()
     
-    # Notificar a la fábrica
+    # Emitir evento WebSocket
     socketio.emit('pedido_eliminado', {
-        'pedido_id': pedido_id
+        'pedido_id': pedido_info['id'],
+        'cliente_id': pedido_info['cliente_id']
     }, namespace='/')
     
-    flash(f'Pedido de "{producto_nombre}" eliminado', 'info')
+    flash(f'Pedido eliminado correctamente', 'success')
     return redirect(url_for('ventas.dashboard'))
 
 @ventas_bp.route('/pedido/<int:pedido_id>/marcar-leido', methods=['POST'])

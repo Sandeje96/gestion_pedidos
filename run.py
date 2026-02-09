@@ -1,21 +1,21 @@
+# -*- coding: utf-8 -*-
 """
-Archivo principal para ejecutar la aplicación Flask.
+Punto de entrada de la aplicación Flask.
 Ejecutar con: python run.py
 """
 
-from app import create_app, socketio
 import os
+from app import create_app, socketio
 
-# Seleccionar configuración según variable de entorno
-config_name = os.environ.get('FLASK_ENV', 'development')
+# Determinar entorno (desarrollo o producción)
+config_name = os.getenv('FLASK_ENV', 'development')
 app = create_app(config_name)
 
 if __name__ == '__main__':
-    # Ejecutar con SocketIO para tiempo real
+    # En desarrollo
     socketio.run(
         app,
-        debug=True,
-        host='0.0.0.0',  # Accesible desde toda la red local
-        port=5000,
-        allow_unsafe_werkzeug=True  # Solo para desarrollo
+        host='0.0.0.0',
+        port=int(os.getenv('PORT', 5000)),
+        debug=(config_name == 'development')
     )

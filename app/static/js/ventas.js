@@ -269,6 +269,8 @@ function actualizarBadgesClientesVendedor() {
             if (badgeNuevosRuta) badgeNuevosRuta.remove();
         }
     });
+    // Actualizar badges de rutas
+    actualizarBadgesRutas();
 }
 
 /**
@@ -438,6 +440,59 @@ function actualizarBadgesModificadosSinVer() {
     });
 }
 
+/**
+ * Actualizar badges de rutas (pendientes y modificados)
+ */
+function actualizarBadgesRutas() {
+    document.querySelectorAll('[id^="ruta-"]').forEach(rutaDiv => {
+        const rutaIndex = rutaDiv.id.replace('ruta-', '');
+        const botonRuta = document.querySelector(`[data-bs-target="#collapseRuta${rutaIndex}"]`);
+        
+        if (!botonRuta) return;
+        
+        // Contar pendientes y modificados en toda la ruta
+        let pendientesRuta = 0;
+        let modificadosRuta = 0;
+        
+        const pedidosEnRuta = rutaDiv.querySelectorAll('.pedido-row');
+        pedidosEnRuta.forEach(row => {
+            const estado = row.getAttribute('data-estado');
+            if (estado === 'pendiente') {
+                pendientesRuta++;
+            }
+            if (row.classList.contains('table-warning')) {
+                modificadosRuta++;
+            }
+        });
+        
+        // Actualizar badge de pendientes
+        let badgePendientes = botonRuta.querySelector('.badge.bg-info');
+        if (pendientesRuta > 0) {
+            if (!badgePendientes) {
+                badgePendientes = document.createElement('span');
+                badgePendientes.className = 'badge bg-info ms-2';
+                botonRuta.appendChild(badgePendientes);
+            }
+            badgePendientes.innerHTML = `<i class="fas fa-clock"></i> ${pendientesRuta} pendiente(s)`;
+        } else if (badgePendientes) {
+            badgePendientes.remove();
+        }
+        
+        // Actualizar badge de modificados
+        let badgeModificados = botonRuta.querySelector('.badge.bg-danger.animate-pulse');
+        if (modificadosRuta > 0) {
+            if (!badgeModificados) {
+                badgeModificados = document.createElement('span');
+                badgeModificados.className = 'badge bg-danger ms-2 animate-pulse';
+                botonRuta.appendChild(badgeModificados);
+            }
+            badgeModificados.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${modificadosRuta} sin ver`;
+        } else if (badgeModificados) {
+            badgeModificados.remove();
+        }
+    });
+}
+
 // Agregar estilos de animación
 const style = document.createElement('style');
 style.textContent = `
@@ -464,5 +519,7 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+
 
 console.log('✅ Script de ventas cargado correctamente');

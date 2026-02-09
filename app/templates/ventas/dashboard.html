@@ -241,7 +241,7 @@
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    {% for pedido in cliente.pedidos.order_by(Pedido.fecha_creacion.desc()) %}
+                                                                    {% for pedido in cliente.pedidos.filter_by(archivado=False).order_by(Pedido.fecha_creacion.desc()) %}
                                                                     <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado %}table-danger{% endif %}" 
                                                                         id="pedido-{{ pedido.id }}"
                                                                         data-estado="{{ pedido.estado }}">

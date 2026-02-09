@@ -140,20 +140,27 @@ def actualizar_pedido(pedido_id):
 @operario_requerido
 def marcar_pedido_visto(pedido_id):
     """
-    Marcar un pedido modificado como visto.
+    Marcar un pedido modificado como visto por la fábrica.
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    if pedido.modificado:
-        pedido.marcar_como_visto()
-        db.session.commit()
-        
-        # Emitir evento
-        socketio.emit('pedido_visto', {
-            'pedido_id': pedido.id
-        }, namespace='/')
+    # Marcar como visto
+    pedido.modificado = False
+    pedido.visto_por_fabrica = True
+    pedido.fecha_actualizacion = datetime.utcnow()
     
-    return jsonify({'success': True, 'pedido_id': pedido.id})
+    db.session.commit()
+    
+    # Emitir evento WebSocket para notificar a ventas
+    socketio.emit('pedido_visto_por_fabrica', {
+        'pedido_id': pedido.id,
+        'pedido': pedido.to_dict()
+    }, namespace='/')
+    
+    return jsonify({
+        'success': True,
+        'message': 'Pedido marcado como visto'
+    })
 
 
 @fabrica_bp.route('/api/pedidos')

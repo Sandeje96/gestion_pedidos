@@ -518,3 +518,54 @@ function crearToastContainer() {
     document.body.appendChild(container);
     return container;
 }
+
+// Evento: Pedido modificado por ventas
+socket.on('pedido_modificado', function(data) {
+    console.log('📝 Pedido modificado por ventas:', data);
+    
+    const pedido = data.pedido;
+    const pedidoRow = document.querySelector(`[data-pedido-id="${pedido.id}"]`);
+    
+    if (pedidoRow) {
+        // Agregar fondo rojo y badge
+        pedidoRow.classList.add('table-danger', 'animate-highlight');
+        
+        // Buscar celda del producto (segunda columna)
+        const productoCelda = pedidoRow.querySelector('td:nth-child(2)');
+        if (productoCelda) {
+            // Verificar si ya existe el badge
+            let badgeModificado = productoCelda.querySelector('.badge.bg-danger');
+            if (!badgeModificado) {
+                badgeModificado = document.createElement('span');
+                badgeModificado.className = 'badge bg-danger';
+                badgeModificado.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ¡MODIFICADO!';
+                
+                const strong = productoCelda.querySelector('strong');
+                if (strong) {
+                    strong.insertAdjacentElement('afterend', document.createElement('br'));
+                    strong.insertAdjacentElement('afterend', badgeModificado);
+                }
+            }
+        }
+        
+        // Agregar botón de marcar visto si no existe
+        const accionesCelda = pedidoRow.querySelector('td:nth-child(7)');
+        if (accionesCelda) {
+            let botonVisto = accionesCelda.querySelector('.btn-success[onclick*="marcarComoVisto"]');
+            if (!botonVisto) {
+                botonVisto = document.createElement('button');
+                botonVisto.className = 'btn btn-sm btn-success';
+                botonVisto.setAttribute('onclick', `marcarComoVisto(${pedido.id})`);
+                botonVisto.setAttribute('title', 'Marcar como visto');
+                botonVisto.innerHTML = '<i class="fas fa-check"></i>';
+                accionesCelda.appendChild(botonVisto);
+            }
+        }
+        
+        // Actualizar estadísticas
+        actualizarEstadisticas();
+        actualizarBadgesClientes();
+        
+        mostrarToast(`Pedido #${pedido.id} modificado`, 'warning');
+    }
+});

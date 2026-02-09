@@ -156,7 +156,7 @@
                                                         data-bs-target="#collapseCliente{{ cliente.id }}">
                                                     <strong><i class="fas fa-user"></i> {{ cliente.nombre }}</strong>
                                                     <span class="badge bg-secondary ms-2">
-                                                        {{ cliente.pedidos.count() }} pedido(s)
+                                                        {{ cliente.pedidos.filter_by(archivado=False).count() }} pedido(s)
                                                     </span>
                                                     
                                                     {# Badge de pendientes #}

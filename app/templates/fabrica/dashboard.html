@@ -126,7 +126,7 @@
                                         <!-- Badge de pendientes en esta ruta -->
                                         {% set pendientes_ruta = namespace(count=0) %}
                                         {% for cliente in clientes %}
-                                            {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                            {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
                                         {% endfor %}
                                         {% if pendientes_ruta.count > 0 %}
                                             <span class="badge bg-warning ms-2">
@@ -186,7 +186,7 @@
                                                         {% endif %}
                                                         
                                                         <!-- Badge de pendientes -->
-                                                        {% set pendientes_count = cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                                        {% set pendientes_count = cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
                                                         {% if pendientes_count > 0 %}
                                                             <span class="badge bg-warning ms-2">
                                                                 {{ pendientes_count }} pendiente(s)
@@ -238,7 +238,7 @@
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {% for pedido in cliente.pedidos.order_by(Pedido.fecha_creacion.desc()) %}
+                                                                {% for pedido in cliente.pedidos.filter_by(archivado=False).order_by(Pedido.fecha_creacion.desc()) %}
                                                                 <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado and not pedido.visto_por_fabrica %}table-danger animate-highlight{% endif %}" 
                                                                     id="pedido-{{ pedido.id }}"
                                                                     data-pedido-id="{{ pedido.id }}"

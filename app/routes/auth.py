@@ -219,7 +219,7 @@ def seed_users_railway():
     Yonathan = Usuario(
         nombre="Yonathan",
         username="Yonathan",
-        email="fabrica@empresa.com",
+        email="fabricaa@empresa.com",
         rol="operario",
         activo=True
     )
@@ -228,7 +228,7 @@ def seed_users_railway():
     Miguel = Usuario(
         nombre="Miguel",
         username="Miguel",
-        email="fabrica@empresa.com",
+        email="fabricae@empresa.com",
         rol="operario",
         activo=True
     )

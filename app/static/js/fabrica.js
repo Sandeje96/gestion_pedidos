@@ -187,45 +187,43 @@ function asignarOperarioRapido(pedidoId, operarioId) {
  * Marca un pedido modificado como visto
  */
 function marcarComoVisto(pedidoId) {
-    console.log(`Marcando pedido ${pedidoId} como visto`);
-    
     fetch(`/fabrica/pedido/${pedidoId}/marcar-visto`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const pedidoRow = document.querySelector(`[data-pedido-id="${pedidoId}"]`);
-            
             if (pedidoRow) {
-                // Remover la clase de resaltado rojo
+                // Remover fondo rojo y animación
                 pedidoRow.classList.remove('table-danger', 'animate-highlight');
                 
-                // Remover el badge de "¡MODIFICADO!"
-                const productoCelda = pedidoRow.querySelector('td:nth-child(2)');
-                if (productoCelda) {
-                    const badge = productoCelda.querySelector('.badge.bg-danger');
-                    if (badge) {
-                        badge.remove();
-                    }
+                // Remover badge "¡MODIFICADO!"
+                const badge = pedidoRow.querySelector('.badge.bg-danger');
+                if (badge && badge.textContent.includes('¡MODIFICADO!')) {
+                    badge.remove();
                 }
                 
-                // Remover el botón de "marcar como visto"
-                const botonVisto = pedidoRow.querySelector('button[onclick*="marcarComoVisto"]');
+                // Remover botón de marcar visto
+                const botonVisto = pedidoRow.querySelector('.btn-success[onclick*="marcarComoVisto"]');
                 if (botonVisto) {
                     botonVisto.remove();
                 }
+                
+                // Actualizar estadísticas y badges
+                actualizarEstadisticas();
+                actualizarBadgesClientes();
             }
             
             mostrarToast('Pedido marcado como visto', 'success');
-            
-            // Actualizar estadísticas (para el contador de modificados)
-            actualizarEstadisticas();
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        mostrarToast('Error al marcar como visto', 'danger');
+        console.error('Error al marcar como visto:', error);
+        mostrarToast('Error al actualizar', 'danger');
     });
 }
 

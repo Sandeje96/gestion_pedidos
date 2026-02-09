@@ -324,6 +324,120 @@ function mostrarToast(mensaje, tipo = 'info') {
     }, 3000);
 }
 
+// Evento: Pedido marcado como visto por fábrica
+socket.on('pedido_visto_por_fabrica', function(data) {
+    console.log('👁️ Pedido visto por fábrica:', data);
+    
+    const pedidoRow = document.getElementById(`pedido-${data.pedido_id}`);
+    
+    if (pedidoRow) {
+        // Remover la clase table-warning (fondo amarillo de modificado)
+        pedidoRow.classList.remove('table-warning');
+        
+        // Remover el badge "Modificado" si existe
+        const badgeModificado = pedidoRow.querySelector('.badge.bg-warning');
+        if (badgeModificado && badgeModificado.textContent.includes('Modificado')) {
+            badgeModificado.remove();
+        }
+        
+        // Actualizar badges de clientes
+        actualizarBadgesClientesVendedor();
+        actualizarBadgesModificadosSinVer();
+        
+        mostrarToast('La fábrica vio tu modificación', 'success');
+    }
+});
+
+/**
+ * Actualizar badges de pedidos modificados sin ver
+ */
+function actualizarBadgesModificadosSinVer() {
+    // Actualizar badges de clientes
+    document.querySelectorAll('[id^="cliente-"]').forEach(clienteDiv => {
+        const clienteId = clienteDiv.id.replace('cliente-', '');
+        const botonCliente = document.querySelector(`[data-bs-target="#collapseCliente${clienteId}"]`);
+        
+        if (!botonCliente) return;
+        
+        // Contar pedidos modificados sin ver
+        const pedidosRows = clienteDiv.querySelectorAll('.pedido-row');
+        let modificadosSinVer = 0;
+        
+        pedidosRows.forEach(row => {
+            if (row.classList.contains('table-warning')) {
+                modificadosSinVer++;
+            }
+        });
+        
+        // Actualizar/remover badge de modificados
+        let badgeModificados = botonCliente.querySelector('.badge.bg-danger.animate-pulse');
+        
+        if (modificadosSinVer > 0) {
+            if (!badgeModificados) {
+                // Crear badge si no existe
+                const nuevosBadge = document.createElement('span');
+                nuevosBadge.className = 'badge bg-danger ms-2 animate-pulse';
+                nuevosBadge.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${modificadosSinVer} sin ver`;
+                
+                // Insertarlo después del badge de total pedidos
+                const badgeTotal = botonCliente.querySelector('.badge.bg-secondary');
+                if (badgeTotal) {
+                    badgeTotal.insertAdjacentElement('afterend', nuevosBadge);
+                } else {
+                    botonCliente.appendChild(nuevosBadge);
+                }
+            } else {
+                // Actualizar el número
+                badgeModificados.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${modificadosSinVer} sin ver`;
+            }
+        } else {
+            // Remover badge si ya no hay modificados
+            if (badgeModificados) {
+                badgeModificados.remove();
+            }
+        }
+    });
+    
+    // Actualizar badges de rutas
+    document.querySelectorAll('[id^="ruta-"]').forEach(rutaDiv => {
+        const rutaIndex = rutaDiv.id.replace('ruta-', '');
+        const botonRuta = document.querySelector(`[data-bs-target="#collapseRuta${rutaIndex}"]`);
+        
+        if (!botonRuta) return;
+        
+        // Contar modificados en toda la ruta
+        let modificadosRuta = 0;
+        const clientesDivs = rutaDiv.querySelectorAll('[id^="cliente-"]');
+        
+        clientesDivs.forEach(clienteDiv => {
+            const pedidosRows = clienteDiv.querySelectorAll('.pedido-row');
+            pedidosRows.forEach(row => {
+                if (row.classList.contains('table-warning')) {
+                    modificadosRuta++;
+                }
+            });
+        });
+        
+        // Actualizar/remover badge de ruta
+        let badgeModificadosRuta = botonRuta.querySelector('.badge.bg-danger.animate-pulse');
+        
+        if (modificadosRuta > 0) {
+            if (!badgeModificadosRuta) {
+                const nuevosBadge = document.createElement('span');
+                nuevosBadge.className = 'badge bg-danger ms-2 animate-pulse';
+                nuevosBadge.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${modificadosRuta} sin ver`;
+                botonRuta.appendChild(nuevosBadge);
+            } else {
+                badgeModificadosRuta.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${modificadosRuta} sin ver`;
+            }
+        } else {
+            if (badgeModificadosRuta) {
+                badgeModificadosRuta.remove();
+            }
+        }
+    });
+}
+
 // Agregar estilos de animación
 const style = document.createElement('style');
 style.textContent = `

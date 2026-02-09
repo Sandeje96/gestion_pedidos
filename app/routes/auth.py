@@ -205,21 +205,4 @@ def setup_database_production():
         </body>
         </html>
         """
-@auth_bp.route('/agregar-columna-esperando-x8k3p2', methods=['GET'])
-def agregar_columna_esperando():
-    """
-    Endpoint temporal para agregar columna esperando_contestacion
-    ⚠️ ELIMINAR DESPUÉS DE USAR
-    """
-    from sqlalchemy import text
-    from app import db
-    
-    try:
-        db.session.execute(text(
-            "ALTER TABLE pedidos ADD COLUMN esperando_contestacion BOOLEAN DEFAULT FALSE NOT NULL"
-        ))
-        db.session.commit()
-        return "<h1>✅ Columna agregada exitosamente</h1><p><strong>AHORA ELIMINA ESTE ENDPOINT</strong></p>"
-    except Exception as e:
-        return f"<h1>❌ Error:</h1><pre>{str(e)}</pre>"
 

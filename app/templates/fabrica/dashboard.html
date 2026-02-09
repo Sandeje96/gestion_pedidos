@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="fas fa-industry"></i> Panel de Fábrica</h2>
+        <p class="text-muted">Visualiza y gestiona pedidos por ruta en tiempo real</p>
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-outline-primary" onclick="location.reload()">
+            <i class="fas fa-sync-alt"></i> Actualizar
+        </button>
+    </div>
+</div>
+
+<!-- Tarjetas de estadísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-clock"></i> Pendientes</h5>
+                <h2 class="mb-0" id="stat-pendientes">{{ total_pendientes }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-check-circle"></i> Completados</h5>
+                <h2 class="mb-0" id="stat-completados">{{ total_completados }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-times-circle"></i> Cancelados</h5>
+                <h2 class="mb-0" id="stat-cancelados">{{ total_cancelados }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-exclamation-circle"></i> Modificados</h5>
+                <h2 class="mb-0" id="stat-modificados">{{ pedidos_modificados }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form class="row g-3" id="filtros-form">
+            <div class="col-md-4">
+                <label class="form-label">Filtrar por Estado</label>
+                <select class="form-select" id="filtro-estado">
+                    <option value="">Todos los estados</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="completado">Completado</option>
+                    <option value="cancelado">Cancelado</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Filtrar por Ruta</label>
+                <select class="form-select" id="filtro-ruta">
+                    <option value="">Todas las rutas</option>
+                    <option value="Ruta 14">Ruta 14</option>
+                    <option value="Ruta 12">Ruta 12</option>
+                    <option value="Corrientes">Corrientes</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Filtrar por Operario</label>
+                <select class="form-select" id="filtro-operario">
+                    <option value="">Todos los operarios</option>
+                    {% for operario in operarios %}
+                        <option value="{{ operario.id }}">{{ operario.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Pedidos agrupados por rutas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-route"></i> Pedidos por Ruta</h5>
+                <span class="badge bg-light text-dark" id="total-pedidos-badge">
+                    Total: {{ clientes_por_ruta|length }} ruta(s)
+                </span>
+            </div>
+            <div class="card-body">
+                {% if clientes_por_ruta %}
+                    <!-- Acordeón de RUTAS (nivel superior) -->
+                    <div class="accordion" id="rutasAccordion">
+                        {% for ruta, clientes in clientes_por_ruta.items() %}
+                        <div class="accordion-item ruta-item" data-ruta="{{ ruta }}">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-light" 
+                                        type="button" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#collapseRuta{{ loop.index }}">
+                                    <div class="d-flex align-items-center w-100">
+                                        <strong><i class="fas fa-map-marked-alt"></i> {{ ruta }}</strong>
+                                        
+                                        <!-- Badge con cantidad de clientes -->
+                                        <span class="badge bg-primary ms-2">
+                                            {{ clientes|length }} cliente(s)
+                                        </span>
+                                        
+                                        <!-- Badge de pedidos modificados en esta ruta -->
+                                        {% if notificaciones_por_ruta.get(ruta, 0) > 0 %}
+                                            <span class="badge bg-danger ms-2 animate-pulse">
+                                                <i class="fas fa-bell"></i> {{ notificaciones_por_ruta[ruta] }} modificado(s)
+                                            </span>
+                                        {% endif %}
+                                        
+                                        <!-- Badge de pendientes en esta ruta -->
+                                        {% set pendientes_ruta = namespace(count=0) %}
+                                        {% for cliente in clientes %}
+                                            {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                        {% endfor %}
+                                        {% if pendientes_ruta.count > 0 %}
+                                            <span class="badge bg-warning ms-2">
+                                                {{ pendientes_ruta.count }} pendiente(s)
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="collapseRuta{{ loop.index }}" 
+                                 class="accordion-collapse collapse" 
+                                 data-bs-parent="#rutasAccordion">
+                                <div class="accordion-body">
+                                    
+                                    <!-- Acordeón de CLIENTES (nivel interno) -->
+                                    <div class="accordion" id="clientesAccordion{{ loop.index }}">
+                                        {% for cliente in clientes %}
+                                        <div class="accordion-item cliente-item" data-cliente-id="{{ cliente.id }}">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed" 
+                                                        type="button" 
+                                                        data-bs-toggle="collapse" 
+                                                        data-bs-target="#collapseCliente{{ cliente.id }}">
+                                                    <div class="d-flex align-items-center w-100">
+                                                        <strong><i class="fas fa-user-circle"></i> {{ cliente.nombre }}</strong>
+                                                        
+                                                        <!-- Badge con cantidad de pedidos -->
+                                                        <span class="badge bg-primary ms-2">
+                                                            {{ cliente.pedidos.count() }} pedido(s)
+                                                        </span>
+                                                        
+                                                        <!-- Badge de modificados -->
+                                                        {% set modificados_count = cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False).count() %}
+                                                        {% if modificados_count > 0 %}
+                                                            <span class="badge bg-danger ms-2 animate-pulse">
+                                                                <i class="fas fa-bell"></i> {{ modificados_count }} modificado(s)
+                                                            </span>
+                                                        {% endif %}
+                                                        
+                                                        <!-- Badge de pendientes -->
+                                                        {% set pendientes_count = cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                                        {% if pendientes_count > 0 %}
+                                                            <span class="badge bg-warning ms-2">
+                                                                {{ pendientes_count }} pendiente(s)
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                </button>
+                                            </h2>
+                                            <div id="collapseCliente{{ cliente.id }}" 
+                                                 class="accordion-collapse collapse" 
+                                                 data-bs-parent="#clientesAccordion{{ loop.index }}">
+                                                <div class="accordion-body">
+                                                    <!-- Info del cliente -->
+                                                    <div class="mb-3 p-3 bg-light rounded">
+                                                        <div class="row">
+                                                            <div class="col-md-4">
+                                                                <p class="mb-1">
+                                                                    <strong><i class="fas fa-phone"></i> Teléfono:</strong> 
+                                                                    {{ cliente.telefono or 'No especificado' }}
+                                                                </p>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <p class="mb-1">
+                                                                    <strong><i class="fas fa-map-marker-alt"></i> Dirección:</strong> 
+                                                                    {{ cliente.direccion or 'No especificada' }}
+                                                                </p>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <p class="mb-1">
+                                                                    <strong><i class="fas fa-route"></i> Ruta:</strong> 
+                                                                    <span class="badge bg-info">{{ cliente.ruta }}</span>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Tabla de pedidos -->
+                                                    <div class="table-responsive">
+                                                        <table class="table table-hover table-sm">
+                                                            <thead class="table-dark">
+                                                                <tr>
+                                                                    <th>ID</th>
+                                                                    <th>Producto</th>
+                                                                    <th>Cantidad</th>
+                                                                    <th>Estado</th>
+                                                                    <th>Operario</th>
+                                                                    <th>Observaciones</th>
+                                                                    <th>Acciones</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for pedido in cliente.pedidos.order_by(Pedido.fecha_creacion.desc()) %}
+                                                                <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado and not pedido.visto_por_fabrica %}table-danger animate-highlight{% endif %}" 
+                                                                    id="pedido-{{ pedido.id }}"
+                                                                    data-pedido-id="{{ pedido.id }}"
+                                                                    data-estado="{{ pedido.estado }}"
+                                                                    data-ruta="{{ cliente.ruta }}"
+                                                                    data-operario-id="{{ pedido.operario_id or '' }}">
+                                                                    
+                                                                    <td><strong>#{{ pedido.id }}</strong></td>
+                                                                    
+                                                                    <td>
+                                                                        <strong>{{ pedido.producto_nombre }}</strong>
+                                                                        {% if pedido.modificado and not pedido.visto_por_fabrica %}
+                                                                            <span class="badge bg-danger">
+                                                                                <i class="fas fa-exclamation-triangle"></i> ¡MODIFICADO!
+                                                                            </span>
+                                                                        {% endif %}
+                                                                        {% if pedido.notas_vendedor %}
+                                                                            <br>
+                                                                            <small class="text-muted">
+                                                                                <i class="fas fa-sticky-note"></i>
+                                                                                {{ pedido.notas_vendedor }}
+                                                                            </small>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    
+                                                                    <td>
+                                                                        <strong>{{ pedido.cantidad }}</strong> {{ pedido.unidad or '' }}
+                                                                    </td>
+                                                                    
+                                                                    <td>
+                                                                        <select class="form-select form-select-sm estado-select" 
+                                                                                data-pedido-id="{{ pedido.id }}"
+                                                                                onchange="actualizarEstadoRapido({{ pedido.id }}, this.value)">
+                                                                            <option value="pendiente" {% if pedido.estado == 'pendiente' %}selected{% endif %}>
+                                                                                Pendiente
+                                                                            </option>
+                                                                            <option value="completado" {% if pedido.estado == 'completado' %}selected{% endif %}>
+                                                                                Completado
+                                                                            </option>
+                                                                            <option value="cancelado" {% if pedido.estado == 'cancelado' %}selected{% endif %}>
+                                                                                Cancelado
+                                                                            </option>
+                                                                        </select>
+                                                                    </td>
+                                                                    
+                                                                    <td>
+                                                                        <select class="form-select form-select-sm operario-select"
+                                                                                data-pedido-id="{{ pedido.id }}"
+                                                                                onchange="asignarOperarioRapido({{ pedido.id }}, this.value)">
+                                                                            <option value="">Sin asignar</option>
+                                                                            {% for operario in operarios %}
+                                                                                <option value="{{ operario.id }}" 
+                                                                                        {% if pedido.operario_id == operario.id %}selected{% endif %}>
+                                                                                    {{ operario.nombre }}
+                                                                                </option>
+                                                                            {% endfor %}
+                                                                        </select>
+                                                                    </td>
+                                                                    
+                                                                    <td>
+                                                                        {% if pedido.observaciones_fabrica %}
+                                                                            <small>{{ pedido.observaciones_fabrica[:30] }}...</small>
+                                                                        {% else %}
+                                                                            <small class="text-muted">Sin observaciones</small>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    
+                                                                    <td>
+                                                                        <a href="{{ url_for('fabrica.actualizar_pedido', pedido_id=pedido.id) }}" 
+                                                                           class="btn btn-sm btn-primary"
+                                                                           title="Actualizar pedido">
+                                                                            <i class="fas fa-edit"></i>
+                                                                        </a>
+                                                                        
+                                                                        {% if pedido.modificado and not pedido.visto_por_fabrica %}
+                                                                            <button class="btn btn-sm btn-success"
+                                                                                    onclick="marcarComoVisto({{ pedido.id }})"
+                                                                                    title="Marcar como visto">
+                                                                                <i class="fas fa-check"></i>
+                                                                            </button>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <!-- Fin acordeón de clientes -->
+                                    
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <!-- Fin acordeón de rutas -->
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        No hay pedidos registrados en el sistema.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sonido de notificación (opcional) -->
+<audio id="notification-sound" preload="auto">
+    <source src="{{ url_for('static', filename='sounds/notification.mp3') }}" type="audio/mpeg">
+</audio>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/fabrica.js') }}"></script>
+{% endblock %}

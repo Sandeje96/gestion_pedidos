@@ -1,0 +1,37 @@
+# Entorno virtual
+venv/
+env/
+ENV/
+
+# Variables de entorno (NUNCA subir esto!)
+.env
+.env.local
+
+# Base de datos local
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Flask
+instance/
+.webassets-cache
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

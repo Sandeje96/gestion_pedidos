@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-plus-circle"></i> Nuevo Pedido
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <!-- Cliente -->
+                    <div class="mb-3">
+                        {{ form.cliente_id.label(class="form-label") }}
+                        {{ form.cliente_id(class="form-select" + (" is-invalid" if form.cliente_id.errors else "")) }}
+                        {% if form.cliente_id.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.cliente_id.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Si el cliente no aparece, 
+                            <a href="{{ url_for('ventas.nuevo_cliente') }}" target="_blank">créalo aquí</a>
+                        </small>
+                    </div>
+                    
+                    <!-- Producto -->
+                    <div class="mb-3">
+                        {{ form.producto_nombre.label(class="form-label") }}
+                        {{ form.producto_nombre(class="form-control" + (" is-invalid" if form.producto_nombre.errors else "")) }}
+                        {% if form.producto_nombre.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.producto_nombre.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Lista de sugerencias (datalist HTML5) -->
+                        <datalist id="productos-list">
+                            <option value="Pan integral">
+                            <option value="Pan de campo">
+                            <option value="Facturas">
+                            <option value="Medialunas">
+                            <option value="Bizcochos">
+                        </datalist>
+                    </div>
+                    
+                    <!-- Cantidad y Unidad en la misma fila -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.cantidad.label(class="form-label") }}
+                                {{ form.cantidad(class="form-control" + (" is-invalid" if form.cantidad.errors else "")) }}
+                                {% if form.cantidad.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.cantidad.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                {{ form.unidad.label(class="form-label") }}
+                                {{ form.unidad(class="form-control" + (" is-invalid" if form.unidad.errors else "")) }}
+                                {% if form.unidad.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.unidad.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                                
+                                <!-- Sugerencias de unidades -->
+                                <datalist id="unidades-list">
+                                    <option value="kg">
+                                    <option value="unidades">
+                                    <option value="docenas">
+                                    <option value="litros">
+                                    <option value="metros">
+                                </datalist>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notas del Vendedor -->
+                    <div class="mb-3">
+                        {{ form.notas_vendedor.label(class="form-label") }}
+                        {{ form.notas_vendedor(class="form-control" + (" is-invalid" if form.notas_vendedor.errors else "")) }}
+                        {% if form.notas_vendedor.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.notas_vendedor.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="fas fa-lightbulb"></i>
+                            Ej: "Entregar antes de las 10am", "Empacar por separado"
+                        </small>
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-success") }}
+                        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Ayuda rápida -->
+        <div class="card mt-3">
+            <div class="card-body bg-light">
+                <h6><i class="fas fa-question-circle"></i> Consejos</h6>
+                <ul class="mb-0 small">
+                    <li>El pedido se enviará automáticamente a la fábrica</li>
+                    <li>La fábrica podrá ver y actualizar el estado en tiempo real</li>
+                    <li>Recibirás notificaciones cuando haya observaciones de fábrica</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

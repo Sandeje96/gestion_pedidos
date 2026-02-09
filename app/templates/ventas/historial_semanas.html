@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="fas fa-history"></i> Historial de Semanas Cerradas</h2>
+        <p class="text-muted">Consulta los pedidos de semanas anteriores</p>
+    </div>
+    <div class="col-auto">
+        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Dashboard
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Semanas Archivadas</h5>
+            </div>
+            <div class="card-body">
+                {% if semanas %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><i class="fas fa-calendar-week"></i> Semana</th>
+                                    <th><i class="fas fa-box"></i> Total Pedidos</th>
+                                    <th><i class="fas fa-clock"></i> Fecha de Cierre</th>
+                                    <th><i class="fas fa-cog"></i> Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for semana in semanas %}
+                                <tr {% if (now - semana.fecha).days > 30 %}class="table-warning"{% endif %}>
+                                    <td>
+                                        <strong>{{ semana.semana_archivado }}</strong>
+                                        {% if (now - semana.fecha).days > 30 %}
+                                            <span class="badge bg-danger ms-2">
+                                                <i class="fas fa-clock"></i> Antigua ({{ (now - semana.fecha).days }} días)
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">
+                                            {{ semana.total_pedidos }} pedido(s)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ semana.fecha.strftime('%d/%m/%Y %H:%M') if semana.fecha else 'N/A' }}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('ventas.ver_semana', semana=semana.semana_archivado) }}" 
+                                        class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i> Ver Pedidos
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        No hay semanas archivadas todavía.
+                    </div>
+                {% endif %}
+                {% if semanas %}
+                <div class="mt-4 d-flex justify-content-end">
+                    <button class="btn btn-danger" 
+                            onclick="confirmarLimpieza()">
+                        <i class="fas fa-trash-alt"></i> Limpiar Pedidos Antiguos (>30 días)
+                    </button>
+                    
+                    <form id="limpiar-form" 
+                          method="POST" 
+                          action="{{ url_for('ventas.limpiar_pedidos_antiguos') }}" 
+                          style="display: none;">
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Nota:</strong> Los pedidos archivados se conservan durante 1 mes. Después de ese período, se eliminan automáticamente de la base de datos.
+        </div>
+    </div>
+</div>
+
+<!-- Script para confirmar limpieza -->
+<script>
+function confirmarLimpieza() {
+    const mensaje = '¿Estás seguro de eliminar PERMANENTEMENTE todos los pedidos archivados hace más de 30 días?\n\n' +
+                   'Esta acción NO se puede deshacer.\n\n' +
+                   'Los pedidos eliminados ya no estarán disponibles en el historial.';
+    
+    if (confirm(mensaje)) {
+        document.getElementById('limpiar-form').submit();
+    }
+}
+</script>
+{% endblock %}

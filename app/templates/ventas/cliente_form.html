@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-user-plus"></i> {{ accion }} Cliente
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <!-- Nombre -->
+                    <div class="mb-3">
+                        {{ form.nombre.label(class="form-label") }}
+                        {{ form.nombre(class="form-control" + (" is-invalid" if form.nombre.errors else "")) }}
+                        {% if form.nombre.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.nombre.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Teléfono -->
+                    <div class="mb-3">
+                        {{ form.telefono.label(class="form-label") }}
+                        {{ form.telefono(class="form-control" + (" is-invalid" if form.telefono.errors else "")) }}
+                        {% if form.telefono.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.telefono.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Dirección -->
+                    <div class="mb-3">
+                        {{ form.direccion.label(class="form-label") }}
+                        {{ form.direccion(class="form-control" + (" is-invalid" if form.direccion.errors else "")) }}
+                        {% if form.direccion.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.direccion.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- NUEVO CAMPO: Ruta -->
+                    <div class="mb-3">
+                        {{ form.ruta.label(class="form-label") }}
+                        {{ form.ruta(class="form-select" + (" is-invalid" if form.ruta.errors else "")) }}
+                        {% if form.ruta.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.ruta.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="fas fa-route"></i>
+                            Selecciona la ruta a la que pertenece este cliente
+                        </small>
+                    </div>
+                    
+                    <!-- Notas -->
+                    <div class="mb-3">
+                        {{ form.notas.label(class="form-label") }}
+                        {{ form.notas(class="form-control" + (" is-invalid" if form.notas.errors else "")) }}
+                        {% if form.notas.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.notas.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

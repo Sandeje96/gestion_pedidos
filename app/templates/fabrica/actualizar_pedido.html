@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-industry"></i> Actualizar Pedido #{{ pedido.id }}
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Información del pedido -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="fas fa-user"></i> Cliente</h6>
+                                <p class="mb-1"><strong>{{ pedido.cliente.nombre }}</strong></p>
+                                <p class="mb-0 small text-muted">{{ pedido.cliente.telefono }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="fas fa-box"></i> Producto</h6>
+                                <p class="mb-1"><strong>{{ pedido.producto_nombre }}</strong></p>
+                                <p class="mb-0">Cantidad: <strong>{{ pedido.cantidad }} {{ pedido.unidad }}</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notas del vendedor -->
+                {% if pedido.notas_vendedor %}
+                <div class="alert alert-info">
+                    <strong><i class="fas fa-sticky-note"></i> Notas del Vendedor:</strong>
+                    <p class="mb-0 mt-2">{{ pedido.notas_vendedor }}</p>
+                </div>
+                {% endif %}
+                
+                <!-- Formulario -->
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    
+                    <!-- Estado -->
+                    <div class="mb-3">
+                        {{ form.estado.label(class="form-label") }}
+                        {{ form.estado(class="form-select" + (" is-invalid" if form.estado.errors else "")) }}
+                        {% if form.estado.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.estado.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Operario Responsable -->
+                    <div class="mb-3">
+                        {{ form.operario_id.label(class="form-label") }}
+                        {{ form.operario_id(class="form-select" + (" is-invalid" if form.operario_id.errors else "")) }}
+                        {% if form.operario_id.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.operario_id.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Observaciones -->
+                    <div class="mb-3">
+                        {{ form.observaciones_fabrica.label(class="form-label") }}
+                        {{ form.observaciones_fabrica(class="form-control" + (" is-invalid" if form.observaciones_fabrica.errors else "")) }}
+                        {% if form.observaciones_fabrica.errors %}
+                            <div class="invalid-feedback">
+                                {% for error in form.observaciones_fabrica.errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="text-muted">
+                            <i class="fas fa-lightbulb"></i>
+                            Ejemplos: "Falta materia prima", "Se preparará mañana", "Completado parcialmente"
+                        </small>
+                    </div>
+                    
+                    <!-- Información adicional -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="small text-muted">
+                                <strong>Creado:</strong> 
+                                {{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            {% if pedido.fecha_completado %}
+                            <p class="small text-muted">
+                                <strong>Completado:</strong> 
+                                {{ pedido.fecha_completado.strftime('%d/%m/%Y %H:%M') }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Botones -->
+                    <div class="d-flex gap-2">
+                        {{ form.submit(class="btn btn-primary") }}
+                        <a href="{{ url_for('fabrica.dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

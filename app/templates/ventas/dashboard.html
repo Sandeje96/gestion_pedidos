@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="fas fa-chart-line"></i> Panel de Ventas</h2>
+        <p class="text-muted">Gestiona tus clientes y pedidos por ruta en tiempo real</p>
+    </div>
+</div>
+
+<!-- Tarjetas de estadísticas -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-users"></i> Clientes</h5>
+                <h2 class="mb-0">{{ total_clientes }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-box"></i> Total Pedidos</h5>
+                <h2 class="mb-0">{{ total_pedidos }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-clock"></i> Pendientes</h5>
+                <h2 class="mb-0">{{ pedidos_pendientes }}</h2>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-check-circle"></i> Completados</h5>
+                <h2 class="mb-0">{{ pedidos_completados }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Botones de acción rápida -->
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <a href="{{ url_for('ventas.nuevo_cliente') }}" class="btn btn-primary">
+                <i class="fas fa-user-plus"></i> Nuevo Cliente
+            </a>
+            <a href="{{ url_for('ventas.nuevo_pedido') }}" class="btn btn-success">
+                <i class="fas fa-plus-circle"></i> Nuevo Pedido
+            </a>
+        </div>
+        
+        <div>
+            <a href="{{ url_for('ventas.historial_semanas') }}" class="btn btn-outline-info">
+                <i class="fas fa-history"></i> Ver Historial
+            </a>
+            
+            <button class="btn btn-warning" 
+                    onclick="if(confirm('¿Cerrar la semana actual? Esto archivará todos los pedidos actuales y podrás empezar de cero.')) { document.getElementById('cerrar-semana-form').submit(); }">
+                <i class="fas fa-archive"></i> Cerrar Semana
+            </button>
+            
+            <form id="cerrar-semana-form" 
+                  method="POST" 
+                  action="{{ url_for('ventas.cerrar_semana') }}" 
+                  style="display: none;">
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Clientes agrupados por rutas -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-route"></i> Clientes por Ruta</h5>
+            </div>
+            <div class="card-body">
+                {% if clientes_por_ruta %}
+                    <!-- Acordeón de RUTAS (nivel superior) -->
+                    <div class="accordion" id="rutasAccordion">
+                        {% for ruta, clientes in clientes_por_ruta.items() %}
+                        <div class="accordion-item" id="ruta-{{ loop.index }}">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-light" 
+                                        type="button" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#collapseRuta{{ loop.index }}">
+                                    <strong><i class="fas fa-map-marked-alt"></i> {{ ruta }}</strong>
+                                    <span class="badge bg-primary ms-2">
+                                        {{ clientes|length }} cliente(s)
+                                    </span>
+                                    
+                                    {# Badge de pendientes en esta ruta #}
+                                    {% set pendientes_ruta = namespace(count=0) %}
+                                    {% for cliente in clientes %}
+                                        {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                    {% endfor %}
+                                    {% if pendientes_ruta.count > 0 %}
+                                        <span class="badge bg-info ms-2">
+                                            <i class="fas fa-clock"></i> {{ pendientes_ruta.count }} pendiente(s)
+                                        </span>
+                                    {% endif %}
+                                    
+                                    {# Badge de modificados sin ver en esta ruta #}
+                                    {% set modificados_ruta = namespace(count=0) %}
+                                    {% for cliente in clientes %}
+                                        {% set modificados_ruta.count = modificados_ruta.count + cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False).count() %}
+                                    {% endfor %}
+                                    {% if modificados_ruta.count > 0 %}
+                                        <span class="badge bg-danger ms-2 animate-pulse">
+                                            <i class="fas fa-exclamation-circle"></i> {{ modificados_ruta.count }} sin ver
+                                        </span>
+                                    {% endif %}
+                                    
+                                    {# Verificar si hay respuestas nuevas de fábrica en esta ruta #}
+                                    {% set tiene_nuevos_ruta = namespace(value=False) %}
+                                    {% for cliente in clientes %}
+                                        {% for pedido in cliente.pedidos %}
+                                            {% if pedido.observaciones_fabrica and not pedido.visto_por_vendedor %}
+                                                {% set tiene_nuevos_ruta.value = True %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    
+                                    {% if tiene_nuevos_ruta.value %}
+                                        <span class="badge bg-warning ms-2">
+                                            <i class="fas fa-bell"></i> Respuestas nuevas
+                                        </span>
+                                    {% endif %}
+                                </button>
+                            </h2>
+                            <div id="collapseRuta{{ loop.index }}" 
+                                 class="accordion-collapse collapse" 
+                                 data-bs-parent="#rutasAccordion">
+                                <div class="accordion-body">
+                                    
+                                    <!-- Acordeón de CLIENTES (nivel interno) -->
+                                    <div class="accordion" id="clientesAccordion{{ loop.index }}">
+                                        {% for cliente in clientes %}
+                                        <div class="accordion-item" id="cliente-{{ cliente.id }}">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed"
+                                                        type="button" 
+                                                        data-bs-toggle="collapse" 
+                                                        data-bs-target="#collapseCliente{{ cliente.id }}">
+                                                    <strong><i class="fas fa-user"></i> {{ cliente.nombre }}</strong>
+                                                    <span class="badge bg-secondary ms-2">
+                                                        {{ cliente.pedidos.count() }} pedido(s)
+                                                    </span>
+                                                    
+                                                    {# Badge de pendientes #}
+                                                    {% set pendientes_count = cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                                    {% if pendientes_count > 0 %}
+                                                        <span class="badge bg-info ms-2">
+                                                            <i class="fas fa-clock"></i> {{ pendientes_count }} pendiente(s)
+                                                        </span>
+                                                    {% endif %}
+                                                    
+                                                    {# Badge de modificados sin contestar (esperando respuesta de fábrica) #}
+                                                    {% set modificados_sin_ver = cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False).count() %}
+                                                    {% if modificados_sin_ver > 0 %}
+                                                        <span class="badge bg-danger ms-2 animate-pulse">
+                                                            <i class="fas fa-exclamation-circle"></i> {{ modificados_sin_ver }} sin ver
+                                                        </span>
+                                                    {% endif %}
+                                                    
+                                                    {# Verificar si el cliente tiene observaciones nuevas de fábrica #}
+                                                    {% set tiene_nuevos = namespace(value=False) %}
+                                                    {% for pedido in cliente.pedidos %}
+                                                        {% if pedido.observaciones_fabrica and not pedido.visto_por_vendedor %}
+                                                            {% set tiene_nuevos.value = True %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    
+                                                    {% if tiene_nuevos.value %}
+                                                        <span class="badge bg-warning ms-2">
+                                                            <i class="fas fa-bell"></i> Respuestas nuevas
+                                                        </span>
+                                                    {% endif %}
+                                                </button>
+                                            </h2>
+                                            <div id="collapseCliente{{ cliente.id }}" 
+                                                 class="accordion-collapse collapse" 
+                                                 data-bs-parent="#clientesAccordion{{ loop.index }}">
+                                                <div class="accordion-body">
+                                                    <!-- Info del cliente -->
+                                                    <div class="mb-3 p-3 bg-light rounded">
+                                                        <div class="row">
+                                                            <div class="col-md-4">
+                                                                <p class="mb-1">
+                                                                    <strong><i class="fas fa-phone"></i> Teléfono:</strong> 
+                                                                    {{ cliente.telefono or 'No especificado' }}
+                                                                </p>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <p class="mb-1">
+                                                                    <strong><i class="fas fa-map-marker-alt"></i> Dirección:</strong> 
+                                                                    {{ cliente.direccion or 'No especificada' }}
+                                                                </p>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <p class="mb-1">
+                                                                    <strong><i class="fas fa-route"></i> Ruta:</strong> 
+                                                                    <span class="badge bg-info">{{ cliente.ruta }}</span>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <a href="{{ url_for('ventas.editar_cliente', cliente_id=cliente.id) }}" 
+                                                           class="btn btn-sm btn-outline-primary">
+                                                            <i class="fas fa-edit"></i> Editar Cliente
+                                                        </a>
+                                                    </div>
+                                                    
+                                                    <!-- Pedidos del cliente -->
+                                                    <h6 class="mt-3 mb-3">
+                                                        <i class="fas fa-shopping-cart"></i> Pedidos
+                                                    </h6>
+                                                    
+                                                    {% if cliente.pedidos.count() > 0 %}
+                                                        <div class="table-responsive">
+                                                            <table class="table table-sm table-hover">
+                                                                <thead class="table-light">
+                                                                    <tr>
+                                                                        <th>Producto</th>
+                                                                        <th>Cantidad</th>
+                                                                        <th>Estado</th>
+                                                                        <th>Operario</th>
+                                                                        <th>Observaciones</th>
+                                                                        <th>Acciones</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {% for pedido in cliente.pedidos.order_by(Pedido.fecha_creacion.desc()) %}
+                                                                    <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado %}table-danger{% endif %}" 
+                                                                        id="pedido-{{ pedido.id }}"
+                                                                        data-estado="{{ pedido.estado }}">
+                                                                        <td>
+                                                                            <strong>{{ pedido.producto_nombre }}</strong>
+                                                                            {% if pedido.modificado %}
+                                                                                <span class="badge bg-warning">
+                                                                                    <i class="fas fa-exclamation-circle"></i> Modificado
+                                                                                </span>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td>{{ pedido.cantidad }} {{ pedido.unidad or '' }}</td>
+                                                                        <td>
+                                                                            {% if pedido.estado == 'pendiente' %}
+                                                                                <span class="badge bg-secondary">Pendiente</span>
+                                                                            {% elif pedido.estado == 'completado' %}
+                                                                                <span class="badge bg-success">Completado</span>
+                                                                            {% elif pedido.estado == 'cancelado' %}
+                                                                                <span class="badge bg-danger">Cancelado</span>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td>
+                                                                            {{ pedido.operario_responsable.nombre if pedido.operario_responsable else 'Sin asignar' }}
+                                                                        </td>
+                                                                        <td>
+                                                                            {% if pedido.observaciones_fabrica %}
+                                                                                <div class="d-flex align-items-center gap-2">
+                                                                                    <small class="text-muted flex-grow-1">
+                                                                                        <i class="fas fa-comment"></i>
+                                                                                        {{ pedido.observaciones_fabrica[:50] }}{% if pedido.observaciones_fabrica|length > 50 %}...{% endif %}
+                                                                                    </small>
+                                                                                    {% if not pedido.visto_por_vendedor %}
+                                                                                        <span class="badge bg-warning animate-pulse" title="Nueva notificación">
+                                                                                            <i class="fas fa-bell"></i> Nueva
+                                                                                        </span>
+                                                                                        <button class="btn btn-sm btn-success" 
+                                                                                                onclick="marcarComoLeido({{ pedido.id }})"
+                                                                                                title="Marcar como leído">
+                                                                                            <i class="fas fa-check"></i>
+                                                                                        </button>
+                                                                                    {% else %}
+                                                                                        <small class="text-success">
+                                                                                            <i class="fas fa-check-circle"></i> Leído
+                                                                                        </small>
+                                                                                    {% endif %}
+                                                                                </div>
+                                                                            {% else %}
+                                                                                <small class="text-muted">-</small>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                        <td>
+                                                                            <a href="{{ url_for('ventas.editar_pedido', pedido_id=pedido.id) }}" 
+                                                                               class="btn btn-sm btn-warning">
+                                                                                <i class="fas fa-edit"></i>
+                                                                            </a>
+                                                                            <form method="POST" 
+                                                                                  action="{{ url_for('ventas.eliminar_pedido', pedido_id=pedido.id) }}" 
+                                                                                  style="display: inline;"
+                                                                                  onsubmit="return confirm('¿Eliminar este pedido?');">
+                                                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                                                    <i class="fas fa-trash"></i>
+                                                                                </button>
+                                                                            </form>
+                                                                        </td>
+                                                                    </tr>
+                                                                    {% endfor %}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="alert alert-info">
+                                                            <i class="fas fa-info-circle"></i>
+                                                            Este cliente aún no tiene pedidos.
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    <!-- Fin acordeón de clientes -->
+                                    
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <!-- Fin acordeón de rutas -->
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Aún no has creado ningún Pedido. 
+                        <a href="{{ url_for('ventas.nuevo_cliente') }}">Crear el primero</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/ventas.js') }}"></script>
+{% endblock %}

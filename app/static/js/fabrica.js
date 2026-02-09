@@ -307,6 +307,7 @@ function actualizarBadgesClientes() {
         let totalPedidos = pedidosDelCliente.length;
         let pendientes = 0;
         let modificados = 0;
+        let esperando = 0;
         
         pedidosDelCliente.forEach(row => {
             const estado = row.getAttribute('data-estado');
@@ -316,7 +317,18 @@ function actualizarBadgesClientes() {
             if (row.classList.contains('table-danger')) {
                 modificados++;
             }
+            
+            // Contar esperando respuesta
+            const estadoCelda = row.querySelector('td:nth-child(4)');
+            if (estadoCelda) {
+                const badgeEsperando = estadoCelda.querySelector('.badge.bg-info');
+                if (badgeEsperando && badgeEsperando.textContent.includes('Esperando contestación')) {
+                    esperando++;
+                }
+            }
         });
+        
+        const accordionButton = clienteItem.querySelector('.accordion-button');
         
         // Actualizar badge de total
         const badgeTotal = clienteItem.querySelector('.badge.bg-primary');
@@ -325,9 +337,7 @@ function actualizarBadgesClientes() {
         }
         
         // Actualizar o crear badge de pendientes
-        let badgePendientes = clienteItem.querySelector('.badge.bg-warning');
-        const accordionButton = clienteItem.querySelector('.accordion-button');
-        
+        let badgePendientes = accordionButton.querySelector('.badge.bg-warning');
         if (pendientes > 0) {
             if (!badgePendientes) {
                 badgePendientes = document.createElement('span');
@@ -341,8 +351,7 @@ function actualizarBadgesClientes() {
         }
         
         // Actualizar o crear badge de modificados
-        let badgeModificados = clienteItem.querySelector('.badge.bg-danger.animate-pulse');
-        
+        let badgeModificados = accordionButton.querySelector('.badge.bg-danger.animate-pulse');
         if (modificados > 0) {
             if (!badgeModificados) {
                 badgeModificados = document.createElement('span');
@@ -354,6 +363,19 @@ function actualizarBadgesClientes() {
         } else if (badgeModificados) {
             badgeModificados.remove();
         }
+        
+        // Actualizar o crear badge de esperando respuesta
+        let badgeEsperando = accordionButton.querySelector('.badge.bg-info');
+        if (esperando > 0) {
+            if (!badgeEsperando) {
+                badgeEsperando = document.createElement('span');
+                badgeEsperando.className = 'badge bg-info ms-2';
+                accordionButton.appendChild(badgeEsperando);
+            }
+            badgeEsperando.innerHTML = `<i class="fas fa-reply"></i> ${esperando} esperando`;
+        } else if (badgeEsperando) {
+            badgeEsperando.remove();
+        }
     });
     
     // Actualizar badges de RUTAS
@@ -363,9 +385,10 @@ function actualizarBadgesClientes() {
         
         if (!botonRuta) return;
         
-        // Contar modificados y pendientes en toda la ruta
+        // Contar modificados, pendientes y esperando en toda la ruta
         let modificadosRuta = 0;
         let pendientesRuta = 0;
+        let esperandoRuta = 0;
         
         const pedidosEnRuta = document.querySelectorAll(`[data-ruta="${ruta}"]`);
         pedidosEnRuta.forEach(pedidoRow => {
@@ -374,6 +397,15 @@ function actualizarBadgesClientes() {
             }
             if (pedidoRow.getAttribute('data-estado') === 'pendiente') {
                 pendientesRuta++;
+            }
+            
+            // Contar esperando respuesta
+            const estadoCelda = pedidoRow.querySelector('td:nth-child(4)');
+            if (estadoCelda) {
+                const badgeEsperando = estadoCelda.querySelector('.badge.bg-info');
+                if (badgeEsperando && badgeEsperando.textContent.includes('Esperando contestación')) {
+                    esperandoRuta++;
+                }
             }
         });
         
@@ -401,6 +433,19 @@ function actualizarBadgesClientes() {
             badgePendientesRuta.textContent = `${pendientesRuta} pendiente(s)`;
         } else if (badgePendientesRuta) {
             badgePendientesRuta.remove();
+        }
+        
+        // Actualizar badge de esperando respuesta
+        let badgeEsperandoRuta = botonRuta.querySelector('.badge.bg-info');
+        if (esperandoRuta > 0) {
+            if (!badgeEsperandoRuta) {
+                badgeEsperandoRuta = document.createElement('span');
+                badgeEsperandoRuta.className = 'badge bg-info ms-2';
+                botonRuta.appendChild(badgeEsperandoRuta);
+            }
+            badgeEsperandoRuta.innerHTML = `<i class="fas fa-reply"></i> ${esperandoRuta} esperando`;
+        } else if (badgeEsperandoRuta) {
+            badgeEsperandoRuta.remove();
         }
     });
 }

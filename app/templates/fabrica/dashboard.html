@@ -133,6 +133,17 @@
                                                 {{ pendientes_ruta.count }} pendiente(s)
                                             </span>
                                         {% endif %}
+
+                                        <!-- Badge de esperando respuesta en esta ruta -->
+                                        {% set esperando_ruta = namespace(count=0) %}
+                                        {% for cliente in clientes %}
+                                            {% set esperando_ruta.count = esperando_ruta.count + cliente.pedidos.filter_by(archivado=False, esperando_contestacion=True).count() %}
+                                        {% endfor %}
+                                        {% if esperando_ruta.count > 0 %}
+                                            <span class="badge bg-info ms-2">
+                                                <i class="fas fa-reply"></i> {{ esperando_ruta.count }} esperando
+                                            </span>
+                                        {% endif %}
                                     </div>
                                 </button>
                             </h2>
@@ -163,6 +174,14 @@
                                                         {% if modificados_count > 0 %}
                                                             <span class="badge bg-danger ms-2 animate-pulse">
                                                                 <i class="fas fa-bell"></i> {{ modificados_count }} modificado(s)
+                                                            </span>
+                                                        {% endif %}
+
+                                                        <!-- Badge de esperando respuesta -->
+                                                        {% set esperando_count = cliente.pedidos.filter_by(archivado=False, esperando_contestacion=True).count() %}
+                                                        {% if esperando_count > 0 %}
+                                                            <span class="badge bg-info ms-2">
+                                                                <i class="fas fa-reply"></i> {{ esperando_count }} esperando
                                                             </span>
                                                         {% endif %}
                                                         

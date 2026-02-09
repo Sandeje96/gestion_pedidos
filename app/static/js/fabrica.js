@@ -86,15 +86,17 @@ socket.on('pedido_eliminado', function(data) {
     console.log('🗑️ Pedido eliminado:', data);
     
     const pedidoRow = document.querySelector(`[data-pedido-id="${data.pedido_id}"]`);
-    
     if (pedidoRow) {
-        // Animación de desvanecimiento
+        // Animación de salida
         pedidoRow.style.transition = 'opacity 0.5s';
         pedidoRow.style.opacity = '0';
         
         setTimeout(() => {
             pedidoRow.remove();
+            
+            // Actualizar estadísticas y badges
             actualizarEstadisticas();
+            actualizarBadgesClientes();
         }, 500);
         
         mostrarToast(`Pedido #${data.pedido_id} eliminado`, 'info');

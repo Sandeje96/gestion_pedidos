@@ -350,7 +350,55 @@ function actualizarBadgesClientes() {
             badgeModificados.innerHTML = '<i class="fas fa-bell"></i> ' + modificados + ' modificado(s)';
             badgeModificados.style.display = '';
         } else if (badgeModificados) {
-            badgeModificados.remove(); // Eliminar completamente si no hay modificados
+            badgeModificados.remove();
+        }
+    });
+    
+    // Actualizar badges de RUTAS
+    document.querySelectorAll('.ruta-item').forEach(rutaItem => {
+        const ruta = rutaItem.getAttribute('data-ruta');
+        const botonRuta = rutaItem.querySelector('.accordion-button');
+        
+        if (!botonRuta) return;
+        
+        // Contar modificados y pendientes en toda la ruta
+        let modificadosRuta = 0;
+        let pendientesRuta = 0;
+        
+        const pedidosEnRuta = document.querySelectorAll(`[data-ruta="${ruta}"]`);
+        pedidosEnRuta.forEach(pedidoRow => {
+            if (pedidoRow.classList.contains('table-danger')) {
+                modificadosRuta++;
+            }
+            if (pedidoRow.getAttribute('data-estado') === 'pendiente') {
+                pendientesRuta++;
+            }
+        });
+        
+        // Actualizar badge de modificados
+        let badgeModificadosRuta = botonRuta.querySelector('.badge.bg-danger.animate-pulse');
+        if (modificadosRuta > 0) {
+            if (!badgeModificadosRuta) {
+                badgeModificadosRuta = document.createElement('span');
+                badgeModificadosRuta.className = 'badge bg-danger ms-2 animate-pulse';
+                botonRuta.appendChild(badgeModificadosRuta);
+            }
+            badgeModificadosRuta.innerHTML = `<i class="fas fa-bell"></i> ${modificadosRuta} modificado(s)`;
+        } else if (badgeModificadosRuta) {
+            badgeModificadosRuta.remove();
+        }
+        
+        // Actualizar badge de pendientes
+        let badgePendientesRuta = botonRuta.querySelector('.badge.bg-warning');
+        if (pendientesRuta > 0) {
+            if (!badgePendientesRuta) {
+                badgePendientesRuta = document.createElement('span');
+                badgePendientesRuta.className = 'badge bg-warning ms-2';
+                botonRuta.appendChild(badgePendientesRuta);
+            }
+            badgePendientesRuta.textContent = `${pendientesRuta} pendiente(s)`;
+        } else if (badgePendientesRuta) {
+            badgePendientesRuta.remove();
         }
     });
 }

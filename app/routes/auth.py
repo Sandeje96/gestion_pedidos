@@ -205,3 +205,35 @@ def setup_database_production():
         </body>
         </html>
         """
+    
+@auth_bp.route('/seed-users-railway-ONLY-123', methods=['GET'])
+def seed_users_railway():
+    from app import db
+    from app.models.usuario import Usuario
+
+    # Evitar duplicados
+    if Usuario.query.filter_by(username="ventas").first():
+        return "Usuarios ya existen. BORRA ESTE ENDPOINT."
+
+    ventas = Usuario(
+        nombre="Ventas",
+        username="ventas",
+        email="ventas@empresa.com",
+        rol="vendedor",
+        activo=True
+    )
+    ventas.set_password("ventasmundolimp1")
+
+    fabrica = Usuario(
+        nombre="Fábrica",
+        username="fabrica",
+        email="fabrica@empresa.com",
+        rol="operario",
+        activo=True
+    )
+    fabrica.set_password("fabricaconvos2")
+
+    db.session.add_all([ventas, fabrica])
+    db.session.commit()
+
+    return "Usuarios creados correctamente. BORRA ESTE ENDPOINT."

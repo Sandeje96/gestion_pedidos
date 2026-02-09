@@ -285,10 +285,33 @@ def cerrar_semana():
     """
     from datetime import datetime
     
-    # Generar nombre de semana (Ej: "Semana 2025-W03")
+    # Generar nombre de semana (Ej: "Semana 2026-1F")
     fecha_actual = datetime.utcnow()
-    numero_semana = fecha_actual.isocalendar()[1]
-    nombre_semana = f"Semana {fecha_actual.year}-W{numero_semana:02d}"
+
+    # Obtener mes
+    mes_numero = fecha_actual.month
+    meses_letras = {
+        1: 'E',   # Enero
+        2: 'F',   # Febrero
+        3: 'M',   # Marzo
+        4: 'A',   # Abril
+        5: 'MY',  # Mayo
+        6: 'JN',  # Junio
+        7: 'JL',  # Julio
+        8: 'AG',  # Agosto
+        9: 'S',   # Septiembre
+        10: 'O',  # Octubre
+        11: 'N',  # Noviembre
+        12: 'D'   # Diciembre
+    }
+    mes_letra = meses_letras[mes_numero]
+
+    # Calcular número de semana dentro del mes
+    dia_del_mes = fecha_actual.day
+    numero_semana_mes = ((dia_del_mes - 1) // 7) + 1
+
+    # Formato: Semana YYYY-#L (ej: Semana 2026-1F)
+    nombre_semana = f"Semana {fecha_actual.year}-{numero_semana_mes}{mes_letra}"
     
     # Obtener todos los pedidos no archivados
     pedidos_activos = Pedido.query.filter_by(archivado=False).all()

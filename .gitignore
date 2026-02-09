@@ -3,14 +3,14 @@ venv/
 env/
 ENV/
 
-# Variables de entorno (NUNCA subir esto!)
-.env
-.env.local
-
 # Base de datos local
 *.db
 *.sqlite
 *.sqlite3
+gestion_pedidos.db
+
+# Variables de entorno
+.env
 
 # Python
 __pycache__/
@@ -18,20 +18,27 @@ __pycache__/
 *$py.class
 *.so
 .Python
-
-# Flask
-instance/
-.webassets-cache
+*.egg-info/
+dist/
+build/
 
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Logs
-*.log
+*~
 
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+
+# Migrations (opcional, algunos prefieren subirlas)
+# migrations/
+
+# Archivos temporales
+*.tmp
+*.bak

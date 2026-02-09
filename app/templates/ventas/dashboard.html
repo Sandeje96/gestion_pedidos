@@ -104,7 +104,7 @@
                                     {# Badge de pendientes en esta ruta #}
                                     {% set pendientes_ruta = namespace(count=0) %}
                                     {% for cliente in clientes %}
-                                        {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                        {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
                                     {% endfor %}
                                     {% if pendientes_ruta.count > 0 %}
                                         <span class="badge bg-info ms-2">
@@ -115,7 +115,7 @@
                                     {# Badge de modificados sin ver en esta ruta #}
                                     {% set modificados_ruta = namespace(count=0) %}
                                     {% for cliente in clientes %}
-                                        {% set modificados_ruta.count = modificados_ruta.count + cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False).count() %}
+                                        {% set modificados_ruta.count = modificados_ruta.count + cliente.pedidos.filter_by(archivado=False, modificado=True, visto_por_fabrica=False).count() %}
                                     {% endfor %}
                                     {% if modificados_ruta.count > 0 %}
                                         <span class="badge bg-danger ms-2 animate-pulse">
@@ -160,7 +160,7 @@
                                                     </span>
                                                     
                                                     {# Badge de pendientes #}
-                                                    {% set pendientes_count = cliente.pedidos.filter_by(estado='pendiente').count() %}
+                                                    {% set pendientes_count = cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
                                                     {% if pendientes_count > 0 %}
                                                         <span class="badge bg-info ms-2">
                                                             <i class="fas fa-clock"></i> {{ pendientes_count }} pendiente(s)
@@ -168,7 +168,7 @@
                                                     {% endif %}
                                                     
                                                     {# Badge de modificados sin contestar (esperando respuesta de fábrica) #}
-                                                    {% set modificados_sin_ver = cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False).count() %}
+                                                    {% set modificados_sin_ver = cliente.pedidos.filter_by(archivado=False, modificado=True, visto_por_fabrica=False).count() %}
                                                     {% if modificados_sin_ver > 0 %}
                                                         <span class="badge bg-danger ms-2 animate-pulse">
                                                             <i class="fas fa-exclamation-circle"></i> {{ modificados_sin_ver }} sin ver

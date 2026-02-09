@@ -193,14 +193,26 @@ def editar_pedido(pedido_id):
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    form = EditarPedidoForm(obj=pedido)
+    # Guardar valores anteriores para detectar cambios
+    notas_anteriores = pedido.notas_vendedor
+    
+    form = PedidoForm(obj=pedido)
     
     if form.validate_on_submit():
         pedido.producto_nombre = form.producto_nombre.data
         pedido.cantidad = form.cantidad.data
         pedido.unidad = form.unidad.data
         pedido.notas_vendedor = form.notas_vendedor.data
-        pedido.marcar_como_modificado()  # Marca como modificado para notificar
+        
+        # Si cambió algo, marcar como modificado
+        pedido.modificado = True
+        pedido.visto_por_fabrica = False
+        
+        # Si el vendedor respondió (agregó o cambió notas), quitar "esperando contestación"
+        if form.notas_vendedor.data and form.notas_vendedor.data != notas_anteriores:
+            pedido.esperando_contestacion = False
+        
+        pedido.fecha_actualizacion = datetime.utcnow()
         
         db.session.commit()
         
@@ -209,7 +221,7 @@ def editar_pedido(pedido_id):
             'pedido': pedido.to_dict()
         }, namespace='/')
         
-        flash(f'Pedido actualizado exitosamente', 'warning')
+        flash('Pedido actualizado correctamente', 'success')
         return redirect(url_for('ventas.dashboard'))
     
     return render_template(

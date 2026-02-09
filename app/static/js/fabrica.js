@@ -643,6 +643,32 @@ socket.on('pedido_modificado', function(data) {
             }
         }
         
+        // NUEVO: Si ventas respondió, quitar "Esperando contestación"
+        if (!pedido.esperando_contestacion) {
+            const estadoCelda = pedidoRow.querySelector('td:nth-child(4)');
+            if (estadoCelda) {
+                const badgeEsperando = estadoCelda.querySelector('.badge.bg-info');
+                if (badgeEsperando && badgeEsperando.textContent.includes('Esperando contestación')) {
+                    // Reemplazar por el selector de estado
+                    estadoCelda.innerHTML = `
+                        <select class="form-select form-select-sm estado-select" 
+                                data-pedido-id="${pedido.id}"
+                                onchange="actualizarEstadoRapido(${pedido.id}, this.value)">
+                            <option value="pendiente" ${pedido.estado === 'pendiente' ? 'selected' : ''}>
+                                Pendiente
+                            </option>
+                            <option value="completado" ${pedido.estado === 'completado' ? 'selected' : ''}>
+                                Completado
+                            </option>
+                            <option value="cancelado" ${pedido.estado === 'cancelado' ? 'selected' : ''}>
+                                Cancelado
+                            </option>
+                        </select>
+                    `;
+                }
+            }
+        }
+        
         // Agregar botón de marcar visto si no existe
         const accionesCelda = pedidoRow.querySelector('td:nth-child(7)');
         if (accionesCelda) {

@@ -101,29 +101,32 @@ def actualizar_pedido(pedido_id):
     form = ActualizarPedidoFabricaForm(obj=pedido)
     
     if form.validate_on_submit():
-        # Actualizar pedido
-        pedido.estado = form.estado.data
-        pedido.operario_id = form.operario_id.data if form.operario_id.data else None
-        pedido.observaciones_fabrica = form.observaciones_fabrica.data
-        
-        # Si se completó, registrar fecha
-        if pedido.estado == 'completado' and not pedido.fecha_completado:
-            pedido.marcar_como_completado()
-        
-        # Marcar como visto si estaba modificado
-        if pedido.modificado:
-            pedido.marcar_como_visto()
-        
-        # Si agregó o modificó observaciones, marcar como no visto por vendedor
-        if form.observaciones_fabrica.data:
-            pedido.visto_por_vendedor = False  # <--- ESTE ES EL CAMBIO
-            pedido.esperando_contestacion = True  # <--- AGREGAR ESTA LÍNEA
+        observaciones_anteriores = pedido.observaciones_fabrica
+
+    # Actualizar pedido
+    pedido.estado = form.estado.data
+    pedido.operario_id = form.operario_id.data if form.operario_id.data else None
+    pedido.observaciones_fabrica = form.observaciones_fabrica.data
+
+    # Si se completó, registrar fecha
+    if pedido.estado == 'completado' and not pedido.fecha_completado:
+        pedido.marcar_como_completado()
+
+    # Marcar como visto si estaba modificado
+    if pedido.modificado:
+        pedido.marcar_como_visto()
+
+    # Si agregó o modificó observaciones, marcar como no visto por vendedor
+    if form.observaciones_fabrica.data and form.observaciones_fabrica.data != observaciones_anteriores:
+        pedido.visto_por_vendedor = False
+        pedido.esperando_contestacion = True
         
         db.session.commit()
         
         # Emitir evento de WebSocket
         socketio.emit('pedido_actualizado', {
-            'pedido': pedido.to_dict()
+            'pedido': pedido.to_dict(),
+            'mensaje': f'Pedido #{pedido.id} actualizado'
         }, namespace='/')
         
         flash(f'Pedido actualizado a estado: {pedido.estado}', 'success')

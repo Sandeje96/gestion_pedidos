@@ -206,25 +206,4 @@ def setup_database_production():
         </html>
         """
 
-@auth_bp.route('/seed-users-railway-ONLY-123', methods=['GET'])
-def seed_users_railway():
-    from app import db
-    from app.models.usuario import Usuario
 
-    # Evitar duplicados
-    
-
-
-    Yonathan = Usuario(
-        nombre="Yonathan",
-        username="Yonathan",
-        email="fabricaa@empresa.com",
-        rol="operario",
-        activo=True
-    )
-    Yonathan.set_password("fabricaconvos2")
-
-    db.session.add_all([Yonathan])
-    db.session.commit()
-
-    return "Usuarios creados correctamente. BORRA ESTE ENDPOINT."

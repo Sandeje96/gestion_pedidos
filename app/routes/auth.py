@@ -224,16 +224,7 @@ def seed_users_railway():
     )
     Yonathan.set_password("fabricaconvos2")
 
-    Miguel = Usuario(
-        nombre="Miguel",
-        username="Miguel",
-        email="fabricae@empresa.com",
-        rol="operario",
-        activo=True
-    )
-    Miguel.set_password("fabricaconvos2")
-
-    db.session.add_all([Miguel])
+    db.session.add_all([Yonathan])
     db.session.commit()
 
     return "Usuarios creados correctamente. BORRA ESTE ENDPOINT."

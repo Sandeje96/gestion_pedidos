@@ -250,19 +250,25 @@
                                                                     </td>
                                                                     
                                                                     <td>
-                                                                        <select class="form-select form-select-sm estado-select" 
-                                                                                data-pedido-id="{{ pedido.id }}"
-                                                                                onchange="actualizarEstadoRapido({{ pedido.id }}, this.value)">
-                                                                            <option value="pendiente" {% if pedido.estado == 'pendiente' %}selected{% endif %}>
-                                                                                Pendiente
-                                                                            </option>
-                                                                            <option value="completado" {% if pedido.estado == 'completado' %}selected{% endif %}>
-                                                                                Completado
-                                                                            </option>
-                                                                            <option value="cancelado" {% if pedido.estado == 'cancelado' %}selected{% endif %}>
-                                                                                Cancelado
-                                                                            </option>
-                                                                        </select>
+                                                                        {% if pedido.esperando_contestacion %}
+                                                                            <span class="badge bg-info">
+                                                                                <i class="fas fa-reply"></i> Esperando contestación
+                                                                            </span>
+                                                                        {% else %}
+                                                                            <select class="form-select form-select-sm estado-select" 
+                                                                                    data-pedido-id="{{ pedido.id }}"
+                                                                                    onchange="actualizarEstadoRapido({{ pedido.id }}, this.value)">
+                                                                                <option value="pendiente" {% if pedido.estado == 'pendiente' %}selected{% endif %}>
+                                                                                    Pendiente
+                                                                                </option>
+                                                                                <option value="completado" {% if pedido.estado == 'completado' %}selected{% endif %}>
+                                                                                    Completado
+                                                                                </option>
+                                                                                <option value="cancelado" {% if pedido.estado == 'cancelado' %}selected{% endif %}>
+                                                                                    Cancelado
+                                                                                </option>
+                                                                            </select>
+                                                                        {% endif %}
                                                                     </td>
                                                                     
                                                                     <td>

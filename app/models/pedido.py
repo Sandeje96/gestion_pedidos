@@ -45,6 +45,7 @@ class Pedido(db.Model):
     modificado = db.Column(db.Boolean, default=False, nullable=False)  # Para notificar cambios
     visto_por_fabrica = db.Column(db.Boolean, default=False, nullable=False)  # Si la fábrica ya lo vio
     visto_por_vendedor = db.Column(db.Boolean, default=False, nullable=False)
+    esperando_contestacion = db.Column(db.Boolean, default=False, nullable=False)
 
     # Timestamps
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -102,7 +103,8 @@ class Pedido(db.Model):
             'semana_archivado': self.semana_archivado,  # <--- AGREGAR
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
             'fecha_actualizacion': self.fecha_actualizacion.isoformat() if self.fecha_actualizacion else None,
-            'fecha_completado': self.fecha_completado.isoformat() if self.fecha_completado else None
+            'fecha_completado': self.fecha_completado.isoformat() if self.fecha_completado else None,
+            'esperando_contestacion': self.esperando_contestacion
         }
     
     def archivar(self, semana):

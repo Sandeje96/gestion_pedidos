@@ -117,6 +117,7 @@ def actualizar_pedido(pedido_id):
         # Si agregó o modificó observaciones, marcar como no visto por vendedor
         if form.observaciones_fabrica.data:
             pedido.visto_por_vendedor = False  # <--- ESTE ES EL CAMBIO
+            pedido.esperando_contestacion = True  # <--- AGREGAR ESTA LÍNEA
         
         db.session.commit()
         

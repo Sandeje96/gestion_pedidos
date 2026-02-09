@@ -260,6 +260,7 @@ def marcar_pedido_leido(pedido_id):
     
     # Marcar como visto
     pedido.marcar_como_visto_por_vendedor()
+    pedido.esperando_contestacion = False  # <--- AGREGAR ESTA LÍNEA
     db.session.commit()
     
     return jsonify({'success': True, 'pedido_id': pedido.id})

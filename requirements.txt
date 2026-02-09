@@ -10,4 +10,4 @@ email-validator==2.1.0
 python-engineio==4.8.0
 python-socketio==5.10.0
 gunicorn==21.2.0
-psycopg[binary]==3.1.18
+psycopg[binary]==3.3.2

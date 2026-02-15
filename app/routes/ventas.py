@@ -155,48 +155,76 @@ def nuevo_pedido():
     """
     form = PedidoForm()
     
-    if form.validate_on_submit():
-        # Obtener datos del formulario
-        cliente_id = form.cliente_id.data
+    if request.method == 'POST':
+        # Validar cliente
+        cliente_id = request.form.get('cliente_id', type=int)
+        
+        if not cliente_id or cliente_id == 0:
+            flash('Debes seleccionar un cliente', 'danger')
+            return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
+        
+        # Obtener arrays de datos
         productos = request.form.getlist('productos[]')
         cantidades = request.form.getlist('cantidades[]')
         unidades = request.form.getlist('unidades[]')
         notas = request.form.getlist('notas[]')
         
-        if not productos:
-            flash('Debes agregar al menos un pedido', 'warning')
-            return redirect(url_for('ventas.nuevo_pedido'))
+        # Validar que haya al menos un producto
+        productos_validos = [p for p in productos if p and p.strip()]
+        
+        if not productos_validos:
+            flash('Debes agregar al menos un pedido con producto', 'warning')
+            return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
         
         # Crear múltiples pedidos
         pedidos_creados = []
+        
         for i in range(len(productos)):
-            if productos[i]:  # Solo si hay producto
-                pedido = Pedido(
-                    cliente_id=cliente_id,
-                    producto_nombre=productos[i],
-                    cantidad=float(cantidades[i]) if cantidades[i] else 0,
-                    unidad=unidades[i] if i < len(unidades) else 'unidades',
-                    estado='pendiente',
-                    notas_vendedor=notas[i] if i < len(notas) else None,
-                    modificado=False,
-                    visto_por_fabrica=False
-                )
-                db.session.add(pedido)
-                pedidos_creados.append(pedido)
+            if productos[i] and productos[i].strip():  # Solo si hay producto
+                try:
+                    cantidad = float(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1.0
+                    unidad = unidades[i] if i < len(unidades) else 'unidades'
+                    nota = notas[i] if i < len(notas) and notas[i] else None
+                    
+                    pedido = Pedido(
+                        cliente_id=cliente_id,
+                        producto_nombre=productos[i].strip(),
+                        cantidad=cantidad,
+                        unidad=unidad,
+                        estado='pendiente',
+                        notas_vendedor=nota,
+                        modificado=False,
+                        visto_por_fabrica=False,
+                        esperando_contestacion=False
+                    )
+                    db.session.add(pedido)
+                    pedidos_creados.append(pedido)
+                    
+                except Exception as e:
+                    flash(f'Error en pedido #{i+1}: {str(e)}', 'danger')
+                    db.session.rollback()
+                    return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
         
-        db.session.commit()
-        
-        # Emitir eventos de WebSocket para cada pedido
-        for pedido in pedidos_creados:
-            socketio.emit('nuevo_pedido', {
-                'pedido': pedido.to_dict()
-            }, namespace='/')
-        
-        total_pedidos = len(pedidos_creados)
-        cliente = Cliente.query.get(cliente_id)
-        
-        flash(f'✅ Se crearon {total_pedidos} pedido(s) para {cliente.nombre}', 'success')
-        return redirect(url_for('ventas.dashboard'))
+        # Guardar todos los pedidos
+        try:
+            db.session.commit()
+            
+            # Emitir eventos de WebSocket para cada pedido
+            for pedido in pedidos_creados:
+                socketio.emit('nuevo_pedido', {
+                    'pedido': pedido.to_dict()
+                }, namespace='/')
+            
+            total_pedidos = len(pedidos_creados)
+            cliente = Cliente.query.get(cliente_id)
+            
+            flash(f'✅ Se crearon {total_pedidos} pedido(s) para {cliente.nombre}', 'success')
+            return redirect(url_for('ventas.dashboard'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar pedidos: {str(e)}', 'danger')
+            return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
     
     return render_template(
         'ventas/pedido_form.html',

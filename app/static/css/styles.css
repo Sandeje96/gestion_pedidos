@@ -746,3 +746,46 @@ small,
     transform: scale(1.05);
     transition: transform 0.2s ease;
 }
+
+/* ============================================
+   FORMULARIO MÚLTIPLES PEDIDOS
+   ============================================ */
+
+.pedido-item {
+    background-color: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.pedido-item:hover {
+    background-color: #e9ecef;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.btn-eliminar-pedido {
+    transition: all 0.2s ease;
+}
+
+.btn-eliminar-pedido:hover {
+    transform: scale(1.05);
+}
+
+.sticky-top {
+    position: sticky;
+    z-index: 100;
+}
+
+/* Animación para pedidos nuevos */
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pedido-item {
+    animation: fadeInDown 0.3s ease;
+}

@@ -151,36 +151,58 @@ def editar_cliente(cliente_id):
 @vendedor_requerido
 def nuevo_pedido():
     """
-    Crear un nuevo pedido.
+    Crear uno o varios pedidos nuevos para un cliente.
     """
     form = PedidoForm()
     
     if form.validate_on_submit():
-        # Crear nuevo pedido
-        pedido = Pedido(
-            cliente_id=form.cliente_id.data,
-            producto_nombre=form.producto_nombre.data,
-            cantidad=form.cantidad.data,
-            unidad=form.unidad.data,
-            notas_vendedor=form.notas_vendedor.data,
-            estado='pendiente'
-        )
+        # Obtener datos del formulario
+        cliente_id = form.cliente_id.data
+        productos = request.form.getlist('productos[]')
+        cantidades = request.form.getlist('cantidades[]')
+        unidades = request.form.getlist('unidades[]')
+        notas = request.form.getlist('notas[]')
         
-        db.session.add(pedido)
+        if not productos:
+            flash('Debes agregar al menos un pedido', 'warning')
+            return redirect(url_for('ventas.nuevo_pedido'))
+        
+        # Crear múltiples pedidos
+        pedidos_creados = []
+        for i in range(len(productos)):
+            if productos[i]:  # Solo si hay producto
+                pedido = Pedido(
+                    cliente_id=cliente_id,
+                    producto_nombre=productos[i],
+                    cantidad=float(cantidades[i]) if cantidades[i] else 0,
+                    unidad=unidades[i] if i < len(unidades) else 'unidades',
+                    estado='pendiente',
+                    notas_vendedor=notas[i] if i < len(notas) else None,
+                    modificado=False,
+                    visto_por_fabrica=False
+                )
+                db.session.add(pedido)
+                pedidos_creados.append(pedido)
+        
         db.session.commit()
         
-        # Emitir evento de WebSocket para notificar a la fábrica
-        socketio.emit('nuevo_pedido', {
-            'pedido': pedido.to_dict()
-        }, namespace='/')
+        # Emitir eventos de WebSocket para cada pedido
+        for pedido in pedidos_creados:
+            socketio.emit('nuevo_pedido', {
+                'pedido': pedido.to_dict()
+            }, namespace='/')
         
-        flash(f'Pedido de "{pedido.producto_nombre}" creado exitosamente', 'success')
+        total_pedidos = len(pedidos_creados)
+        cliente = Cliente.query.get(cliente_id)
+        
+        flash(f'✅ Se crearon {total_pedidos} pedido(s) para {cliente.nombre}', 'success')
         return redirect(url_for('ventas.dashboard'))
     
     return render_template(
         'ventas/pedido_form.html',
         form=form,
-        title='Nuevo Pedido'
+        title='Nuevo Pedido',
+        accion='Crear'
     )
 
 
@@ -439,6 +461,22 @@ def limpiar_pedidos_antiguos():
     
     flash(f'✅ {mensaje_detalle}', 'success')
     return redirect(url_for('ventas.historial_semanas'))
+
+@ventas_bp.route('/api/cliente/<int:cliente_id>/info')
+@vendedor_requerido
+def api_cliente_info(cliente_id):
+    """
+    API: Obtener información básica de un cliente.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    
+    return jsonify({
+        'id': cliente.id,
+        'nombre': cliente.nombre,
+        'telefono': cliente.telefono,
+        'direccion': cliente.direccion,
+        'ruta': cliente.ruta
+    })
 
 
 @ventas_bp.route('/api/cliente/<int:cliente_id>/pedidos')

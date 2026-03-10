@@ -75,6 +75,42 @@ def logout():
     flash('Has cerrado sesión correctamente', 'info')
     return redirect(url_for('auth.login'))
 
+@auth_bp.route('/crear-tabla-mensajes-x9m5k1', methods=['GET'])
+def crear_tabla_mensajes():
+    """
+    Endpoint temporal para crear tabla mensajes_pedido
+    ⚠️ ELIMINAR DESPUÉS DE USAR
+    """
+    from sqlalchemy import text
+    from app import db
+    
+    try:
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS mensajes_pedido (
+                id SERIAL PRIMARY KEY,
+                pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+                mensaje TEXT NOT NULL,
+                tipo VARCHAR(20) NOT NULL,
+                leido BOOLEAN DEFAULT FALSE NOT NULL,
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+            )
+        """))
+        
+        db.session.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_mensajes_pedido_pedido_id ON mensajes_pedido(pedido_id)"
+        ))
+        
+        db.session.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_mensajes_pedido_fecha ON mensajes_pedido(fecha_creacion)"
+        ))
+        
+        db.session.commit()
+        return "<h1>✅ Tabla mensajes_pedido creada exitosamente</h1><p><strong>AHORA ELIMINA ESTE ENDPOINT</strong></p>"
+    except Exception as e:
+        db.session.rollback()
+        return f"<h1>❌ Error:</h1><pre>{str(e)}</pre>"
+
 @auth_bp.route('/setup-db-x9k2m4p7', methods=['GET'])
 def setup_database_production():
     """

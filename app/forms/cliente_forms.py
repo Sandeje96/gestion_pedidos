@@ -55,7 +55,8 @@ class ClienteForm(FlaskForm):
         choices=[
             ('Ruta 14', 'Ruta 14'),
             ('Ruta 12', 'Ruta 12'),
-            ('Corrientes', 'Corrientes')
+            ('Corrientes', 'Corrientes'),
+            ('Posadas', 'Posadas')
         ],
         validators=[
             DataRequired(message='Debes seleccionar una ruta')

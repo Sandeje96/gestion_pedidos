@@ -227,7 +227,7 @@
                                                         <i class="fas fa-shopping-cart"></i> Pedidos
                                                     </h6>
                                                     
-                                                    {% if cliente.pedidos.count() > 0 %}
+                                                    {% if cliente.pedidos.filter_by(archivado=False).count() > 0 %}
                                                         <div class="table-responsive">
                                                             <table class="table table-sm table-hover">
                                                                 <thead class="table-light">
@@ -293,6 +293,11 @@
                                                                             {% endif %}
                                                                         </td>
                                                                         <td>
+                                                                            <a href="{{ url_for('ventas.ver_mensajes_pedido', pedido_id=pedido.id) }}" 
+                                                                               class="btn btn-sm btn-info"
+                                                                               title="Ver conversación">
+                                                                                <i class="fas fa-comments"></i>
+                                                                            </a>
                                                                             <a href="{{ url_for('ventas.editar_pedido', pedido_id=pedido.id) }}" 
                                                                                class="btn btn-sm btn-warning">
                                                                                 <i class="fas fa-edit"></i>

@@ -72,6 +72,7 @@
                     <option value="Ruta 14">Ruta 14</option>
                     <option value="Ruta 12">Ruta 12</option>
                     <option value="Corrientes">Corrientes</option>
+                    <option value="Posadas">Posadas</option>
                 </select>
             </div>
             <div class="col-md-4">
@@ -313,6 +314,11 @@
                                                                     </td>
                                                                     
                                                                     <td>
+                                                                        <a href="{{ url_for('fabrica.ver_mensajes_pedido', pedido_id=pedido.id) }}" 
+                                                                           class="btn btn-sm btn-info"
+                                                                           title="Ver conversación">
+                                                                            <i class="fas fa-comments"></i>
+                                                                        </a>
                                                                         <a href="{{ url_for('fabrica.actualizar_pedido', pedido_id=pedido.id) }}" 
                                                                            class="btn btn-sm btn-primary"
                                                                            title="Actualizar pedido">

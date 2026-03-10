@@ -101,25 +101,36 @@ def actualizar_pedido(pedido_id):
     form = ActualizarPedidoFabricaForm(obj=pedido)
     
     if form.validate_on_submit():
+        # Guardar observaciones anteriores para comparar
         observaciones_anteriores = pedido.observaciones_fabrica
-
-    # Actualizar pedido
-    pedido.estado = form.estado.data
-    pedido.operario_id = form.operario_id.data if form.operario_id.data else None
-    pedido.observaciones_fabrica = form.observaciones_fabrica.data
-
-    # Si se completó, registrar fecha
-    if pedido.estado == 'completado' and not pedido.fecha_completado:
-        pedido.marcar_como_completado()
-
-    # Marcar como visto si estaba modificado
-    if pedido.modificado:
-        pedido.marcar_como_visto()
-
-    # Si agregó o modificó observaciones, marcar como no visto por vendedor
-    if form.observaciones_fabrica.data and form.observaciones_fabrica.data != observaciones_anteriores:
-        pedido.visto_por_vendedor = False
-        pedido.esperando_contestacion = True
+        
+        # Actualizar pedido
+        pedido.estado = form.estado.data
+        pedido.operario_id = form.operario_id.data if form.operario_id.data else None
+        pedido.observaciones_fabrica = form.observaciones_fabrica.data
+        
+        # Si se completó, registrar fecha
+        if pedido.estado == 'completado' and not pedido.fecha_completado:
+            pedido.marcar_como_completado()
+        
+        # Marcar como visto si estaba modificado
+        if pedido.modificado:
+            pedido.marcar_como_visto()
+        
+        # NUEVO: Si agregó o modificó observaciones, guardar mensaje
+        if form.observaciones_fabrica.data and form.observaciones_fabrica.data != observaciones_anteriores:
+            from app.models.mensaje_pedido import MensajePedido
+            
+            mensaje = MensajePedido(
+                pedido_id=pedido.id,
+                usuario_id=current_user.id,
+                mensaje=form.observaciones_fabrica.data,
+                tipo='fabrica',
+                leido=False
+            )
+            db.session.add(mensaje)
+            pedido.visto_por_vendedor = False
+            pedido.esperando_contestacion = True
         
         db.session.commit()
         
@@ -139,6 +150,23 @@ def actualizar_pedido(pedido_id):
         title='Actualizar Pedido'
     )
 
+@fabrica_bp.route('/pedido/<int:pedido_id>/mensajes')
+@operario_requerido
+def ver_mensajes_pedido(pedido_id):
+    """
+    Ver historial de mensajes de un pedido.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+    
+    from app.models.mensaje_pedido import MensajePedido
+    mensajes = MensajePedido.query.filter_by(pedido_id=pedido_id).order_by(MensajePedido.fecha_creacion.asc()).all()
+    
+    return render_template(
+        'fabrica/mensajes_pedido.html',
+        pedido=pedido,
+        mensajes=mensajes,
+        title=f'Conversación - Pedido #{pedido.id}'
+    )
 
 @fabrica_bp.route('/pedido/<int:pedido_id>/marcar-visto', methods=['POST'])
 @operario_requerido

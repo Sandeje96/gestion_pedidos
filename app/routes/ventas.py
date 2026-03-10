@@ -246,7 +246,7 @@ def editar_pedido(pedido_id):
     # Guardar valores anteriores para detectar cambios
     notas_anteriores = pedido.notas_vendedor
     
-    form = PedidoForm(obj=pedido)
+    form = EditarPedidoForm(obj=pedido)
     
     if form.validate_on_submit():
         pedido.producto_nombre = form.producto_nombre.data
@@ -258,8 +258,18 @@ def editar_pedido(pedido_id):
         pedido.modificado = True
         pedido.visto_por_fabrica = False
         
-        # Si el vendedor respondió (agregó o cambió notas), quitar "esperando contestación"
+        # NUEVO: Si el vendedor agregó o cambió notas, guardar mensaje
         if form.notas_vendedor.data and form.notas_vendedor.data != notas_anteriores:
+            from app.models.mensaje_pedido import MensajePedido
+            
+            mensaje = MensajePedido(
+                pedido_id=pedido.id,
+                usuario_id=current_user.id,
+                mensaje=form.notas_vendedor.data,
+                tipo='vendedor',
+                leido=False
+            )
+            db.session.add(mensaje)
             pedido.esperando_contestacion = False
         
         pedido.fecha_actualizacion = datetime.utcnow()
@@ -326,6 +336,24 @@ def marcar_pedido_leido(pedido_id):
     db.session.commit()
     
     return jsonify({'success': True, 'pedido_id': pedido.id})
+
+@ventas_bp.route('/pedido/<int:pedido_id>/mensajes')
+@vendedor_requerido
+def ver_mensajes_pedido(pedido_id):
+    """
+    Ver historial de mensajes de un pedido.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+    
+    from app.models.mensaje_pedido import MensajePedido
+    mensajes = MensajePedido.query.filter_by(pedido_id=pedido_id).order_by(MensajePedido.fecha_creacion.asc()).all()
+    
+    return render_template(
+        'ventas/mensajes_pedido.html',
+        pedido=pedido,
+        mensajes=mensajes,
+        title=f'Conversación - Pedido #{pedido.id}'
+    )
 
 @ventas_bp.route('/cerrar-semana', methods=['POST'])
 @vendedor_requerido

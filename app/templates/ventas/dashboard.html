@@ -138,6 +138,14 @@
                                             <i class="fas fa-bell"></i> Respuestas nuevas
                                         </span>
                                     {% endif %}
+
+                                    {# Badge de litros totales en esta ruta #}
+                                    {% set litros_ruta = litros_por_ruta.get(ruta, 0) %}
+                                    {% if litros_ruta > 0 %}
+                                        <span class="badge bg-secondary ms-2">
+                                            <i class="fas fa-tint"></i> {{ litros_ruta|round(1) }} lts
+                                        </span>
+                                    {% endif %}
                                 </button>
                             </h2>
                             <div id="collapseRuta{{ loop.index }}" 

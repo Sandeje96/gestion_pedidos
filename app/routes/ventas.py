@@ -13,6 +13,7 @@ from app.forms.cliente_forms import ClienteForm
 from app.forms.pedido_forms import PedidoForm, EditarPedidoForm
 from datetime import datetime
 from functools import wraps
+from sqlalchemy import func
 
 # Crear el Blueprint
 ventas_bp = Blueprint('ventas', __name__)
@@ -67,11 +68,22 @@ def dashboard():
         Pedido.observaciones_fabrica.isnot(None),
         Pedido.visto_por_vendedor == False
     ).count()
-    
+
+    # Calcular litros totales por ruta (pedidos no archivados y no cancelados)
+    litros_por_ruta = {}
+    for ruta in clientes_por_ruta.keys():
+        total = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
+            Cliente.ruta == ruta,
+            Pedido.archivado == False,
+            Pedido.estado != 'cancelado'
+        ).scalar()
+        litros_por_ruta[ruta] = float(total) if total else 0.0
+
     return render_template(
         'ventas/dashboard.html',
         title='Panel de Ventas',
-        clientes_por_ruta=clientes_por_ruta,  # <--- CAMBIO: enviar agrupados por ruta
+        clientes_por_ruta=clientes_por_ruta,
+        litros_por_ruta=litros_por_ruta,
         total_clientes=total_clientes,
         total_pedidos=total_pedidos,
         pedidos_pendientes=pedidos_pendientes,

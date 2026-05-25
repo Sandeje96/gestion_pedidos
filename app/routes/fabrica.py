@@ -12,6 +12,7 @@ from app.models.usuario import Usuario
 from app.forms.pedido_forms import ActualizarPedidoFabricaForm
 from datetime import datetime
 from functools import wraps
+from sqlalchemy import func
 
 # Crear el Blueprint
 fabrica_bp = Blueprint('fabrica', __name__)
@@ -76,12 +77,23 @@ def dashboard():
             Pedido.visto_por_fabrica == False
         ).count()
         notificaciones_por_ruta[ruta] = count
-    
+
+    # Calcular litros totales por ruta (pedidos no archivados y no cancelados)
+    litros_por_ruta = {}
+    for ruta in clientes_por_ruta.keys():
+        total = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
+            Cliente.ruta == ruta,
+            Pedido.archivado == False,
+            Pedido.estado != 'cancelado'
+        ).scalar()
+        litros_por_ruta[ruta] = float(total) if total else 0.0
+
     return render_template(
         'fabrica/dashboard.html',
         title='Panel de Fabrica',
-        clientes_por_ruta=clientes_por_ruta,  # <--- CAMBIO: enviar agrupados por ruta
-        notificaciones_por_ruta=notificaciones_por_ruta,  # <--- NUEVO: notificaciones por ruta
+        clientes_por_ruta=clientes_por_ruta,
+        notificaciones_por_ruta=notificaciones_por_ruta,
+        litros_por_ruta=litros_por_ruta,
         total_pendientes=total_pendientes,
         total_completados=total_completados,
         total_cancelados=total_cancelados,

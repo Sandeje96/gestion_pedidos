@@ -1,12 +1,67 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row mb-4">
+
+<!-- MODAL PARA AGREGAR NUEVO PRODUCTO -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #198754, #145a32);">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle"></i> Agregar Producto al Catálogo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('fabrica.nuevo_producto') }}" id="form-nuevo-producto">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-tag"></i> Nombre del Producto *
+                        </label>
+                        <input type="text" name="nombre" class="form-control form-control-lg"
+                               placeholder="Ej: Mekasil, Shampoo 2en1..." required autofocus>
+                        <div class="form-text">Este nombre aparecerá en el selector de producción y en los pedidos de ventas.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-ruler"></i> Unidad habitual
+                        </label>
+                        <select name="unidad" class="form-select">
+                            <option value="litros">Litros</option>
+                            <option value="kg">Kilogramos (kg)</option>
+                            <option value="unidades">Unidades</option>
+                            <option value="">Sin unidad predefinida</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-info-circle"></i> Descripción
+                            <small class="text-muted">(opcional)</small>
+                        </label>
+                        <input type="text" name="descripcion" class="form-control"
+                               placeholder="Descripción breve...">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 btn-lg">
+                        <i class="fas fa-save"></i> Guardar Producto
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ENCABEZADO -->
+<div class="row mb-4 align-items-center">
     <div class="col">
         <h2><i class="fas fa-flask"></i> Carga de Producción</h2>
-        <p class="text-muted">Registrá la producción del día. Cada carga suma al stock del producto.</p>
+        <p class="text-muted mb-0">Registrá la producción del día. Cada carga suma al stock del producto.</p>
     </div>
-    <div class="col-auto d-flex gap-2">
+    <div class="col-auto d-flex gap-2 flex-wrap">
+        <!-- BOTÓN AGREGAR PRODUCTO — siempre visible y prominente -->
+        <button type="button" class="btn btn-success"
+                data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+            <i class="fas fa-plus-circle"></i> Nuevo Producto
+        </button>
         <a href="{{ url_for('fabrica.stock') }}" class="btn btn-outline-info">
             <i class="fas fa-boxes"></i> Ver Stock
         </a>
@@ -15,6 +70,22 @@
         </a>
     </div>
 </div>
+
+<!-- AVISO cuando no hay productos -->
+{% if not productos %}
+<div class="alert alert-warning d-flex align-items-center gap-3 mb-4" role="alert">
+    <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
+    <div>
+        <strong>No hay productos en el catálogo todavía.</strong>
+        Antes de cargar producción, necesitás agregar al menos un producto.
+        <br>
+        <button type="button" class="btn btn-warning btn-sm mt-2"
+                data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+            <i class="fas fa-plus"></i> Agregar primer producto ahora
+        </button>
+    </div>
+</div>
+{% endif %}
 
 <div class="row g-4">
     <!-- ════════════════════════════════════════ -->
@@ -28,6 +99,16 @@
                 <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Nueva Producción</h5>
             </div>
             <div class="card-body">
+                {% if not productos %}
+                <div class="text-center py-4 text-muted">
+                    <i class="fas fa-box-open fa-3x mb-3 opacity-50"></i>
+                    <p>No hay productos disponibles.</p>
+                    <button type="button" class="btn btn-success"
+                            data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+                        <i class="fas fa-plus-circle"></i> Agregar Producto
+                    </button>
+                </div>
+                {% else %}
                 <form method="POST" action="{{ url_for('fabrica.produccion') }}">
                     <!-- Producto -->
                     <div class="mb-3">
@@ -40,6 +121,13 @@
                             <option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
                             {% endfor %}
                         </select>
+                        <div class="form-text">
+                            ¿No encontrás el producto?
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto"
+                               class="text-success fw-semibold">
+                                <i class="fas fa-plus"></i> Agregarlo al catálogo
+                            </a>
+                        </div>
                     </div>
 
                     <!-- Cantidad y Unidad -->
@@ -78,7 +166,8 @@
                     <!-- Observaciones -->
                     <div class="mb-3">
                         <label for="observaciones" class="form-label fw-semibold">
-                            <i class="fas fa-sticky-note"></i> Observaciones <small class="text-muted">(opcional)</small>
+                            <i class="fas fa-sticky-note"></i> Observaciones
+                            <small class="text-muted">(opcional)</small>
                         </label>
                         <textarea name="observaciones" id="observaciones"
                                   class="form-control" rows="2"
@@ -89,44 +178,7 @@
                         <i class="fas fa-save"></i> Registrar Producción
                     </button>
                 </form>
-            </div>
-        </div>
-
-        <!-- AGREGAR NUEVO PRODUCTO AL CATÁLOGO -->
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-light">
-                <a class="text-dark text-decoration-none fw-semibold"
-                   data-bs-toggle="collapse" href="#collapseNuevoProducto">
-                    <i class="fas fa-plus"></i> Agregar nuevo producto al catálogo
-                </a>
-            </div>
-            <div class="collapse" id="collapseNuevoProducto">
-                <div class="card-body">
-                    <form method="POST" action="{{ url_for('fabrica.nuevo_producto') }}">
-                        <div class="mb-2">
-                            <label class="form-label fw-semibold">Nombre del Producto *</label>
-                            <input type="text" name="nombre" class="form-control"
-                                   placeholder="Ej: Mekasil" required>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-semibold">Unidad habitual</label>
-                            <select name="unidad" class="form-select">
-                                <option value="litros">Litros</option>
-                                <option value="kg">Kilogramos (kg)</option>
-                                <option value="unidades">Unidades</option>
-                                <option value="">Sin unidad predefinida</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Descripción <small class="text-muted">(opcional)</small></label>
-                            <input type="text" name="descripcion" class="form-control"
-                                   placeholder="Descripción breve...">
-                        </div>
-                        <button type="submit" class="btn btn-success w-100">
-                            <i class="fas fa-plus-circle"></i> Agregar Producto
-                        </button>
-                    </form>
-                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -212,25 +264,19 @@
                         <tbody>
                             {% for p in producciones %}
                             <tr>
-                                <td>
-                                    <strong>{{ p.producto.nombre if p.producto else '—' }}</strong>
-                                </td>
+                                <td><strong>{{ p.producto.nombre if p.producto else '—' }}</strong></td>
                                 <td>
                                     <span class="badge bg-primary fs-6">
                                         {{ "%.2f"|format(p.cantidad|float) }}
                                     </span>
                                 </td>
-                                <td>
-                                    <span class="badge bg-secondary">{{ p.unidad }}</span>
-                                </td>
+                                <td><span class="badge bg-secondary">{{ p.unidad }}</span></td>
                                 <td>
                                     <small class="text-muted">
                                         {{ p.fecha_creacion.strftime('%H:%M') if p.fecha_creacion else '—' }}
                                     </small>
                                 </td>
-                                <td>
-                                    <small class="text-muted">{{ p.observaciones or '—' }}</small>
-                                </td>
+                                <td><small class="text-muted">{{ p.observaciones or '—' }}</small></td>
                                 <td>
                                     <form method="POST"
                                           action="{{ url_for('fabrica.eliminar_produccion', prod_id=p.id) }}"
@@ -261,4 +307,17 @@
 
     </div>
 </div>
+
+{% endblock %}
+
+{% block extra_js %}
+{% if not productos %}
+<script>
+    // Si no hay productos, abrir el modal automáticamente
+    document.addEventListener('DOMContentLoaded', function () {
+        var modal = new bootstrap.Modal(document.getElementById('modalNuevoProducto'));
+        modal.show();
+    });
+</script>
+{% endif %}
 {% endblock %}

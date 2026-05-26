@@ -20,6 +20,9 @@ class Pedido(db.Model):
     
     # Relación con Cliente
     cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False, index=True)
+
+    # Relación con Producto del catálogo (opcional, para descuento de stock)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True, index=True)
     
     # Detalles del pedido
     producto_nombre = db.Column(db.String(200), nullable=False)  # Guardamos el nombre por si cambia el producto

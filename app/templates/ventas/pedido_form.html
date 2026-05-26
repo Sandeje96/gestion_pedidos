@@ -77,14 +77,19 @@
                             </div>
                             
                             <div class="row">
-                                <div class="col-md-5">
+                            <div class="col-md-5">
                                     <div class="mb-3">
                                         <label class="form-label">Producto *</label>
-                                        <input type="text" 
-                                               name="productos[]" 
-                                               class="form-control input-producto" 
-                                               placeholder="Ej: Pan lactal" 
-                                               required>
+                                        <select name="producto_ids[]"
+                                                class="form-select input-producto"
+                                                required>
+                                            <option value="">— Seleccionar producto —</option>
+                                            {% for p in productos_disponibles %}
+                                            <option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
+                                            {% endfor %}
+                                        </select>
+                                        {# campo oculto para retrocompatibilidad #}
+                                        <input type="hidden" name="productos[]" value="">
                                     </div>
                                 </div>
                                 <div class="col-md-3">
@@ -181,6 +186,9 @@
 <script>
 let contadorPedidos = 1;
 
+// Opciones de productos para usar en JS (cargadas desde servidor)
+const productosOptions = `{% for p in productos_disponibles %}<option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>{% endfor %}`;
+
 // Mostrar info del cliente al seleccionar
 document.getElementById('select-cliente').addEventListener('change', function() {
     const clienteId = this.value;
@@ -227,11 +235,13 @@ function agregarOtroPedido() {
                 <div class="col-md-5">
                     <div class="mb-3">
                         <label class="form-label">Producto *</label>
-                        <input type="text" 
-                               name="productos[]" 
-                               class="form-control input-producto" 
-                               placeholder="Ej: Pan lactal" 
-                               required>
+                        <select name="producto_ids[]"
+                                class="form-select input-producto"
+                                required>
+                            <option value="">— Seleccionar producto —</option>
+                            ${productosOptions}
+                        </select>
+                        <input type="hidden" name="productos[]" value="">
                     </div>
                 </div>
                 <div class="col-md-3">

@@ -176,46 +176,73 @@ def nuevo_pedido():
             return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
         
         # Obtener arrays de datos
-        productos = request.form.getlist('productos[]')
+        # producto_ids[] viene como ID del producto del catálogo
+        producto_ids = request.form.getlist('producto_ids[]')
+        # productos[] se mantiene como fallback para texto libre (retrocompatibilidad)
+        productos_texto = request.form.getlist('productos[]')
         cantidades = request.form.getlist('cantidades[]')
         unidades = request.form.getlist('unidades[]')
         notas = request.form.getlist('notas[]')
         
         # Validar que haya al menos un producto
-        productos_validos = [p for p in productos if p and p.strip()]
+        tiene_producto = any(p for p in producto_ids if p and p.strip()) or \
+                         any(p for p in productos_texto if p and p.strip())
         
-        if not productos_validos:
+        if not tiene_producto:
             flash('Debes agregar al menos un pedido con producto', 'warning')
             return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
         
         # Crear múltiples pedidos
         pedidos_creados = []
+        total_items = max(len(producto_ids), len(productos_texto))
         
-        for i in range(len(productos)):
-            if productos[i] and productos[i].strip():  # Solo si hay producto
+        for i in range(total_items):
+            pid_str = producto_ids[i] if i < len(producto_ids) else ''
+            ptxt = productos_texto[i] if i < len(productos_texto) else ''
+            
+            nombre_final = None
+            id_final = None
+
+            if pid_str and pid_str.strip():
+                # Buscar el producto en el catálogo
                 try:
-                    cantidad = float(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1.0
-                    unidad = unidades[i] if i < len(unidades) else 'unidades'
-                    nota = notas[i] if i < len(notas) and notas[i] else None
-                    
-                    pedido = Pedido(
-                        cliente_id=cliente_id,
-                        producto_nombre=productos[i].strip(),
-                        cantidad=cantidad,
-                        unidad=unidad,
-                        estado='pendiente',
-                        notas_vendedor=nota,
-                        modificado=False,
-                        visto_por_fabrica=False,
-                        esperando_contestacion=False
-                    )
-                    db.session.add(pedido)
-                    pedidos_creados.append(pedido)
-                    
-                except Exception as e:
-                    flash(f'Error en pedido #{i+1}: {str(e)}', 'danger')
-                    db.session.rollback()
-                    return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
+                    producto_obj = Producto.query.get(int(pid_str))
+                    if producto_obj:
+                        nombre_final = producto_obj.nombre
+                        id_final = producto_obj.id
+                except (ValueError, TypeError):
+                    pass
+
+            if not nombre_final and ptxt and ptxt.strip():
+                nombre_final = ptxt.strip()
+
+            if not nombre_final:
+                continue  # Saltear filas vacías
+
+            try:
+                cantidad = float(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1.0
+                unidad = unidades[i] if i < len(unidades) else 'unidades'
+                nota = notas[i] if i < len(notas) and notas[i] else None
+                
+                pedido = Pedido(
+                    cliente_id=cliente_id,
+                    producto_nombre=nombre_final,
+                    producto_id=id_final,
+                    cantidad=cantidad,
+                    unidad=unidad,
+                    estado='pendiente',
+                    notas_vendedor=nota,
+                    modificado=False,
+                    visto_por_fabrica=False,
+                    esperando_contestacion=False
+                )
+                db.session.add(pedido)
+                pedidos_creados.append(pedido)
+                
+            except Exception as e:
+                flash(f'Error en pedido #{i+1}: {str(e)}', 'danger')
+                db.session.rollback()
+                return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
         
         # Guardar todos los pedidos
         try:
@@ -238,11 +265,14 @@ def nuevo_pedido():
             flash(f'Error al guardar pedidos: {str(e)}', 'danger')
             return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
     
+    # Cargar lista de productos disponibles para el selector
+    productos_disponibles = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
     return render_template(
         'ventas/pedido_form.html',
         form=form,
         title='Nuevo Pedido',
-        accion='Crear'
+        accion='Crear',
+        productos_disponibles=productos_disponibles
     )
 
 
@@ -561,4 +591,16 @@ def api_cliente_pedidos(cliente_id):
     return jsonify({
         'cliente': cliente.to_dict(),
         'pedidos': [p.to_dict() for p in pedidos]
+    })
+
+
+@ventas_bp.route('/api/productos')
+@vendedor_requerido
+def api_productos():
+    """
+    API: Obtener lista de productos disponibles para el selector de pedidos.
+    """
+    productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
+    return jsonify({
+        'productos': [p.to_dict() for p in productos]
     })

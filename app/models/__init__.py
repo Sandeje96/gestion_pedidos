@@ -9,5 +9,6 @@ from app.models.cliente import Cliente
 from app.models.pedido import Pedido
 from app.models.producto import Producto
 from app.models.mensaje_pedido import MensajePedido
+from app.models.produccion import ProduccionDiaria
 
-__all__ = ['Usuario', 'Cliente', 'Pedido', 'Producto']
+__all__ = ['Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido', 'ProduccionDiaria']

@@ -9,8 +9,10 @@ from app import db, socketio
 from app.models.pedido import Pedido
 from app.models.cliente import Cliente
 from app.models.usuario import Usuario
+from app.models.producto import Producto
+from app.models.produccion import ProduccionDiaria
 from app.forms.pedido_forms import ActualizarPedidoFabricaForm
-from datetime import datetime
+from datetime import datetime, date
 from functools import wraps
 from sqlalchemy import func
 
@@ -124,6 +126,11 @@ def actualizar_pedido(pedido_id):
         # Si se completó, registrar fecha
         if pedido.estado == 'completado' and not pedido.fecha_completado:
             pedido.marcar_como_completado()
+            # Descontar stock si el pedido tiene producto vinculado
+            if pedido.producto_id:
+                producto = Producto.query.get(pedido.producto_id)
+                if producto:
+                    producto.descontar_stock(float(pedido.cantidad))
         
         # Marcar como visto si estaba modificado
         if pedido.modificado:
@@ -289,6 +296,11 @@ def actualizar_estado_rapido(pedido_id):
     # Si se completó, registrar fecha
     if nuevo_estado == 'completado' and not pedido.fecha_completado:
         pedido.marcar_como_completado()
+        # Descontar stock si el pedido tiene producto vinculado
+        if pedido.producto_id:
+            producto = Producto.query.get(pedido.producto_id)
+            if producto:
+                producto.descontar_stock(float(pedido.cantidad))
     
     # Marcar como visto si estaba modificado
     if pedido.modificado:
@@ -307,3 +319,172 @@ def actualizar_estado_rapido(pedido_id):
         'success': True,
         'pedido': pedido.to_dict()
     })
+
+
+# ─────────────────────────────────────────────
+# SECCIÓN: PRODUCCIÓN DIARIA Y STOCK
+# ─────────────────────────────────────────────
+
+@fabrica_bp.route('/produccion', methods=['GET', 'POST'])
+@operario_requerido
+def produccion():
+    """
+    Ver y cargar producción diaria.
+    GET: muestra historial filtrado por fecha.
+    POST: registra una nueva producción y suma al stock del producto.
+    """
+    if request.method == 'POST':
+        producto_id = request.form.get('producto_id', type=int)
+        cantidad = request.form.get('cantidad', type=float)
+        unidad = request.form.get('unidad', '').strip()
+        fecha_str = request.form.get('fecha_produccion', '').strip()
+        observaciones = request.form.get('observaciones', '').strip() or None
+
+        # Validaciones básicas
+        if not producto_id or not cantidad or not unidad:
+            flash('Producto, cantidad y unidad son obligatorios.', 'danger')
+            return redirect(url_for('fabrica.produccion'))
+
+        if cantidad <= 0:
+            flash('La cantidad debe ser mayor a cero.', 'danger')
+            return redirect(url_for('fabrica.produccion'))
+
+        producto = Producto.query.get_or_404(producto_id)
+
+        # Parsear fecha
+        try:
+            fecha_prod = datetime.strptime(fecha_str, '%Y-%m-%d').date() if fecha_str else date.today()
+        except ValueError:
+            fecha_prod = date.today()
+
+        # Crear registro de producción
+        prod = ProduccionDiaria(
+            producto_id=producto_id,
+            cantidad=cantidad,
+            unidad=unidad,
+            fecha_produccion=fecha_prod,
+            usuario_id=current_user.id,
+            observaciones=observaciones
+        )
+        db.session.add(prod)
+
+        # Sumar al stock actual del producto
+        producto.agregar_stock(cantidad)
+
+        db.session.commit()
+        flash(f'✅ Se registraron {cantidad} {unidad} de {producto.nombre}.', 'success')
+        return redirect(url_for('fabrica.produccion'))
+
+    # GET: filtrar por fecha
+    fecha_filtro_str = request.args.get('fecha', date.today().isoformat())
+    try:
+        fecha_filtro = datetime.strptime(fecha_filtro_str, '%Y-%m-%d').date()
+    except ValueError:
+        fecha_filtro = date.today()
+
+    producciones = ProduccionDiaria.query.filter(
+        ProduccionDiaria.fecha_produccion == fecha_filtro
+    ).order_by(ProduccionDiaria.fecha_creacion.desc()).all()
+
+    # Total producido por producto en ese día
+    totales_dia = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total')
+    ).filter(
+        ProduccionDiaria.fecha_produccion == fecha_filtro
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
+
+    return render_template(
+        'fabrica/produccion.html',
+        title='Carga de Producción',
+        producciones=producciones,
+        productos=productos,
+        fecha_filtro=fecha_filtro,
+        hoy=date.today(),
+        totales_dia=totales_dia
+    )
+
+
+@fabrica_bp.route('/produccion/<int:prod_id>/eliminar', methods=['POST'])
+@operario_requerido
+def eliminar_produccion(prod_id):
+    """
+    Eliminar un registro de producción y restar del stock del producto.
+    """
+    prod = ProduccionDiaria.query.get_or_404(prod_id)
+    producto = Producto.query.get(prod.producto_id)
+
+    if producto:
+        producto.descontar_stock(float(prod.cantidad))
+
+    nombre_prod = producto.nombre if producto else 'desconocido'
+    cantidad = float(prod.cantidad)
+    unidad = prod.unidad
+
+    db.session.delete(prod)
+    db.session.commit()
+
+    flash(f'⚠️ Se eliminó la producción de {cantidad} {unidad} de {nombre_prod} y se ajustó el stock.', 'warning')
+    return redirect(url_for('fabrica.produccion'))
+
+
+@fabrica_bp.route('/stock')
+@operario_requerido
+def stock():
+    """
+    Vista del stock actual de todos los productos.
+    """
+    productos = Producto.query.order_by(Producto.nombre).all()
+
+    # Total producido histórico por producto
+    producciones_totales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_producido')
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    totales_dict = {r.producto_id: float(r.total_producido) for r in producciones_totales}
+
+    return render_template(
+        'fabrica/stock.html',
+        title='Stock Actual',
+        productos=productos,
+        totales_dict=totales_dict
+    )
+
+
+@fabrica_bp.route('/productos/nuevo', methods=['POST'])
+@operario_requerido
+def nuevo_producto():
+    """
+    Agregar un nuevo producto al catálogo desde el panel de fábrica.
+    """
+    nombre = request.form.get('nombre', '').strip()
+    unidad = request.form.get('unidad', '').strip()
+    descripcion = request.form.get('descripcion', '').strip() or None
+
+    if not nombre:
+        flash('El nombre del producto es obligatorio.', 'danger')
+        return redirect(url_for('fabrica.produccion'))
+
+    # Verificar que no exista ya
+    existente = Producto.query.filter(
+        func.lower(Producto.nombre) == nombre.lower()
+    ).first()
+    if existente:
+        flash(f'Ya existe un producto con el nombre "{existente.nombre}".', 'warning')
+        return redirect(url_for('fabrica.produccion'))
+
+    nuevo = Producto(
+        nombre=nombre,
+        unidad=unidad if unidad else None,
+        descripcion=descripcion,
+        disponible=True,
+        stock_actual=0
+    )
+    db.session.add(nuevo)
+    db.session.commit()
+
+    flash(f'✅ Producto "{nombre}" agregado al catálogo.', 'success')
+    return redirect(url_for('fabrica.produccion'))

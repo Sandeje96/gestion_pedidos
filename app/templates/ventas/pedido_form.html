@@ -127,10 +127,11 @@
                                         <label class="form-label">Producto *</label>
                                         <select name="producto_ids[]"
                                                 class="form-select input-producto"
+                                                onchange="autocompletarUnidad(this)"
                                                 required>
                                             <option value="">— Seleccionar producto —</option>
                                             {% for p in productos_disponibles %}
-                                            <option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
+                                            <option value="{{ p.id }}" data-unidad="{{ p.unidad or '' }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
                                             {% endfor %}
                                         </select>
                                         <div class="form-text">
@@ -238,8 +239,36 @@
 <script>
 let contadorPedidos = 1;
 
+// Mapa de producto_id -> unidad (para autocompletar)
+const productosUnidades = {
+    {% for p in productos_disponibles %}
+    {{ p.id }}: "{{ p.unidad or '' }}",
+    {% endfor %}
+};
+
 // Opciones de productos para usar en JS (cargadas desde servidor)
-const productosOptions = `{% for p in productos_disponibles %}<option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>{% endfor %}`;
+const productosOptions = `{% for p in productos_disponibles %}<option value="{{ p.id }}" data-unidad="{{ p.unidad or '' }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>{% endfor %}`;
+
+// Autocompletar unidad al seleccionar producto
+function autocompletarUnidad(selectProducto) {
+    const selectedOption = selectProducto.options[selectProducto.selectedIndex];
+    const unidad = selectedOption.getAttribute('data-unidad') || '';
+    // Buscar el select de unidad dentro del mismo bloque pedido-item
+    const pedidoItem = selectProducto.closest('.pedido-item');
+    if (!pedidoItem) return;
+    const selectUnidad = pedidoItem.querySelector('.input-unidad');
+    if (!selectUnidad || !unidad) return;
+    // Seleccionar la opción que coincide
+    for (let i = 0; i < selectUnidad.options.length; i++) {
+        if (selectUnidad.options[i].value === unidad) {
+            selectUnidad.selectedIndex = i;
+            // Animación visual para que se note el cambio
+            selectUnidad.classList.add('border-success');
+            setTimeout(() => selectUnidad.classList.remove('border-success'), 1200);
+            break;
+        }
+    }
+}
 
 // Mostrar info del cliente al seleccionar
 document.getElementById('select-cliente').addEventListener('change', function() {
@@ -289,6 +318,7 @@ function agregarOtroPedido() {
                         <label class="form-label">Producto *</label>
                         <select name="producto_ids[]"
                                 class="form-select input-producto"
+                                onchange="autocompletarUnidad(this)"
                                 required>
                             <option value="">— Seleccionar producto —</option>
                             ${productosOptions}

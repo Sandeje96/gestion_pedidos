@@ -1,12 +1,57 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+<!-- MODAL AGREGAR NUEVO PRODUCTO -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #198754, #145a32);">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle"></i> Agregar Producto al Catálogo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="{{ url_for('ventas.nuevo_producto') }}">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold"><i class="fas fa-tag"></i> Nombre del Producto *</label>
+                        <input type="text" name="nombre" class="form-control form-control-lg"
+                               placeholder="Ej: Mekasil, Shampoo 2en1..." required autofocus>
+                        <div class="form-text">Este nombre aparece en el selector de pedidos y en producción de fábrica.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold"><i class="fas fa-ruler"></i> Unidad habitual</label>
+                        <select name="unidad" class="form-select">
+                            <option value="litros">Litros</option>
+                            <option value="kg">Kilogramos (kg)</option>
+                            <option value="unidades">Unidades</option>
+                            <option value="">Sin unidad predefinida</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold"><i class="fas fa-info-circle"></i> Descripción <small class="text-muted">(opcional)</small></label>
+                        <input type="text" name="descripcion" class="form-control" placeholder="Descripción breve...">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 btn-lg">
+                        <i class="fas fa-save"></i> Guardar Producto
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="row mb-4">
     <div class="col">
         <h2><i class="fas fa-plus-circle"></i> Nuevo Pedido</h2>
         <p class="text-muted">Agrega uno o varios pedidos para un cliente</p>
     </div>
-    <div class="col-auto">
+    <div class="col-auto d-flex gap-2">
+        <button type="button" class="btn btn-success"
+                data-bs-toggle="modal" data-bs-target="#modalNuevoProducto"
+                title="Agregar nuevo producto al catálogo">
+            <i class="fas fa-plus"></i> Nuevo Producto
+        </button>
         <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left"></i> Volver
         </a>
@@ -88,6 +133,13 @@
                                             <option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
                                             {% endfor %}
                                         </select>
+                                        <div class="form-text">
+                                            ¿No está el producto?
+                                            <a href="#" class="text-success fw-semibold"
+                                               data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+                                                <i class="fas fa-plus"></i> Agregálo acá
+                                            </a>
+                                        </div>
                                         {# campo oculto para retrocompatibilidad #}
                                         <input type="hidden" name="productos[]" value="">
                                     </div>

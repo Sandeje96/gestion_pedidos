@@ -107,51 +107,69 @@ socket.on('pedido_eliminado', function(data) {
 // FUNCIONES DE ACTUALIZACIÓN
 // ========================================
 
-/**
- * Actualiza el estado de un pedido rápidamente (sin form)
- */
+// Set para evitar requests duplicados simultáneos
+const pedidosEnProceso = new Set();
+
 function actualizarEstadoRapido(pedidoId, nuevoEstado) {
     console.log(`Actualizando estado del pedido ${pedidoId} a ${nuevoEstado}`);
-    
+
+    // Evitar requests duplicados para el mismo pedido
+    if (pedidosEnProceso.has(pedidoId)) {
+        console.warn(`Pedido ${pedidoId} ya tiene una actualización en curso`);
+        return;
+    }
+
     const selectEstado = document.querySelector(`.estado-select[data-pedido-id="${pedidoId}"]`);
+
+    // Guardar estado anterior para revertir si falla
+    const estadoAnterior = selectEstado ? selectEstado.getAttribute('data-estado-actual') || selectEstado.value : null;
+    // Actualizar data-estado-actual para evitar doble revert
     if (selectEstado) {
+        selectEstado.setAttribute('data-estado-actual', nuevoEstado);
         selectEstado.disabled = true;
     }
-    
+
+    pedidosEnProceso.add(pedidoId);
+
     fetch(`/fabrica/pedido/${pedidoId}/actualizar-estado-rapido`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            estado: nuevoEstado
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estado: nuevoEstado })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Actualizar el data-estado en la fila
+            // ✅ Éxito: actualizar el DOM
             const pedidoRow = document.querySelector(`[data-pedido-id="${pedidoId}"]`);
             if (pedidoRow) {
                 pedidoRow.setAttribute('data-estado', nuevoEstado);
-
                 pedidoRow.classList.remove('estado-pendiente', 'estado-completado', 'estado-cancelado');
                 pedidoRow.classList.add(`estado-${nuevoEstado}`);
             }
-            
+
             mostrarToast(`Estado actualizado a: ${nuevoEstado}`, 'success');
-            
-            // Actualizar estadísticas
             actualizarEstadisticas();
         } else {
-            mostrarToast('Error al actualizar estado', 'danger');
+            // ❌ Error del servidor: revertir select
+            console.error('Error del servidor:', data.error);
+            if (selectEstado && estadoAnterior) {
+                selectEstado.value = estadoAnterior;
+                selectEstado.setAttribute('data-estado-actual', estadoAnterior);
+            }
+            mostrarToast(`Error: ${data.error || 'No se pudo actualizar el estado'}`, 'danger');
         }
     })
     .catch(error => {
-        console.error('Error:', error);
-        mostrarToast('Error de conexión', 'danger');
+        // ❌ Error de red: revertir select
+        console.error('Error de conexión:', error);
+        if (selectEstado && estadoAnterior) {
+            selectEstado.value = estadoAnterior;
+            selectEstado.setAttribute('data-estado-actual', estadoAnterior);
+        }
+        mostrarToast('Error de conexión al actualizar estado', 'danger');
     })
     .finally(() => {
+        pedidosEnProceso.delete(pedidoId);
         if (selectEstado) {
             selectEstado.disabled = false;
         }

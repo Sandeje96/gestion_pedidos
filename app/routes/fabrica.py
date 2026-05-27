@@ -275,50 +275,66 @@ def actualizar_estado_rapido(pedido_id):
     """
     Actualizar solo el estado de un pedido rapidamente.
     """
-    from flask import request, jsonify
-    
+    from flask import request, jsonify, current_app
+
     pedido = Pedido.query.get_or_404(pedido_id)
-    
+
     data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'Datos inválidos'}), 400
+
     nuevo_estado = data.get('estado')
-    
+
     if not nuevo_estado:
         return jsonify({'success': False, 'error': 'Estado no proporcionado'}), 400
-    
+
     # Validar que el estado sea válido
     estados_validos = ['pendiente', 'completado', 'cancelado']
     if nuevo_estado not in estados_validos:
         return jsonify({'success': False, 'error': 'Estado inválido'}), 400
-    
-    # Actualizar estado
-    pedido.estado = nuevo_estado
-    
-    # Si se completó, registrar fecha
-    if nuevo_estado == 'completado' and not pedido.fecha_completado:
-        pedido.marcar_como_completado()
-        # Descontar stock si el pedido tiene producto vinculado
-        if pedido.producto_id:
-            producto = Producto.query.get(pedido.producto_id)
-            if producto:
-                producto.descontar_stock(float(pedido.cantidad))
-    
-    # Marcar como visto si estaba modificado
-    if pedido.modificado:
-        pedido.marcar_como_visto()
 
-    
-    
-    db.session.commit()
-    
-    # Emitir evento de WebSocket
-    socketio.emit('pedido_actualizado', {
-        'pedido': pedido.to_dict()
-    }, namespace='/')
-    
-    return jsonify({
-        'success': True,
-        'pedido': pedido.to_dict()
-    })
+    try:
+        # Guardar estado anterior por si necesitamos revertir
+        estado_anterior = pedido.estado
+
+        # Actualizar estado
+        pedido.estado = nuevo_estado
+
+        # Si se completó, registrar fecha
+        if nuevo_estado == 'completado' and not pedido.fecha_completado:
+            pedido.marcar_como_completado()
+            # Intentar descontar stock (fallo acá NO debe abortar el cambio de estado)
+            if pedido.producto_id:
+                try:
+                    producto = Producto.query.get(pedido.producto_id)
+                    if producto:
+                        producto.descontar_stock(float(pedido.cantidad))
+                except Exception as stock_err:
+                    current_app.logger.warning(
+                        f"No se pudo descontar stock del pedido {pedido_id}: {stock_err}"
+                    )
+                    # Continuar sin descontar stock
+
+        # Marcar como visto si estaba modificado
+        if pedido.modificado:
+            pedido.marcar_como_visto()
+
+        db.session.commit()
+
+        # Emitir evento de WebSocket
+        socketio.emit('pedido_actualizado', {
+            'pedido': pedido.to_dict()
+        }, namespace='/')
+
+        return jsonify({
+            'success': True,
+            'pedido': pedido.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error en actualizar_estado_rapido pedido {pedido_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────────

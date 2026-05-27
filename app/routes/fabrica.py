@@ -15,6 +15,48 @@ from app.forms.pedido_forms import ActualizarPedidoFabricaForm
 from datetime import datetime, date
 from functools import wraps
 from sqlalchemy import func
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _descontar_stock_pedido(pedido):
+    """
+    Intenta descontar el stock del producto asociado a un pedido.
+    Busca primero por producto_id; si no tiene, busca por producto_nombre.
+    Retorna True si pudo descontar, False si no encontró el producto.
+    """
+    producto = None
+
+    # Primero: buscar por ID (pedidos nuevos)
+    if pedido.producto_id:
+        producto = Producto.query.get(pedido.producto_id)
+
+    # Fallback: buscar por nombre (pedidos creados antes del nuevo sistema)
+    if not producto and pedido.producto_nombre:
+        producto = Producto.query.filter(
+            func.lower(Producto.nombre) == pedido.producto_nombre.strip().lower()
+        ).first()
+        # Si encontramos por nombre, vincular para el futuro
+        if producto:
+            pedido.producto_id = producto.id
+
+    if producto:
+        cantidad = float(pedido.cantidad or 0)
+        if cantidad > 0:
+            producto.descontar_stock(cantidad)
+            logger.info(
+                f"Stock descontado: {cantidad} de '{producto.nombre}' "
+                f"por pedido #{pedido.id}. Stock restante: {producto.stock_actual}"
+            )
+            return True
+
+    logger.warning(
+        f"No se encontró producto para descontar stock del pedido #{pedido.id} "
+        f"(producto_id={pedido.producto_id}, nombre='{pedido.producto_nombre}')"
+    )
+    return False
+
 
 # Crear el Blueprint
 fabrica_bp = Blueprint('fabrica', __name__)
@@ -126,11 +168,11 @@ def actualizar_pedido(pedido_id):
         # Si se completó, registrar fecha
         if pedido.estado == 'completado' and not pedido.fecha_completado:
             pedido.marcar_como_completado()
-            # Descontar stock si el pedido tiene producto vinculado
-            if pedido.producto_id:
-                producto = Producto.query.get(pedido.producto_id)
-                if producto:
-                    producto.descontar_stock(float(pedido.cantidad))
+            # Descontar stock con fallback por nombre
+            try:
+                _descontar_stock_pedido(pedido)
+            except Exception as e:
+                logger.warning(f"Error descontando stock en actualizar_pedido #{pedido.id}: {e}")
         
         # Marcar como visto si estaba modificado
         if pedido.modificado:
@@ -303,17 +345,14 @@ def actualizar_estado_rapido(pedido_id):
         # Si se completó, registrar fecha
         if nuevo_estado == 'completado' and not pedido.fecha_completado:
             pedido.marcar_como_completado()
-            # Intentar descontar stock (fallo acá NO debe abortar el cambio de estado)
-            if pedido.producto_id:
-                try:
-                    producto = Producto.query.get(pedido.producto_id)
-                    if producto:
-                        producto.descontar_stock(float(pedido.cantidad))
-                except Exception as stock_err:
-                    current_app.logger.warning(
-                        f"No se pudo descontar stock del pedido {pedido_id}: {stock_err}"
-                    )
-                    # Continuar sin descontar stock
+            # Descontar stock con fallback por nombre
+            try:
+                _descontar_stock_pedido(pedido)
+            except Exception as stock_err:
+                current_app.logger.warning(
+                    f"No se pudo descontar stock del pedido {pedido_id}: {stock_err}"
+                )
+                # Continuar sin descontar stock
 
         # Marcar como visto si estaba modificado
         if pedido.modificado:

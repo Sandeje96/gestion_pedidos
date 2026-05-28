@@ -250,3 +250,118 @@ def setup_database_production():
         </html>
         """
 
+
+@auth_bp.route('/setup-nuevos-usuarios-v9n2p5q', methods=['GET'])
+def setup_nuevos_usuarios_production():
+    """
+    Endpoint temporal para agregar los nuevos usuarios y clientes de sucursal en producción.
+    ⚠️ ELIMINAR DESPUÉS DE USAR
+    """
+    from app.models.usuario import Usuario
+    from app.models.cliente import Cliente
+    
+    try:
+        mensajes_resultado = []
+        
+        # 1. Crear usuario sucursal si no existe
+        u_sucursal = Usuario.query.filter_by(username='sucursal').first()
+        if not u_sucursal:
+            u_sucursal = Usuario(
+                nombre="Sucursales",
+                username="sucursal",
+                email="sucursales@ejemplo.com",
+                rol="sucursal",
+                activo=True
+            )
+            u_sucursal.set_password("123456")
+            db.session.add(u_sucursal)
+            mensajes_resultado.append("Usuario 'sucursal' creado.")
+        else:
+            mensajes_resultado.append("Usuario 'sucursal' ya existía.")
+            
+        # 2. Crear usuario administracion si no existe
+        u_admin = Usuario.query.filter_by(username='administracion').first()
+        if not u_admin:
+            u_admin = Usuario(
+                nombre="Administración Fábrica",
+                username="administracion",
+                email="administracion@ejemplo.com",
+                rol="administracion",
+                activo=True
+            )
+            u_admin.set_password("123456")
+            db.session.add(u_admin)
+            mensajes_resultado.append("Usuario 'administracion' creado.")
+        else:
+            mensajes_resultado.append("Usuario 'administracion' ya existía.")
+            
+        # 3. Crear los 5 clientes sucursales si no existen
+        clientes_sucursales = [
+            "SUCURSAL URUGUAY",
+            "SUCURSAL TAMBOR DE TACUARI",
+            "SUCURSAL CANDELARIA",
+            "FRANQUICIA VILLA CABELLO",
+            "FRANQUICIA LOPEZ Y PLANES"
+        ]
+        
+        for c_nombre in clientes_sucursales:
+            cliente = Cliente.query.filter_by(nombre=c_nombre).first()
+            if not cliente:
+                new_c = Cliente(
+                    nombre=c_nombre,
+                    direccion="Dirección Sucursal",
+                    telefono="000-0000",
+                    ruta="SUCURSALES",
+                    activo=True
+                )
+                db.session.add(new_c)
+                mensajes_resultado.append(f"Cliente '{c_nombre}' creado.")
+            else:
+                # Asegurar que tenga la ruta SUCURSALES
+                if cliente.ruta != "SUCURSALES":
+                    cliente.ruta = "SUCURSALES"
+                    mensajes_resultado.append(f"Cliente '{c_nombre}' actualizado a ruta SUCURSALES.")
+                else:
+                    mensajes_resultado.append(f"Cliente '{c_nombre}' ya existía con ruta correcta.")
+                    
+        db.session.commit()
+        
+        detalles = "<br>".join([f"<li>{m}</li>" for m in mensajes_resultado])
+        return f"""
+        <html>
+        <head><title>Nuevos Usuarios Setup</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f0f0f0;">
+            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #28a745;">✅ Nuevos usuarios y sucursales procesados</h1>
+                <h3>Resultados:</h3>
+                <ul>
+                    {detalles}
+                </ul>
+                <hr>
+                <h3 style="color: #dc3545;">⚠️ IMPORTANTE:</h3>
+                <p><strong>Los usuarios y clientes están listos para ser usados online.</strong></p>
+                <p>Una vez verifiques su funcionamiento, puedes eliminar este endpoint temporal por seguridad.</p>
+                <hr>
+                <a href="/" style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Ir al Inicio</a>
+            </div>
+        </body>
+        </html>
+        """
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_detail = traceback.format_exc()
+        return f"""
+        <html>
+        <head><title>Error Setup</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f0f0f0;">
+            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #dc3545;">❌ Error al inicializar nuevos usuarios</h1>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">{error_detail}</pre>
+            </div>
+        </body>
+        </html>
+        """
+
+

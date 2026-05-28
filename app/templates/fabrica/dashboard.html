@@ -149,7 +149,7 @@
                                         <!-- Badge de litros totales en esta ruta -->
                                         {% set litros_ruta = litros_por_ruta.get(ruta, 0) %}
                                         {% if litros_ruta > 0 %}
-                                            <span class="badge bg-secondary ms-2">
+                                            <span class="badge bg-secondary ms-2 badge-litros-ruta">
                                                 <i class="fas fa-tint"></i> {{ litros_ruta|round(1) }} lts
                                             </span>
                                         {% endif %}
@@ -253,7 +253,9 @@
                                                                     data-pedido-id="{{ pedido.id }}"
                                                                     data-estado="{{ pedido.estado }}"
                                                                     data-ruta="{{ cliente.ruta }}"
-                                                                    data-operario-id="{{ pedido.operario_id or '' }}">
+                                                                    data-operario-id="{{ pedido.operario_id or '' }}"
+                                                                    data-cantidad="{{ pedido.cantidad|float }}"
+                                                                    data-unidad="{{ pedido.unidad or '' }}">
                                                                     
                                                                     <td><strong>#{{ pedido.id }}</strong></td>
                                                                     

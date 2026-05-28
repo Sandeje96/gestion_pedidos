@@ -483,6 +483,29 @@ function actualizarBadgesClientes() {
         } else if (badgeEsperandoRuta) {
             badgeEsperandoRuta.remove();
         }
+
+        // ── Actualizar badge de litros (excluye cancelados) ──────────────
+        let totalLitros = 0;
+        rutaItem.querySelectorAll('.pedido-row').forEach(row => {
+            if (row.getAttribute('data-estado') !== 'cancelado') {
+                totalLitros += parseFloat(row.getAttribute('data-cantidad') || 0);
+            }
+        });
+
+        let badgeLitros = botonRuta.querySelector('.badge-litros-ruta');
+        if (totalLitros > 0) {
+            if (!badgeLitros) {
+                badgeLitros = document.createElement('span');
+                badgeLitros.className = 'badge bg-secondary ms-2 badge-litros-ruta';
+                const flexDiv = botonRuta.querySelector('.d-flex');
+                if (flexDiv) flexDiv.appendChild(badgeLitros);
+                else botonRuta.appendChild(badgeLitros);
+            }
+            badgeLitros.innerHTML = `<i class="fas fa-tint"></i> ${totalLitros.toFixed(1)} lts`;
+            badgeLitros.style.display = '';
+        } else if (badgeLitros) {
+            badgeLitros.style.display = 'none';
+        }
     });
 }
 

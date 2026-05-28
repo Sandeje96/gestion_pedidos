@@ -37,6 +37,12 @@ class Pedido(db.Model):
         index=True
     )  # Estados: 'pendiente', 'en_proceso', 'completado', 'parcial', 'cancelado'
     
+    # Destinatario del pedido ('fabrica', 'admin_minorista', 'admin_mayorista')
+    destinatario = db.Column(db.String(30), default='fabrica', nullable=False, index=True)
+    
+    # Control de despacho
+    despachado = db.Column(db.Boolean, default=False, nullable=False)
+    
     # Operario responsable
     operario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True, index=True)
     
@@ -94,6 +100,8 @@ class Pedido(db.Model):
             'cantidad': float(self.cantidad),
             'unidad': self.unidad,
             'estado': self.estado,
+            'destinatario': self.destinatario,
+            'despachado': self.despachado,
             'operario_id': self.operario_id,
             'operario_nombre': self.operario_responsable.nombre if self.operario_responsable else None,
             'observaciones_fabrica': self.observaciones_fabrica,
@@ -101,9 +109,9 @@ class Pedido(db.Model):
             'modificado': self.modificado,
             'visto_por_fabrica': self.visto_por_fabrica,
             'visto_por_vendedor': self.visto_por_vendedor,
-            'archivado': self.archivado,  # <--- AGREGAR
-            'fecha_archivado': self.fecha_archivado.isoformat() if self.fecha_archivado else None,  # <--- AGREGAR
-            'semana_archivado': self.semana_archivado,  # <--- AGREGAR
+            'archivado': self.archivado,
+            'fecha_archivado': self.fecha_archivado.isoformat() if self.fecha_archivado else None,
+            'semana_archivado': self.semana_archivado,
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
             'fecha_actualizacion': self.fecha_actualizacion.isoformat() if self.fecha_actualizacion else None,
             'fecha_completado': self.fecha_completado.isoformat() if self.fecha_completado else None,

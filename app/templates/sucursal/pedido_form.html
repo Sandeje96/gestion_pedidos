@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Cargar Pedido Sucursal{% endblock %}
+
+{% block extra_css %}
+<style>
+    .order-container {
+        border-radius: 16px;
+        background: white;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+    .pedido-item {
+        background-color: #f8f9fa;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    .pedido-item:hover {
+        background-color: rgba(13, 110, 253, 0.02);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border-color: rgba(13, 110, 253, 0.2);
+    }
+    .badge-step {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container fade-in">
+    <!-- Encabezado -->
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="display-6 fw-bold text-dark mb-1">
+                <i class="fas fa-cart-plus text-primary"></i> Cargar Pedidos Sucursal
+            </h1>
+            <p class="text-muted">Ingresa los pedidos y asígnales el destinatario correspondiente.</p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('sucursal.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulario Principal -->
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+            <div class="card order-container border-0 overflow-hidden">
+                <div class="card-header text-white bg-primary py-3 px-4">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-shopping-cart me-2"></i> Formulario de Carga Múltiple</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" id="form-pedidos-sucursal">
+                        
+                        <!-- SECCIÓN 1: Identificación de la Sucursal -->
+                        <div class="mb-4 p-4 bg-light rounded-4 border border-light-subtle">
+                            <h5 class="fw-bold text-dark mb-3">
+                                <span class="badge bg-primary badge-step text-white me-2">1</span> Seleccionar Sucursal / Franquicia
+                            </h5>
+                            <div class="mb-3">
+                                <label for="select-cliente" class="form-label fw-semibold">Sucursal Solicitante *</label>
+                                <select name="cliente_id" id="select-cliente" class="form-select form-select-lg rounded-3 border-secondary-subtle" required onchange="mostrarInfoSucursal(this)">
+                                    <option value="" disabled selected>— Seleccionar Sucursal de la Lista —</option>
+                                    {% for suc in sucursales %}
+                                    <option value="{{ suc.id }}" data-telefono="{{ suc.telefono or 'No registrado' }}" data-direccion="{{ suc.direccion or 'No registrada' }}">
+                                        {{ suc.nombre }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Bloque Informativo de Sucursal -->
+                            <div id="info-sucursal" style="display: none;" class="p-3 bg-white border border-light-subtle rounded-3 mt-3 fade-in">
+                                <h6 class="text-primary fw-bold mb-2"><i class="fas fa-store"></i> Información del Punto de Venta</h6>
+                                <div class="row text-dark">
+                                    <div class="col-md-6 mb-2 mb-md-0">
+                                        <small class="text-muted d-block">Dirección:</small>
+                                        <span id="sucursal-direccion" class="fw-semibold"></span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted d-block">Teléfono / Contacto:</small>
+                                        <span id="sucursal-telefono" class="fw-semibold"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4 opacity-10">
+
+                        <!-- SECCIÓN 2: Items de Pedido -->
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark mb-0">
+                                    <span class="badge bg-primary badge-step text-white me-2">2</span> Detalle del Pedido
+                                </h5>
+                                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-2 fw-semibold" onclick="agregarFilaPedido()">
+                                    <i class="fas fa-plus me-1"></i> Agregar Item
+                                </button>
+                            </div>
+
+                            <!-- Contenedor de Items Dinámicos -->
+                            <div id="lista-pedidos" class="d-flex flex-column gap-3">
+                                <!-- Plantilla Inicial (Fila #1) -->
+                                <div class="pedido-item p-3 mb-1" data-pedido-num="1">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <span class="badge bg-secondary text-white font-monospace">Item #1</span>
+                                        <button type="button" class="btn btn-sm text-danger btn-eliminar-pedido" onclick="eliminarFilaPedido(1)" style="display: none;">
+                                            <i class="fas fa-trash me-1"></i> Eliminar
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="row g-3">
+                                        <!-- Selector Producto -->
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-semibold">Producto *</label>
+                                            <select name="producto_ids[]" class="form-select border-secondary-subtle select-producto" required onchange="completarUnidad(this)">
+                                                <option value="" disabled selected>— Seleccionar Producto —</option>
+                                                {% for p in productos_disponibles %}
+                                                <option value="{{ p.id }}" data-unidad="{{ p.unidad or 'unidades' }}">{{ p.nombre }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <input type="hidden" name="productos[]" value="">
+                                        </div>
+
+                                        <!-- Cantidad -->
+                                        <div class="col-md-2 col-6">
+                                            <label class="form-label small fw-semibold">Cantidad *</label>
+                                            <input type="number" name="cantidades[]" class="form-control border-secondary-subtle" min="0.01" step="0.01" placeholder="0.00" required>
+                                        </div>
+
+                                        <!-- Unidad -->
+                                        <div class="col-md-2 col-6">
+                                            <label class="form-label small fw-semibold">Unidad</label>
+                                            <input type="text" name="unidades[]" class="form-control border-secondary-subtle text-muted" placeholder="Unidades" readonly>
+                                        </div>
+
+                                        <!-- Destinatario (Fábrica vs Admin) -->
+                                        <div class="col-md-4">
+                                            <label class="form-label small fw-semibold">Enviar A *</label>
+                                            <select name="destinatarios[]" class="form-select border-secondary-subtle fw-semibold text-primary" required>
+                                                <option value="fabrica">Fábrica (Elaboración)</option>
+                                                <option value="admin_minorista">Admin Fábrica - Minorista</option>
+                                                <option value="admin_mayorista">Admin Fábrica - Mayorista</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Notas -->
+                                        <div class="col-12 mt-2">
+                                            <input type="text" name="notes[]" class="form-control form-control-sm border-secondary-subtle" placeholder="Notas opcionales para este ítem (Ej: entrega urgente, especificaciones)...">
+                                            <!-- Mapeo para notas[] en backend -->
+                                            <input type="hidden" name="notas[]" class="input-notas">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botón de Envío -->
+                        <div class="mt-4 pt-3 text-end">
+                            <button type="submit" class="btn btn-primary btn-lg shadow-sm px-5 py-3 rounded-pill fw-bold" id="btn-submit-pedidos">
+                                <i class="fas fa-paper-plane me-2"></i> ENVIAR PEDIDOS A DESTINO
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Mostrar información de la sucursal seleccionada
+    function mostrarInfoSucursal(select) {
+        const option = select.options[select.selectedIndex];
+        const dir = option.getAttribute('data-direccion');
+        const tel = option.getAttribute('data-telefono');
+        
+        document.getElementById('sucursal-direccion').textContent = dir;
+        document.getElementById('sucursal-telefono').textContent = tel;
+        document.getElementById('info-sucursal').style.display = 'block';
+    }
+
+    // Completar automáticamente el campo de unidad según el producto seleccionado
+    function completarUnidad(select) {
+        const option = select.options[select.selectedIndex];
+        const unidad = option.getAttribute('data-unidad') || 'unidades';
+        
+        const row = select.closest('.pedido-item');
+        row.querySelector('input[name="unidades[]"]').value = unidad;
+        
+        // Sincronizar el campo productos[] (texto libre) con el nombre del producto
+        row.querySelector('input[name="productos[]"]').value = option.text;
+    }
+
+    // Agregar nueva fila al formulario
+    let pedidoCount = 1;
+    function agregarFilaPedido() {
+        pedidoCount++;
+        
+        // Clonar la primera fila
+        const original = document.querySelector('.pedido-item[data-pedido-num="1"]');
+        const clone = original.cloneNode(true);
+        
+        // Actualizar número identificador
+        clone.setAttribute('data-pedido-num', pedidoCount);
+        clone.querySelector('.badge').textContent = 'Item #' + pedidoCount;
+        
+        // Habilitar y configurar botón de eliminación
+        const btnEliminar = clone.querySelector('.btn-eliminar-pedido');
+        btnEliminar.setAttribute('onclick', `eliminarFilaPedido(${pedidoCount})`);
+        btnEliminar.style.display = 'inline-block';
+        
+        // Limpiar inputs clonados
+        clone.querySelectorAll('input').forEach(input => {
+            if (input.name === 'unidades[]' || input.name === 'productos[]') {
+                input.value = '';
+            } else {
+                input.value = '';
+            }
+        });
+        clone.querySelectorAll('select').forEach(select => {
+            select.selectedIndex = 0;
+        });
+        
+        // Insertar en la lista
+        document.getElementById('lista-pedidos').appendChild(clone);
+        
+        // Mostrar botones de eliminar en todas las filas si es necesario
+        actualizarBotonesEliminación();
+    }
+
+    // Eliminar fila
+    function eliminarFilaPedido(num) {
+        const item = document.querySelector(`.pedido-item[data-pedido-num="${num}"]`);
+        if (item) {
+            item.remove();
+            
+            // Renumerar las filas restantes
+            renumerarFilas();
+            actualizarBotonesEliminación();
+        }
+    }
+
+    // Renumerar filas
+    function renumerarFilas() {
+        const filas = document.querySelectorAll('.pedido-item');
+        pedidoCount = 0;
+        filas.forEach((fila, index) => {
+            pedidoCount = index + 1;
+            fila.setAttribute('data-pedido-num', pedidoCount);
+            fila.querySelector('.badge').textContent = 'Item #' + pedidoCount;
+            
+            const btn = fila.querySelector('.btn-eliminar-pedido');
+            if (btn) {
+                btn.setAttribute('onclick', `eliminarFilaPedido(${pedidoCount})`);
+            }
+        });
+    }
+
+    // Mostrar/ocultar botones de eliminar según cantidad de filas
+    function actualizarBotonesEliminación() {
+        const filas = document.querySelectorAll('.pedido-item');
+        const btnFila1 = document.querySelector('.pedido-item[data-pedido-num="1"] .btn-eliminar-pedido');
+        
+        if (filas.length > 1) {
+            if (btnFila1) btnFila1.style.display = 'inline-block';
+        } else {
+            if (btnFila1) btnFila1.style.display = 'none';
+        }
+    }
+
+    // Sincronizar campo notes[] con notas[] antes del submit
+    document.getElementById('form-pedidos-sucursal').addEventListener('submit', function(e) {
+        const filas = document.querySelectorAll('.pedido-item');
+        filas.forEach(fila => {
+            const noteVal = fila.querySelector('input[name="notes[]"]').value;
+            fila.querySelector('.input-notas').value = noteVal;
+        });
+    });
+</script>
+{% endblock %}

@@ -28,6 +28,10 @@ def login():
             return redirect(url_for('ventas.dashboard'))
         elif current_user.es_operario():
             return redirect(url_for('fabrica.dashboard'))
+        elif current_user.es_sucursal():
+            return redirect(url_for('sucursal.dashboard'))
+        elif current_user.es_administracion():
+            return redirect(url_for('administracion.dashboard'))
     
     form = LoginForm()
     
@@ -57,6 +61,10 @@ def login():
                 return redirect(url_for('ventas.dashboard'))
             elif usuario.es_operario():
                 return redirect(url_for('fabrica.dashboard'))
+            elif usuario.es_sucursal():
+                return redirect(url_for('sucursal.dashboard'))
+            elif usuario.es_administracion():
+                return redirect(url_for('administracion.dashboard'))
             else:
                 return redirect(url_for('index'))
         

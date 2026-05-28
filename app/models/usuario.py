@@ -67,6 +67,14 @@ class Usuario(UserMixin, db.Model):
         """Verifica si el usuario es operario"""
         return self.rol == 'operario'
     
+    def es_sucursal(self):
+        """Verifica si el usuario es sucursal"""
+        return self.rol == 'sucursal'
+    
+    def es_administracion(self):
+        """Verifica si el usuario es administracion de fabrica"""
+        return self.rol == 'administracion'
+    
     # Método requerido por Flask-Login
     def get_id(self):
         """Retorna el ID del usuario como string"""

@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Sucursal{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+    }
+    .gradient-1 {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    }
+    .gradient-2 {
+        background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+    }
+    .gradient-3 {
+        background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+    }
+    .gradient-4 {
+        background: linear-gradient(135deg, #0dcaf0 0%, #0bacccc 100%);
+    }
+    .badge-dest-fabrica {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .badge-dest-minorista {
+        background-color: #6610f2;
+        color: white;
+    }
+    .badge-dest-mayorista {
+        background-color: #d63384;
+        color: white;
+    }
+    .badge-desp-si {
+        background-color: #198754;
+        color: white;
+    }
+    .badge-desp-no {
+        background-color: #6c757d;
+        color: white;
+    }
+    .accordion-header-btn {
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        color: #212529 !important;
+        font-weight: 700;
+        font-size: 1.15rem;
+    }
+    .accordion-button:not(.collapsed) {
+        background-color: rgba(13, 110, 253, 0.08) !important;
+        color: #0d6efd !important;
+        box-shadow: none !important;
+    }
+    .order-row-new {
+        animation: highlightNewRow 3s ease-out;
+    }
+    @keyframes highlightNewRow {
+        0% { background-color: rgba(255, 193, 7, 0.4); }
+        100% { background-color: transparent; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in">
+    <!-- Encabezado con Botón de Carga -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-6 fw-bold text-dark mb-1">
+                <i class="fas fa-store text-primary"></i> Panel de Sucursales
+            </h1>
+            <p class="text-muted">Carga de pedidos y control de estados en tiempo real para sucursales.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{{ url_for('sucursal.nuevo_pedido') }}" class="btn btn-primary btn-lg shadow-sm rounded-pill py-3 px-4 animate-pulse">
+                <i class="fas fa-cart-plus me-2"></i> NUEVO PEDIDO SUCURSAL
+            </a>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Estadísticas Premium -->
+    <div class="row mb-4">
+        <!-- Total Pedidos -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card text-white gradient-1 border-0 h-100">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-white-50">Total Pedidos</h5>
+                            <i class="fas fa-shopping-basket fa-2x opacity-50"></i>
+                        </div>
+                        <h2 class="mt-2 text-white fw-bold mb-0" id="stat-total-pedidos">{{ total_pedidos }}</h2>
+                    </div>
+                    <span class="text-white-50 small mt-3"><i class="fas fa-info-circle"></i> Pedidos activos actuales</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pedidos Pendientes -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card text-white gradient-2 border-0 h-100">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-white-50">Pendientes</h5>
+                            <i class="fas fa-clock fa-2x opacity-50 fa-spin-hover"></i>
+                        </div>
+                        <h2 class="mt-2 text-white fw-bold mb-0" id="stat-pedidos-pendientes">{{ pedidos_pendientes }}</h2>
+                    </div>
+                    <span class="text-white-50 small mt-3"><i class="fas fa-clock"></i> Esperando procesamiento</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pedidos Completados -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card text-white gradient-3 border-0 h-100">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-white-50">Completados</h5>
+                            <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                        </div>
+                        <h2 class="mt-2 text-white fw-bold mb-0" id="stat-pedidos-completados">{{ pedidos_completados }}</h2>
+                    </div>
+                    <span class="text-white-50 small mt-3"><i class="fas fa-check"></i> Listos o entregados</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Litros/Unidades Totales -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card text-white gradient-4 border-0 h-100">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-white-50">Total Unidades</h5>
+                            <i class="fas fa-weight-hanging fa-2x opacity-50"></i>
+                        </div>
+                        <h2 class="mt-2 text-white fw-bold mb-0" id="stat-total-cantidad">{{ "%.2f"|format(total_cantidad) }}</h2>
+                    </div>
+                    <span class="text-white-50 small mt-3"><i class="fas fa-truck"></i> Volumen acumulado activo</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acordeón de Sucursales y sus Pedidos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 text-dark fw-bold"><i class="fas fa-list text-primary"></i> Desglose de Sucursales</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if pedidos_por_cliente %}
+                    <div class="accordion accordion-flush" id="accordionSucursales">
+                        {% for cliente, pedidos in pedidos_por_cliente.items() %}
+                        <div class="accordion-item border-bottom">
+                            <h2 class="accordion-header" id="heading-{{ cliente.id }}">
+                                <button class="accordion-button accordion-header-btn collapsed py-4 px-4" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ cliente.id }}">
+                                    <div class="d-flex justify-content-between align-items-center w-100 pe-3">
+                                        <div>
+                                            <span class="text-primary"><i class="fas fa-store me-2"></i></span>
+                                            <span>{{ cliente.nombre }}</span>
+                                        </div>
+                                        <div>
+                                            <span class="badge bg-light text-primary border border-primary px-3 py-2 rounded-pill shadow-sm" id="badge-count-{{ cliente.id }}">
+                                                {{ pedidos|length }} pedidos
+                                            </span>
+                                        </div>
+                                    </div>
+                                </button>
+                            </h2>
+                            <div id="collapse-{{ cliente.id }}" class="accordion-collapse collapse" data-bs-parent="#accordionSucursales">
+                                <div class="accordion-body bg-light p-4">
+                                    <div class="table-responsive rounded-3 shadow-sm bg-white overflow-hidden">
+                                        <table class="table table-hover align-middle mb-0">
+                                            <thead class="table-light text-uppercase font-monospace text-muted small">
+                                                <tr>
+                                                    <th class="py-3 px-4" style="width: 80px;">Nº Pedido</th>
+                                                    <th class="py-3">Producto</th>
+                                                    <th class="py-3 text-center" style="width: 120px;">Cantidad</th>
+                                                    <th class="py-3" style="width: 150px;">Unidad</th>
+                                                    <th class="py-3 text-center" style="width: 180px;">Enviar A</th>
+                                                    <th class="py-3 text-center" style="width: 150px;">Estado</th>
+                                                    <th class="py-3 text-center" style="width: 150px;">Despacho</th>
+                                                    <th class="py-3" style="width: 180px;">Notas / Obs.</th>
+                                                    <th class="py-3 text-center" style="width: 100px;">Acciones</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="pedido-list-{{ cliente.id }}">
+                                                {% for pedido in pedidos %}
+                                                <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado and not pedido.visto_por_fabrica %}table-warning{% endif %}">
+                                                    <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
+                                                    <td class="fw-semibold text-dark">{{ pedido.producto_nombre }}</td>
+                                                    <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                    <td>{{ pedido.unidad or 'unidades' }}</td>
+                                                    <td class="text-center">
+                                                        {% if pedido.destinatario == 'fabrica' %}
+                                                        <span class="badge badge-dest-fabrica px-3 py-2 rounded-pill"><i class="fas fa-industry me-1"></i> Fábrica</span>
+                                                        {% elif pedido.destinatario == 'admin_minorista' %}
+                                                        <span class="badge badge-dest-minorista px-3 py-2 rounded-pill"><i class="fas fa-shopping-bag me-1"></i> Admin Minorista</span>
+                                                        {% elif pedido.destinatario == 'admin_mayorista' %}
+                                                        <span class="badge badge-dest-mayorista px-3 py-2 rounded-pill"><i class="fas fa-warehouse me-1"></i> Admin Mayorista</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center" id="estado-badge-{{ pedido.id }}">
+                                                        {% if pedido.estado == 'pendiente' %}
+                                                        <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
+                                                        {% elif pedido.estado == 'en_proceso' %}
+                                                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
+                                                        {% elif pedido.estado == 'completado' %}
+                                                        <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
+                                                        {% elif pedido.estado == 'cancelado' %}
+                                                        <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center" id="despacho-badge-{{ pedido.id }}">
+                                                        {% if pedido.destinatario == 'fabrica' %}
+                                                        <span class="text-muted small">-</span>
+                                                        {% else %}
+                                                            {% if pedido.despachado %}
+                                                            <span class="badge badge-desp-si px-3 py-2 rounded-pill"><i class="fas fa-truck me-1"></i> SI</span>
+                                                            {% else %}
+                                                            <span class="badge badge-desp-no px-3 py-2 rounded-pill"><i class="fas fa-truck-loading me-1"></i> NO</span>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if pedido.observaciones_fabrica %}
+                                                        <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                                        {% endif %}
+                                                        {% if pedido.notas_vendedor %}
+                                                        <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                        {% endif %}
+                                                        {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                        <span class="text-muted font-monospace small">-</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <a href="{{ url_for('sucursal.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-primary btn-sm rounded-circle p-2" title="Chat y Mensajes">
+                                                            <i class="fas fa-comments m-0"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-4x text-muted mb-3 opacity-30"></i>
+                        <h4 class="text-muted">No hay pedidos registrados</h4>
+                        <p class="text-muted">Utiliza el botón superior para realizar tu primera carga.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Socket.IO Frontend logic -->
+<script src="{{ url_for('static', filename='js/sucursal.js') }}"></script>
+{% endblock %}

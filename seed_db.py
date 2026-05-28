@@ -81,6 +81,27 @@ def seed_database():
             )
             operario3.set_password("123456")
             db.session.add(operario3)
+
+            # Nuevos Usuarios para Sucursal y Administracion
+            user_sucursal = Usuario(
+                nombre="Sucursales",
+                username="sucursal",
+                email="sucursal@ejemplo.com",
+                rol="sucursal",
+                activo=True
+            )
+            user_sucursal.set_password("123456")
+            db.session.add(user_sucursal)
+            
+            user_admin = Usuario(
+                nombre="Administración Fábrica",
+                username="administracion",
+                email="administracion@ejemplo.com",
+                rol="administracion",
+                activo=True
+            )
+            user_admin.set_password("123456")
+            db.session.add(user_admin)
             
             db.session.commit()
             print("OK - Usuarios creados:")
@@ -136,6 +157,52 @@ def seed_database():
                 creado_por_id=vendedor2.id
             )
             db.session.add(cliente3)
+
+            # Sucursales y Franquicias específicas
+            suc1 = Cliente(
+                nombre="SUCURSAL URUGUAY",
+                telefono="+54 9 376 444-1111",
+                direccion="Av. Uruguay, Posadas",
+                ruta="SUCURSALES",
+                creado_por_id=vendedor1.id
+            )
+            db.session.add(suc1)
+
+            suc2 = Cliente(
+                nombre="SUCURSAL TAMBOR DE TACUARI",
+                telefono="+54 9 376 444-2222",
+                direccion="Av. Tambor de Tacuari, Posadas",
+                ruta="SUCURSALES",
+                creado_por_id=vendedor1.id
+            )
+            db.session.add(suc2)
+
+            suc3 = Cliente(
+                nombre="SUCURSAL CANDELARIA",
+                telefono="+54 9 376 444-3333",
+                direccion="Candelaria",
+                ruta="SUCURSALES",
+                creado_por_id=vendedor1.id
+            )
+            db.session.add(suc3)
+
+            suc4 = Cliente(
+                nombre="FRANQUICIA VILLA CABELLO",
+                telefono="+54 9 376 444-4444",
+                direccion="Villa Cabello, Posadas",
+                ruta="SUCURSALES",
+                creado_por_id=vendedor1.id
+            )
+            db.session.add(suc4)
+
+            suc5 = Cliente(
+                nombre="FRANQUICIA LOPEZ Y PLANES",
+                telefono="+54 9 376 444-5555",
+                direccion="Av. Lopez y Planes, Posadas",
+                ruta="SUCURSALES",
+                creado_por_id=vendedor1.id
+            )
+            db.session.add(suc5)
             
             db.session.commit()
             print("OK - 3 clientes creados")

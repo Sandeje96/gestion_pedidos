@@ -50,10 +50,14 @@ def create_app(config_name='development'):
     from app.routes.auth import auth_bp
     from app.routes.ventas import ventas_bp
     from app.routes.fabrica import fabrica_bp
+    from app.routes.sucursal import sucursal_bp
+    from app.routes.administracion import administracion_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(fabrica_bp, url_prefix='/fabrica')
+    app.register_blueprint(sucursal_bp, url_prefix='/sucursal')
+    app.register_blueprint(administracion_bp, url_prefix='/administracion')
     
     # Ruta principal (redirecciona segun el rol del usuario)
     from flask import redirect, url_for
@@ -67,6 +71,10 @@ def create_app(config_name='development'):
                 return redirect(url_for('ventas.dashboard'))
             elif current_user.rol == 'operario':
                 return redirect(url_for('fabrica.dashboard'))
+            elif current_user.rol == 'sucursal':
+                return redirect(url_for('sucursal.dashboard'))
+            elif current_user.rol == 'administracion':
+                return redirect(url_for('administracion.dashboard'))
         return redirect(url_for('auth.login'))
     
     # Manejador de errores 404

@@ -93,9 +93,10 @@ def dashboard():
     Muestra todos los pedidos agrupados por ruta.
     """
     
-    # Obtener todos los clientes que tienen pedidos, agrupados por ruta
+    # Obtener todos los clientes que tienen pedidos, agrupados por ruta (filtrando por fábrica)
     clientes_con_pedidos = Cliente.query.join(Pedido).filter(
-        Pedido.archivado == False
+        Pedido.archivado == False,
+        Pedido.destinatario == 'fabrica'
     ).distinct().order_by(Cliente.ruta, Cliente.nombre).all()
     
     # Agrupar clientes por ruta
@@ -108,13 +109,13 @@ def dashboard():
     clientes_por_ruta = dict(sorted(clientes_por_ruta.items()))
     
     # Estadísticas generales
-    total_pendientes = Pedido.query.filter_by(archivado=False, estado='pendiente').count()
-    total_completados = Pedido.query.filter_by(archivado=False, estado='completado').count()
-    total_cancelados = Pedido.query.filter_by(archivado=False, estado='cancelado').count()
-    pedidos_modificados = Pedido.query.filter_by(archivado=False, modificado=True, visto_por_fabrica=False).count()
+    total_pendientes = Pedido.query.filter_by(archivado=False, estado='pendiente', destinatario='fabrica').count()
+    total_completados = Pedido.query.filter_by(archivado=False, estado='completado', destinatario='fabrica').count()
+    total_cancelados = Pedido.query.filter_by(archivado=False, estado='cancelado', destinatario='fabrica').count()
+    pedidos_modificados = Pedido.query.filter_by(archivado=False, modificado=True, visto_por_fabrica=False, destinatario='fabrica').count()
     
     # Pedidos con cambios sin ver
-    pedidos_modificados = Pedido.query.filter_by(modificado=True, visto_por_fabrica=False).count()
+    pedidos_modificados = Pedido.query.filter_by(modificado=True, visto_por_fabrica=False, destinatario='fabrica').count()
     
     # Obtener operarios para asignación
     operarios = Usuario.query.filter_by(rol='operario', activo=True).all()
@@ -127,7 +128,8 @@ def dashboard():
             Cliente.ruta == ruta,
             Pedido.archivado == False,
             Pedido.modificado == True,
-            Pedido.visto_por_fabrica == False
+            Pedido.visto_por_fabrica == False,
+            Pedido.destinatario == 'fabrica'
         ).count()
         notificaciones_por_ruta[ruta] = count
 
@@ -137,7 +139,8 @@ def dashboard():
         total = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
             Cliente.ruta == ruta,
             Pedido.archivado == False,
-            Pedido.estado != 'cancelado'
+            Pedido.estado != 'cancelado',
+            Pedido.destinatario == 'fabrica'
         ).scalar()
         litros_por_ruta[ruta] = float(total) if total else 0.0
 
@@ -276,7 +279,7 @@ def obtener_todos_pedidos():
     estado = request.args.get('estado')
     cliente_id = request.args.get('cliente_id', type=int)
     
-    query = Pedido.query
+    query = Pedido.query.filter_by(destinatario='fabrica')
     
     if estado:
         query = query.filter_by(estado=estado)

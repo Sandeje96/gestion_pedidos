@@ -24,7 +24,7 @@ def _descontar_stock_pedido(pedido):
     """
     Intenta descontar el stock del producto asociado a un pedido.
     Busca primero por producto_id; si no tiene, busca por producto_nombre.
-    Retorna True si pudo descontar, False si no encontró el producto.
+    Retorna dict con info del resultado.
     """
     producto = None
 
@@ -44,18 +44,27 @@ def _descontar_stock_pedido(pedido):
     if producto:
         cantidad = float(pedido.cantidad or 0)
         if cantidad > 0:
+            stock_anterior = float(producto.stock_actual or 0)
             producto.descontar_stock(cantidad)
+            stock_nuevo = float(producto.stock_actual or 0)
             logger.info(
                 f"Stock descontado: {cantidad} de '{producto.nombre}' "
-                f"por pedido #{pedido.id}. Stock restante: {producto.stock_actual}"
+                f"por pedido #{pedido.id}. {stock_anterior} -> {stock_nuevo}"
             )
-            return True
+            return {
+                'ok': True,
+                'producto_nombre': producto.nombre,
+                'unidad': producto.unidad or '',
+                'stock_anterior': stock_anterior,
+                'stock_nuevo': stock_nuevo,
+                'descontado': cantidad,
+            }
 
     logger.warning(
-        f"No se encontró producto para descontar stock del pedido #{pedido.id} "
+        f"No se encontro producto para descontar stock del pedido #{pedido.id} "
         f"(producto_id={pedido.producto_id}, nombre='{pedido.producto_nombre}')"
     )
-    return False
+    return {'ok': False, 'motivo': 'Producto no encontrado en el catálogo'}
 
 
 # Crear el Blueprint
@@ -346,13 +355,14 @@ def actualizar_estado_rapido(pedido_id):
         if nuevo_estado == 'completado' and not pedido.fecha_completado:
             pedido.marcar_como_completado()
             # Descontar stock con fallback por nombre
+            info_stock = None
             try:
-                _descontar_stock_pedido(pedido)
+                info_stock = _descontar_stock_pedido(pedido)
             except Exception as stock_err:
                 current_app.logger.warning(
-                    f"No se pudo descontar stock del pedido {pedido_id}: {stock_err}"
+                    f"Error descontando stock del pedido {pedido_id}: {stock_err}"
                 )
-                # Continuar sin descontar stock
+                info_stock = {'ok': False, 'motivo': str(stock_err)}
 
         # Marcar como visto si estaba modificado
         if pedido.modificado:
@@ -365,10 +375,14 @@ def actualizar_estado_rapido(pedido_id):
             'pedido': pedido.to_dict()
         }, namespace='/')
 
-        return jsonify({
+        resp = {
             'success': True,
             'pedido': pedido.to_dict()
-        })
+        }
+        if nuevo_estado == 'completado' and info_stock:
+            resp['stock_info'] = info_stock
+
+        return jsonify(resp)
 
     except Exception as e:
         db.session.rollback()
@@ -543,3 +557,68 @@ def nuevo_producto():
 
     flash(f'✅ Producto "{nombre}" agregado al catálogo.', 'success')
     return redirect(url_for('fabrica.produccion'))
+
+
+@fabrica_bp.route('/diagnostico')
+@operario_requerido
+def diagnostico():
+    """
+    Diagnóstico del estado de la BD en producción.
+    Muestra si las columnas existen, el stock de cada producto
+    y los últimos pedidos con su producto_id.
+    """
+    from sqlalchemy import text, inspect as sa_inspect
+
+    resultado = {}
+
+    # 1. Verificar columnas en tabla productos
+    try:
+        inspector = sa_inspect(db.engine)
+        cols_productos = [c['name'] for c in inspector.get_columns('productos')]
+        cols_pedidos   = [c['name'] for c in inspector.get_columns('pedidos')]
+        resultado['columnas_productos'] = cols_productos
+        resultado['columnas_pedidos']   = cols_pedidos
+        resultado['stock_actual_existe'] = 'stock_actual' in cols_productos
+        resultado['producto_id_existe']  = 'producto_id' in cols_pedidos
+    except Exception as e:
+        resultado['error_columnas'] = str(e)
+
+    # 2. Stock actual de cada producto
+    try:
+        productos = Producto.query.order_by(Producto.nombre).all()
+        resultado['productos'] = [
+            {
+                'id': p.id,
+                'nombre': p.nombre,
+                'stock_actual': float(p.stock_actual or 0),
+                'unidad': p.unidad,
+            }
+            for p in productos
+        ]
+    except Exception as e:
+        resultado['error_productos'] = str(e)
+
+    # 3. Últimos 10 pedidos con producto_id
+    try:
+        pedidos = Pedido.query.order_by(Pedido.id.desc()).limit(10).all()
+        resultado['pedidos_recientes'] = [
+            {
+                'id': p.id,
+                'producto_nombre': p.producto_nombre,
+                'producto_id': p.producto_id,
+                'cantidad': float(p.cantidad or 0),
+                'estado': p.estado,
+            }
+            for p in pedidos
+        ]
+    except Exception as e:
+        resultado['error_pedidos'] = str(e)
+
+    # 4. Tabla alembic_version
+    try:
+        rows = db.session.execute(text('SELECT version_num FROM alembic_version')).fetchall()
+        resultado['alembic_versions'] = [r[0] for r in rows]
+    except Exception as e:
+        resultado['error_alembic'] = str(e)
+
+    return jsonify(resultado)

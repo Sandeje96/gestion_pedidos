@@ -148,7 +148,25 @@ function actualizarEstadoRapido(pedidoId, nuevoEstado) {
             }
 
             mostrarToast(`Estado actualizado a: ${nuevoEstado}`, 'success');
+
+            // Toast adicional con info del stock si se completó
+            if (nuevoEstado === 'completado' && data.stock_info) {
+                const s = data.stock_info;
+                if (s.ok) {
+                    mostrarToast(
+                        `📦 Stock ${s.producto_nombre}: ${s.stock_anterior} → ${s.stock_nuevo} ${s.unidad}`,
+                        'info'
+                    );
+                } else {
+                    mostrarToast(
+                        `⚠️ Stock no descontado: ${s.motivo || 'Producto sin vincular al catálogo'}`,
+                        'warning'
+                    );
+                }
+            }
+
             actualizarEstadisticas();
+
         } else {
             // ❌ Error del servidor: revertir select
             console.error('Error del servidor:', data.error);

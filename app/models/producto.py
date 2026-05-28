@@ -5,6 +5,7 @@ Modelo Producto - Catálogo de productos disponibles para pedidos.
 
 from app import db
 from datetime import datetime
+from decimal import Decimal
 
 
 class Producto(db.Model):
@@ -38,12 +39,12 @@ class Producto(db.Model):
 
     def agregar_stock(self, cantidad):
         """Suma cantidad al stock actual (al registrar producción)"""
-        self.stock_actual = (self.stock_actual or 0) + cantidad
+        self.stock_actual = (self.stock_actual or Decimal('0')) + Decimal(str(cantidad))
 
     def descontar_stock(self, cantidad):
         """Resta cantidad del stock actual (al completar un pedido)"""
-        nuevo = (self.stock_actual or 0) - cantidad
-        self.stock_actual = max(nuevo, 0)  # No permitir stock negativo
+        nuevo = (self.stock_actual or Decimal('0')) - Decimal(str(cantidad))
+        self.stock_actual = max(nuevo, Decimal('0'))  # No permitir stock negativo
     
     def to_dict(self):
         """Convierte el producto a diccionario"""

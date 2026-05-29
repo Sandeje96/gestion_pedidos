@@ -260,8 +260,38 @@ def setup_nuevos_usuarios_production():
     from app.models.usuario import Usuario
     from app.models.cliente import Cliente
     
+    from sqlalchemy import text
+    
+    # Intentar agregar las nuevas columnas a la tabla de pedidos online si no existen
+    columnas_agregadas = []
+    
+    # 1. Agregar destinatario
     try:
-        mensajes_resultado = []
+        db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS destinatario VARCHAR(30) DEFAULT 'fabrica' NOT NULL"))
+        db.session.commit()
+        columnas_agregadas.append("Columna 'destinatario' agregada/verificada.")
+    except Exception as e_dest:
+        db.session.rollback()
+        columnas_agregadas.append(f"Nota columna 'destinatario': {str(e_dest)}")
+        
+    # 2. Agregar despachado
+    try:
+        db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS despachado BOOLEAN DEFAULT FALSE NOT NULL"))
+        db.session.commit()
+        columnas_agregadas.append("Columna 'despachado' agregada/verificada.")
+    except Exception as e_desp:
+        db.session.rollback()
+        columnas_agregadas.append(f"Nota columna 'despachado': {str(e_desp)}")
+
+    # 3. Crear índice
+    try:
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS idx_pedidos_destinatario ON pedidos(destinatario)"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    try:
+        mensajes_resultado = list(columnas_agregadas)
         
         # 1. Crear usuario sucursal si no existe
         u_sucursal = Usuario.query.filter_by(username='sucursal').first()

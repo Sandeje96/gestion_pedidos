@@ -101,9 +101,14 @@
                                 <h5 class="fw-bold text-dark mb-0">
                                     <span class="badge bg-primary badge-step text-white me-2">2</span> Detalle del Pedido
                                 </h5>
-                                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-2 fw-semibold" onclick="agregarFilaPedido()">
-                                    <i class="fas fa-plus me-1"></i> Agregar Item
-                                </button>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+                                        <i class="fas fa-plus-circle me-1"></i> Crear Producto
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-2 fw-semibold" onclick="agregarFilaPedido()">
+                                        <i class="fas fa-plus me-1"></i> Agregar Item
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Contenedor de Items Dinámicos -->
@@ -288,4 +293,53 @@
         });
     });
 </script>
+
+<!-- Modal Nuevo Producto -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-labelledby="modalNuevoProductoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-success text-white py-3 px-4">
+                <h5 class="modal-title fw-bold" id="modalNuevoProductoLabel">
+                    <i class="fas fa-plus-circle me-2"></i> Crear Nuevo Producto en Catálogo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('sucursal.nuevo_producto') }}" method="POST">
+                <div class="modal-body p-4 text-dark">
+                    <p class="text-secondary small mb-3">
+                        El producto se agregará de forma permanente al catálogo y quedará disponible para ser seleccionado inmediatamente por cualquier sucursal.
+                    </p>
+                    <!-- Nombre -->
+                    <div class="mb-3">
+                        <label for="modal-prod-nombre" class="form-label fw-semibold">Nombre del Producto *</label>
+                        <input type="text" name="nombre" id="modal-prod-nombre" class="form-control border-secondary-subtle" placeholder="Ej: Bolsa de Residuos 60x90" required>
+                    </div>
+                    <!-- Unidad -->
+                    <div class="mb-3">
+                        <label for="modal-prod-unidad" class="form-label fw-semibold">Unidad de Medida</label>
+                        <select name="unidad" id="modal-prod-unidad" class="form-select border-secondary-subtle">
+                            <option value="unidades" selected>Unidades</option>
+                            <option value="kg">Kilogramos (kg)</option>
+                            <option value="docena">Docena</option>
+                            <option value="paquete">Paquete</option>
+                            <option value="bolsa">Bolsa</option>
+                            <option value="litros">Litros</option>
+                        </select>
+                    </div>
+                    <!-- Descripción -->
+                    <div class="mb-0">
+                        <label for="modal-prod-desc" class="form-label fw-semibold">Descripción (Opcional)</label>
+                        <textarea name="descripcion" id="modal-prod-desc" class="form-control border-secondary-subtle" rows="2" placeholder="Ej: Bolsa reforzada consorcio color negro."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer p-3 bg-light border-top-0 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Guardar en Catálogo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

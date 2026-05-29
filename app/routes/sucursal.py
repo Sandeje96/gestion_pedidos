@@ -234,3 +234,40 @@ def ver_mensajes_pedido(pedido_id):
         mensajes=mensajes,
         title=f'Chat Pedido #{pedido.id}'
     )
+
+
+@sucursal_bp.route('/productos/nuevo', methods=['POST'])
+@sucursal_requerido
+def nuevo_producto():
+    """
+    Agregar un nuevo producto al catálogo desde el panel de sucursal.
+    Redirige de vuelta al formulario de nuevo pedido.
+    """
+    nombre = request.form.get('nombre', '').strip()
+    unidad = request.form.get('unidad', '').strip()
+    descripcion = request.form.get('descripcion', '').strip() or None
+
+    if not nombre:
+        flash('El nombre del producto es obligatorio.', 'danger')
+        return redirect(url_for('sucursal.nuevo_pedido'))
+
+    # Verificar que no exista ya
+    existente = Producto.query.filter(
+        func.lower(Producto.nombre) == nombre.lower()
+    ).first()
+    if existente:
+        flash(f'Ya existe un producto con el nombre "{existente.nombre}".', 'warning')
+        return redirect(url_for('sucursal.nuevo_pedido'))
+
+    nuevo = Producto(
+        nombre=nombre,
+        unidad=unidad if unidad else None,
+        descripcion=descripcion,
+        disponible=True,
+        stock_actual=0
+    )
+    db.session.add(nuevo)
+    db.session.commit()
+
+    flash(f'✅ Producto "{nombre}" agregado al catálogo. Ya podés seleccionarlo en el pedido.', 'success')
+    return redirect(url_for('sucursal.nuevo_pedido'))

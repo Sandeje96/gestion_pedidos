@@ -295,6 +295,20 @@ def setup_nuevos_usuarios_production():
         else:
             mensajes_resultado.append("Usuario 'administracion' ya existía.")
             
+        # Flush de sesión para que los IDs de los usuarios nuevos se generen en la BD
+        db.session.flush()
+        
+        # Determinar el ID del creador para los clientes (referencia a la sucursal o al primer usuario)
+        creador_id = u_sucursal.id if u_sucursal and u_sucursal.id else None
+        if not creador_id:
+            u_sucursal_db = Usuario.query.filter_by(username='sucursal').first()
+            if u_sucursal_db:
+                creador_id = u_sucursal_db.id
+            else:
+                first_u = Usuario.query.first()
+                if first_u:
+                    creador_id = first_u.id
+                    
         # 3. Crear los 5 clientes sucursales si no existen
         clientes_sucursales = [
             "SUCURSAL URUGUAY",
@@ -312,7 +326,8 @@ def setup_nuevos_usuarios_production():
                     direccion="Dirección Sucursal",
                     telefono="000-0000",
                     ruta="SUCURSALES",
-                    activo=True
+                    activo=True,
+                    creado_por_id=creador_id
                 )
                 db.session.add(new_c)
                 mensajes_resultado.append(f"Cliente '{c_nombre}' creado.")

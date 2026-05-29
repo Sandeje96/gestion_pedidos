@@ -90,6 +90,33 @@ def create_app(config_name='development'):
     # Crear tablas si no existen (solo en desarrollo)
     with app.app_context():
         db.create_all()
+        
+        # Migraciones automáticas de base de datos para producción (PostgreSQL) y local (SQLite)
+        from sqlalchemy import text
+        
+        # 1. Agregar columna 'destinatario'
+        try:
+            db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS destinatario VARCHAR(30) DEFAULT 'fabrica' NOT NULL"))
+            db.session.commit()
+        except Exception as e_dest:
+            db.session.rollback()
+            print(f"Migración: columna 'destinatario' ya existe o no se pudo agregar: {e_dest}")
+            
+        # 2. Agregar columna 'despachado'
+        try:
+            db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS despachado BOOLEAN DEFAULT FALSE NOT NULL"))
+            db.session.commit()
+        except Exception as e_desp:
+            db.session.rollback()
+            print(f"Migración: columna 'despachado' ya existe o no se pudo agregar: {e_desp}")
+            
+        # 3. Crear índice para 'destinatario'
+        try:
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS idx_pedidos_destinatario ON pedidos(destinatario)"))
+            db.session.commit()
+        except Exception as e_idx:
+            db.session.rollback()
+            print(f"Migración: índice 'idx_pedidos_destinatario' no se pudo crear: {e_idx}")
     
     return app
 

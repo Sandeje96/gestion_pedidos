@@ -1,205 +1,281 @@
 {% extends "base.html" %}
 
-{% block content %}
-<div class="row mb-4">
-    <div class="col">
-        <h2><i class="fas fa-boxes"></i> Stock Actual</h2>
-        <p class="text-muted">Resumen del stock acumulado de todos los productos de la fábrica.</p>
-    </div>
-    <div class="col-auto d-flex gap-2">
-        <a href="{{ url_for('fabrica.produccion') }}" class="btn btn-primary">
-            <i class="fas fa-flask"></i> Cargar Producción
-        </a>
-        <a href="{{ url_for('fabrica.dashboard') }}" class="btn btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Panel
-        </a>
-    </div>
-</div>
+{% block title %}Stock de Fábrica{% endblock %}
 
-<!-- BUSCADOR DE PRODUCTO -->
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-body py-3">
-        <div class="row g-2 align-items-center">
-            <div class="col-md-5">
-                <div class="input-group">
-                    <span class="input-group-text bg-white">
-                        <i class="fas fa-search text-muted"></i>
-                    </span>
-                    <input type="text" id="buscar-producto" class="form-control border-start-0"
-                           placeholder="Buscar producto por nombre...">
+{% block extra_css %}
+<style>
+    .table-container {
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        background: white;
+        overflow: hidden;
+    }
+    
+    .search-card {
+        border-radius: 16px;
+        background: white;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+    
+    #sugerencias-busqueda {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-top: none;
+        max-height: 250px;
+        overflow-y: auto;
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    .suggestion-item {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+    }
+    .suggestion-item:last-child {
+        border-bottom: none !important;
+    }
+    .suggestion-item:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        padding-left: 1.25rem !important;
+    }
+    
+    .producto-row {
+        transition: all 0.2s ease;
+    }
+    .producto-row:hover {
+        background-color: rgba(0, 0, 0, 0.015);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container fade-in">
+    <!-- Encabezado -->
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="display-6 fw-bold text-dark mb-1">
+                <i class="fas fa-boxes text-primary"></i> Stock Actual
+            </h1>
+            <p class="text-muted">Resumen optimizado del catálogo y existencias en tiempo real.</p>
+        </div>
+        <div class="col-auto d-flex gap-2">
+            <a href="{{ url_for('fabrica.produccion') }}" class="btn btn-primary rounded-pill px-4">
+                <i class="fas fa-flask me-2"></i> Cargar Producción
+            </a>
+            <a href="{{ url_for('fabrica.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+
+    <!-- BUSCADOR DE PRODUCTO CON BÚSQUEDA PREDICTIVA -->
+    <div class="card search-card border-0 mb-4">
+        <div class="card-body py-4 px-4">
+            <div class="row g-3 align-items-center justify-content-between">
+                <div class="col-md-6 position-relative">
+                    <label for="buscar-producto" class="form-label small fw-bold text-muted mb-2"><i class="fas fa-filter"></i> FILTRAR O BUSCAR PRODUCTOS</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-secondary-subtle">
+                            <i class="fas fa-search text-muted"></i>
+                        </span>
+                        <input type="text" id="buscar-producto" class="form-control border-start-0 border-secondary-subtle py-2 px-3 text-dark rounded-end-3"
+                               placeholder="Escribe el nombre del producto..." autocomplete="off">
+                        <button type="button" id="btn-limpiar" class="btn btn-outline-secondary border-secondary-subtle" style="display: none;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <!-- Dropdown de Sugerencias Predictivas -->
+                    <div id="sugerencias-busqueda" class="list-group position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; background: white;">
+                        <!-- Sugerencias dinámicas generadas por JavaScript -->
+                    </div>
                 </div>
-            </div>
-            <div class="col-auto">
-                <span class="text-muted">
-                    <i class="fas fa-box"></i>
-                    <strong id="total-productos">{{ productos|length }}</strong> producto(s)
-                </span>
+                <div class="col-auto">
+                    <div class="px-3 py-2 bg-light border border-light-subtle rounded-3 text-dark font-monospace small fw-bold">
+                        <i class="fas fa-box text-primary me-2"></i>
+                        <span id="total-productos" class="text-primary">{{ productos|length }}</span> de {{ productos|length }} productos
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- TARJETAS DE STOCK -->
-<div class="row g-3 mb-4" id="stock-cards">
-    {% for producto in productos %}
-    {% set stock = producto.stock_actual|float %}
-    {% set minimo = producto.stock_minimo|float %}
-    {% set bajo = stock <= minimo and minimo > 0 %}
-    <div class="col-sm-6 col-lg-4 stock-card-item" data-nombre="{{ producto.nombre|lower }}">
-        <div class="card border-0 shadow-sm h-100
-            {% if bajo %}border-danger{% endif %}"
-            style="border-left: 5px solid {% if bajo %}#dc3545{% elif stock == 0 %}#6c757d{% else %}#1a73e8{% endif %} !important;">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <h6 class="fw-bold mb-0">{{ producto.nombre }}</h6>
-                        {% if producto.descripcion %}
-                        <small class="text-muted">{{ producto.descripcion }}</small>
-                        {% endif %}
-                    </div>
-                    {% if bajo %}
-                    <span class="badge bg-danger">
-                        <i class="fas fa-exclamation-triangle"></i> Stock bajo
-                    </span>
-                    {% elif stock == 0 %}
-                    <span class="badge bg-secondary">Sin stock</span>
-                    {% else %}
-                    <span class="badge bg-success">Disponible</span>
-                    {% endif %}
-                </div>
-
-                <!-- Stock actual destacado -->
-                <div class="text-center my-3">
-                    <div class="display-6 fw-bold
-                        {% if bajo %}text-danger{% elif stock == 0 %}text-secondary{% else %}text-primary{% endif %}">
-                        {{ "%.1f"|format(stock) }}
-                    </div>
-                    <div class="text-muted small">
-                        {{ producto.unidad or 'unidades' }}
-                    </div>
-                </div>
-
-                <!-- Barra de progreso vs mínimo -->
-                {% if minimo > 0 %}
-                <div class="mb-2">
-                    {% set porcentaje = [(stock / minimo * 100), 100]|min %}
-                    <div class="d-flex justify-content-between mb-1">
-                        <small class="text-muted">Stock mínimo: {{ "%.1f"|format(minimo) }}</small>
-                        <small class="{% if bajo %}text-danger fw-bold{% else %}text-success{% endif %}">
-                            {{ "%.0f"|format(porcentaje) }}%
-                        </small>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                        <div class="progress-bar {% if bajo %}bg-danger{% else %}bg-success{% endif %}"
-                             style="width: {{ porcentaje }}%"></div>
-                    </div>
-                </div>
-                {% endif %}
-
-                <!-- Total producido histórico -->
-                {% if producto.id in totales_dict %}
-                <div class="mt-2 pt-2 border-top">
-                    <small class="text-muted">
-                        <i class="fas fa-history"></i>
-                        Total producido históricamente:
-                        <strong>{{ "%.1f"|format(totales_dict[producto.id]) }} {{ producto.unidad or '' }}</strong>
-                    </small>
-                </div>
-                {% endif %}
+    <!-- TABLA RESUMEN DE STOCK -->
+    {% if productos %}
+    <div class="card border-0 table-container">
+        <div class="card-header bg-primary text-white py-3 px-4">
+            <h5 class="mb-0 fw-bold"><i class="fas fa-list-ul me-2"></i> Planilla General de Stock</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-uppercase font-monospace text-muted small">
+                        <tr>
+                            <th class="py-3 px-4">Producto</th>
+                            <th class="py-3">Unidad de Medida</th>
+                            <th class="py-3 text-end" style="width: 200px;">Stock Disponible</th>
+                            <th class="py-3 text-end" style="width: 220px;">Total Producido Histórico</th>
+                            <th class="py-3 text-center" style="width: 180px;">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-stock-body">
+                        {% for producto in productos %}
+                        {% set stock = producto.stock_actual|float %}
+                        <tr class="producto-row {% if stock == 0 %}table-secondary{% endif %}" data-nombre="{{ producto.nombre|lower }}">
+                            <td class="px-4 py-3">
+                                <div class="fw-bold text-dark">{{ producto.nombre }}</div>
+                                {% if producto.descripcion %}
+                                <div class="text-muted small text-truncate" style="max-width: 350px;">{{ producto.descripcion }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border px-3 py-2 font-monospace">{{ producto.unidad or 'unidades' }}</span>
+                            </td>
+                            <td class="text-end fw-bold {% if stock == 0 %}text-secondary{% else %}text-primary{% endif %} fs-5">
+                                {{ "%.2f"|format(stock) }}
+                            </td>
+                            <td class="text-end text-dark fw-semibold px-4">
+                                {{ "%.2f"|format(totales_dict[producto.id]) if producto.id in totales_dict else '0.00' }}
+                            </td>
+                            <td class="text-center">
+                                {% if stock == 0 %}
+                                <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Sin Stock</span>
+                                {% else %}
+                                <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Disponible</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
     {% else %}
-    <div class="col-12">
-        <div class="alert alert-info text-center">
-            <i class="fas fa-info-circle fa-2x mb-2"></i>
-            <p class="mb-0">No hay productos en el catálogo todavía.</p>
-            <a href="{{ url_for('fabrica.produccion') }}" class="btn btn-primary mt-2">
-                <i class="fas fa-plus"></i> Ir a cargar producción
-            </a>
-        </div>
+    <div class="alert alert-info border-0 rounded-4 shadow-sm text-center py-5">
+        <i class="fas fa-info-circle fa-3x mb-3 text-primary opacity-50"></i>
+        <h5 class="fw-bold">Catálogo Vacío</h5>
+        <p class="text-muted mb-4">No hay productos registrados en el sistema actualmente.</p>
+        <a href="{{ url_for('fabrica.produccion') }}" class="btn btn-primary rounded-pill px-5 py-3 fw-bold">
+            <i class="fas fa-plus me-2"></i> Cargar Producción Inicial
+        </a>
     </div>
-    {% endfor %}
+    {% endif %}
 </div>
-
-<!-- TABLA RESUMEN -->
-{% if productos %}
-<div class="card border-0 shadow-sm">
-    <div class="card-header" style="background: linear-gradient(135deg, #1a73e8, #0d47a1); color: white;">
-        <h5 class="mb-0"><i class="fas fa-table"></i> Resumen en Tabla</h5>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Producto</th>
-                        <th>Unidad</th>
-                        <th class="text-end">Stock Actual</th>
-                        <th class="text-end">Stock Mínimo</th>
-                        <th class="text-end">Total Producido</th>
-                        <th class="text-center">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for producto in productos %}
-                    {% set stock = producto.stock_actual|float %}
-                    {% set minimo = producto.stock_minimo|float %}
-                    {% set bajo = stock <= minimo and minimo > 0 %}
-                    <tr class="{% if bajo %}table-danger{% elif stock == 0 %}table-secondary{% endif %}">
-                        <td><strong>{{ producto.nombre }}</strong></td>
-                        <td><span class="badge bg-light text-dark">{{ producto.unidad or '—' }}</span></td>
-                        <td class="text-end fw-bold
-                            {% if bajo %}text-danger{% elif stock == 0 %}text-secondary{% else %}text-primary{% endif %}">
-                            {{ "%.2f"|format(stock) }}
-                        </td>
-                        <td class="text-end text-muted">{{ "%.2f"|format(minimo) if minimo > 0 else '—' }}</td>
-                        <td class="text-end text-muted">
-                            {{ "%.2f"|format(totales_dict[producto.id]) if producto.id in totales_dict else '0.00' }}
-                        </td>
-                        <td class="text-center">
-                            {% if bajo %}
-                            <span class="badge bg-danger">
-                                <i class="fas fa-exclamation-triangle"></i> Bajo
-                            </span>
-                            {% elif stock == 0 %}
-                            <span class="badge bg-secondary">Sin stock</span>
-                            {% else %}
-                            <span class="badge bg-success">
-                                <i class="fas fa-check"></i> OK
-                            </span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Búsqueda en tiempo real de productos
-document.getElementById('buscar-producto').addEventListener('input', function() {
-    const termino = this.value.toLowerCase().trim();
-    const cards = document.querySelectorAll('.stock-card-item');
-    let visibles = 0;
-
-    cards.forEach(card => {
-        const nombre = card.getAttribute('data-nombre') || '';
-        if (nombre.includes(termino)) {
-            card.style.display = '';
-            visibles++;
-        } else {
-            card.style.display = 'none';
+document.addEventListener('DOMContentLoaded', function() {
+    const inputBuscar = document.getElementById('buscar-producto');
+    const listSugerencias = document.getElementById('sugerencias-busqueda');
+    const btnLimpiar = document.getElementById('btn-limpiar');
+    const totalCount = document.getElementById('total-productos');
+    const filas = document.querySelectorAll('.producto-row');
+    
+    // Mapear los nombres de los productos para la búsqueda predictiva
+    const productosMap = [];
+    filas.forEach(fila => {
+        const nombreElement = fila.querySelector('td:first-child .fw-bold');
+        if (nombreElement) {
+            productosMap.push({
+                nombre: nombreElement.textContent.trim(),
+                nombreLower: fila.getAttribute('data-nombre')
+            });
         }
     });
 
-    document.getElementById('total-productos').textContent = visibles;
+    // Función principal para filtrar las filas de la tabla
+    function filtrarTabla(termino) {
+        let visibles = 0;
+        filas.forEach(fila => {
+            const nombre = fila.getAttribute('data-nombre') || '';
+            if (nombre.includes(termino)) {
+                fila.style.display = '';
+                visibles++;
+            } else {
+                fila.style.display = 'none';
+            }
+        });
+        if (totalCount) {
+            totalCount.textContent = visibles;
+        }
+        
+        if (btnLimpiar) {
+            btnLimpiar.style.display = termino.length > 0 ? 'inline-block' : 'none';
+        }
+    }
+
+    // Escuchar cambios en la barra de búsqueda
+    inputBuscar.addEventListener('input', function() {
+        const termino = this.value.toLowerCase().trim();
+        filtrarTabla(termino);
+        
+        if (termino.length >= 1) {
+            // Filtrar sugerencias
+            const sugerenciasFiltradas = productosMap.filter(p => p.nombreLower.includes(termino)).slice(0, 5);
+            
+            if (sugerenciasFiltradas.length > 0) {
+                let html = '';
+                sugerenciasFiltradas.forEach(p => {
+                    // Resaltar los caracteres que coinciden
+                    const index = p.nombre.toLowerCase().indexOf(termino);
+                    let nombreResaltado = p.nombre;
+                    if (index >= 0) {
+                        const originalMatch = p.nombre.substr(index, termino.length);
+                        nombreResaltado = p.nombre.replace(originalMatch, `<strong class="text-primary">${originalMatch}</strong>`);
+                    }
+                    
+                    html += `
+                        <button type="button" class="list-group-item list-group-item-action py-2 px-3 border-0 small text-start suggestion-item" data-nombre-completo="${p.nombre}">
+                            <i class="fas fa-arrow-right text-muted me-2 small"></i> ${nombreResaltado}
+                        </button>
+                    `;
+                });
+                
+                listSugerencias.innerHTML = html;
+                listSugerencias.style.display = 'block';
+            } else {
+                listSugerencias.style.display = 'none';
+            }
+        } else {
+            listSugerencias.style.display = 'none';
+        }
+    });
+
+    // Al hacer clic en un elemento sugerido
+    listSugerencias.addEventListener('click', function(e) {
+        const btn = e.target.closest('.suggestion-item');
+        if (btn) {
+            const nombreCompleto = btn.getAttribute('data-nombre-completo');
+            inputBuscar.value = nombreCompleto;
+            listSugerencias.style.display = 'none';
+            filtrarTabla(nombreCompleto.toLowerCase().trim());
+        }
+    });
+
+    // Limpiar barra de búsqueda
+    if (btnLimpiar) {
+        btnLimpiar.addEventListener('click', function() {
+            inputBuscar.value = '';
+            listSugerencias.style.display = 'none';
+            filtrarTabla('');
+        });
+    }
+
+    // Ocultar sugerencias al hacer clic fuera del campo de texto
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#buscar-producto') && !e.target.closest('#sugerencias-busqueda')) {
+            listSugerencias.style.display = 'none';
+        }
+    });
+    
+    // Reactivar sugerencias predictivas al hacer foco si ya contiene texto
+    inputBuscar.addEventListener('focus', function() {
+        const termino = this.value.toLowerCase().trim();
+        if (termino.length >= 1) {
+            inputBuscar.dispatchEvent(new Event('input'));
+        }
+    });
 });
 </script>
 {% endblock %}

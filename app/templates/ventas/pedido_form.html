@@ -1,5 +1,27 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+    .sugerencias-productos {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+        background: white;
+    }
+    .product-suggestion-item {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+    }
+    .product-suggestion-item:last-child {
+        border-bottom: none !important;
+    }
+    .product-suggestion-item:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        padding-left: 1.25rem !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <!-- MODAL AGREGAR NUEVO PRODUCTO -->
@@ -122,12 +144,17 @@
                             </div>
                             
                             <div class="row">
-                            <div class="col-md-5">
-                                    <div class="mb-3">
-                                        <label class="form-label">Producto *</label>
+                                <div class="col-md-5">
+                                    <div class="mb-3 position-relative">
+                                        <label class="form-label fw-semibold">Producto *</label>
+                                        <!-- Buscador predictivo autocompletado -->
+                                        <input type="text" class="form-control input-producto-buscar border-secondary-subtle" placeholder="🔍 Escribí el nombre del producto..." autocomplete="off" required>
+                                        <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto; background: white;"></div>
+                                        
                                         <select name="producto_ids[]"
                                                 class="form-select input-producto"
                                                 onchange="autocompletarUnidad(this)"
+                                                style="display: none;"
                                                 required>
                                             <option value="">— Seleccionar producto —</option>
                                             {% for p in productos_disponibles %}
@@ -314,11 +341,16 @@ function agregarOtroPedido() {
             
             <div class="row">
                 <div class="col-md-5">
-                    <div class="mb-3">
-                        <label class="form-label">Producto *</label>
+                    <div class="mb-3 position-relative">
+                        <label class="form-label fw-semibold">Producto *</label>
+                        <!-- Buscador predictivo autocompletado -->
+                        <input type="text" class="form-control input-producto-buscar border-secondary-subtle" placeholder="🔍 Escribí el nombre del producto..." autocomplete="off" required>
+                        <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto; background: white;"></div>
+                        
                         <select name="producto_ids[]"
                                 class="form-select input-producto"
                                 onchange="autocompletarUnidad(this)"
+                                style="display: none;"
                                 required>
                             <option value="">— Seleccionar producto —</option>
                             ${productosOptions}
@@ -409,5 +441,107 @@ function actualizarResumen() {
 
 // Actualizar resumen inicial
 actualizarResumen();
+
+// =========================================================================
+// LÓGICA DE AUTOCOMPLETADO Y BÚSQUEDA PREDICTIVA PARA PRODUCTOS DE VENTAS
+// =========================================================================
+
+// Arreglo de catálogo de productos
+const catalogoProductos = [
+    {% for p in productos_disponibles %}
+    { id: "{{ p.id }}", nombre: "{{ p.nombre }}", unidad: "{{ p.unidad or '' }}" },
+    {% endfor %}
+];
+
+// Evento de escritura delegado
+document.addEventListener('input', function(e) {
+    const input = e.target.closest('.input-producto-buscar');
+    if (!input) return;
+    
+    const container = input.closest('.position-relative');
+    if (!container) return;
+    
+    const listSugerencias = container.querySelector('.sugerencias-productos');
+    const selectProducto = container.querySelector('.input-producto');
+    if (!listSugerencias || !selectProducto) return;
+    
+    const termino = input.value.toLowerCase().trim();
+    
+    if (termino === '') {
+        selectProducto.value = '';
+        selectProducto.dispatchEvent(new Event('change'));
+        listSugerencias.style.display = 'none';
+        return;
+    }
+    
+    const sugerencias = catalogoProductos.filter(p => p.nombre.toLowerCase().includes(termino)).slice(0, 5);
+    
+    if (sugerencias.length > 0) {
+        let html = '';
+        sugerencias.forEach(p => {
+            const index = p.nombre.toLowerCase().indexOf(termino);
+            let nombreResaltado = p.nombre;
+            if (index >= 0) {
+                const originalMatch = p.nombre.substr(index, termino.length);
+                nombreResaltado = p.nombre.replace(originalMatch, `<strong class="text-primary">${originalMatch}</strong>`);
+            }
+            
+            html += `
+                <button type="button" class="list-group-item list-group-item-action py-2 px-3 border-0 small text-start product-suggestion-item" data-id="${p.id}" data-nombre="${p.nombre}">
+                    <i class="fas fa-box text-muted me-2 small"></i> ${nombreResaltado} ${p.unidad ? `<span class="badge bg-light text-secondary ms-1">${p.unidad}</span>` : ''}
+                </button>
+            `;
+        });
+        listSugerencias.innerHTML = html;
+        listSugerencias.style.display = 'block';
+    } else {
+        listSugerencias.innerHTML = `
+            <div class="py-2 px-3 text-muted small text-start">
+                <i class="fas fa-info-circle me-1"></i> Sin resultados
+            </div>
+        `;
+        listSugerencias.style.display = 'block';
+    }
+});
+
+// Evento de clic en una sugerencia
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.product-suggestion-item');
+    if (btn) {
+        const id = btn.getAttribute('data-id');
+        const nombre = btn.getAttribute('data-nombre');
+        
+        const container = btn.closest('.position-relative');
+        if (container) {
+            const input = container.querySelector('.input-producto-buscar');
+            const selectProducto = container.querySelector('.input-producto');
+            const listSugerencias = container.querySelector('.sugerencias-productos');
+            
+            if (input && selectProducto) {
+                input.value = nombre;
+                selectProducto.value = id;
+                selectProducto.dispatchEvent(new Event('change'));
+            }
+            if (listSugerencias) {
+                listSugerencias.style.display = 'none';
+            }
+        }
+        return;
+    }
+    
+    if (!e.target.closest('.input-producto-buscar') && !e.target.closest('.sugerencias-productos')) {
+        document.querySelectorAll('.sugerencias-productos').forEach(list => {
+            list.style.display = 'none';
+        });
+    }
+});
+
+// Reactivar sugerencias al hacer foco si ya tiene texto escrito
+document.addEventListener('focusin', function(e) {
+    const input = e.target.closest('.input-producto-buscar');
+    if (input && input.value.trim().length >= 1) {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+});
 </script>
 {% endblock %}

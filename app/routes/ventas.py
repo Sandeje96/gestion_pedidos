@@ -640,4 +640,29 @@ def nuevo_producto():
     db.session.commit()
 
     flash(f'✅ Producto "{nombre}" agregado al catálogo. Ya podés seleccionarlo en el pedido.', 'success')
-    return redirect(url_for('ventas.nuevo_pedido'))
+    return redirect(url_for('ventas.nuevo_pedido'))
+
+
+@ventas_bp.route('/stock')
+@vendedor_requerido
+def stock():
+    """
+    Permite al usuario de ventas visualizar el stock de productos en fábrica.
+    """
+    productos = Producto.query.order_by(Producto.nombre).all()
+
+    # Total producido histórico por producto
+    from app.models.produccion_diaria import ProduccionDiaria
+    producciones_totales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_producido')
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    totales_dict = {r.producto_id: float(r.total_producido) for r in producciones_totales}
+
+    return render_template(
+        'fabrica/stock.html',
+        title='Stock en Fábrica',
+        productos=productos,
+        totales_dict=totales_dict
+    )

@@ -59,12 +59,18 @@
             <p class="text-muted">Resumen optimizado del catálogo y existencias en tiempo real.</p>
         </div>
         <div class="col-auto d-flex gap-2">
+            {% if current_user.es_operario() %}
             <a href="{{ url_for('fabrica.produccion') }}" class="btn btn-primary rounded-pill px-4">
                 <i class="fas fa-flask me-2"></i> Cargar Producción
             </a>
             <a href="{{ url_for('fabrica.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
                 <i class="fas fa-arrow-left me-2"></i> Volver al Panel
             </a>
+            {% elif current_user.es_vendedor() %}
+            <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Volver al Panel
+            </a>
+            {% endif %}
         </div>
     </div>
 

@@ -51,6 +51,11 @@
                             <i class="fas fa-plus-circle"></i> Nuevo Pedido
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('ventas.stock') }}">
+                            <i class="fas fa-boxes"></i> Ver Stock
+                        </a>
+                    </li>
                     {% elif current_user.es_operario() %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('fabrica.dashboard') }}">

@@ -224,180 +224,220 @@
         
         <!-- PANEL MINORISTAS -->
         <div class="tab-pane fade show active" id="minoristas-panel" role="tabpanel">
-            <div class="table-container p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light text-uppercase font-monospace text-muted small">
-                            <tr>
-                                <th class="py-3 px-4" style="width: 80px;">Nº Pedido</th>
-                                <th class="py-3">Fecha</th>
-                                <th class="py-3">Sucursal</th>
-                                <th class="py-3">Producto</th>
-                                <th class="py-3 text-center" style="width: 100px;">Cantidad</th>
-                                <th class="py-3" style="width: 100px;">Unidad</th>
-                                <th class="py-3 text-center" style="width: 160px;">Estado</th>
-                                <th class="py-3 text-center" style="width: 180px;">Despachado</th>
-                                <th class="py-3">Observaciones / Notas</th>
-                                <th class="py-3 text-center" style="width: 160px;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lista-pedidos-minoristas">
-                            {% if pedidos_minoristas %}
-                                {% for pedido in pedidos_minoristas %}
-                                <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
-                                    <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
-                                    <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
-                                    <td class="fw-bold"><i class="fas fa-store text-muted me-1"></i> {{ pedido.cliente.nombre }}</td>
-                                    <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
-                                    <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
-                                    <td>{{ pedido.unidad or 'unidades' }}</td>
-                                    <td class="text-center" id="estado-badge-{{ pedido.id }}">
-                                        {% if pedido.estado == 'pendiente' %}
-                                        <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
-                                        {% elif pedido.estado == 'en_proceso' %}
-                                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
-                                        {% elif pedido.estado == 'completado' %}
-                                        <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
-                                        {% elif pedido.estado == 'cancelado' %}
-                                        <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <button type="button" 
-                                                id="despacho-toggle-{{ pedido.id }}" 
-                                                class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
-                                                onclick="toggleDespacho({{ pedido.id }})">
-                                            {% if pedido.despachado %}
-                                            <i class="fas fa-truck"></i> <span>SI</span>
-                                            {% else %}
-                                            <i class="fas fa-truck-loading"></i> <span>NO</span>
-                                            {% endif %}
-                                        </button>
-                                    </td>
-                                    <td>
-                                        {% if pedido.observaciones_fabrica %}
-                                        <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
-                                        {% endif %}
-                                        {% if pedido.notas_vendedor %}
-                                        <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
-                                        {% endif %}
-                                        {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
-                                        <span class="text-muted small font-monospace">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="d-flex gap-2 justify-content-center">
-                                            <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
-                                                <i class="fas fa-comments m-0"></i>
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>
-                                    <td colspan="10" class="text-center py-5 text-muted">
-                                        <i class="fas fa-inbox fa-3x mb-3 opacity-30"></i>
-                                        <p class="mb-0">No hay pedidos minoristas registrados actualmente.</p>
-                                    </td>
-                                </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+            {% if pedidos_minoristas %}
+                <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionMinoristas">
+                    {% for group in pedidos_minoristas|groupby('cliente.nombre') %}
+                    {% set loop_index = loop.index %}
+                    <div class="accordion-item border-0 border-bottom">
+                        <h2 class="accordion-header" id="headingMinorista-{{ loop_index }}">
+                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                                    type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#collapseMinorista-{{ loop_index }}" 
+                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-controls="collapseMinorista-{{ loop_index }}"
+                                    style="background-color: #f8f9fa; color: #212529;">
+                                <i class="fas fa-store text-primary me-2"></i> Lote {{ group.grouper }} 
+                                <span class="badge bg-primary rounded-pill ms-3 font-monospace">{{ group.list|length }} pedido(s)</span>
+                            </button>
+                        </h2>
+                        <div id="collapseMinorista-{{ loop_index }}" 
+                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             aria-labelledby="headingMinorista-{{ loop_index }}" 
+                             data-bs-parent="#accordionMinoristas">
+                            <div class="accordion-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light text-uppercase font-monospace text-muted small">
+                                            <tr>
+                                                <th class="py-3 px-4" style="width: 80px;">Nº Pedido</th>
+                                                <th class="py-3">Fecha</th>
+                                                <th class="py-3">Producto</th>
+                                                <th class="py-3 text-center" style="width: 100px;">Cantidad</th>
+                                                <th class="py-3" style="width: 100px;">Unidad</th>
+                                                <th class="py-3 text-center" style="width: 160px;">Estado</th>
+                                                <th class="py-3 text-center" style="width: 180px;">Despachado</th>
+                                                <th class="py-3">Observaciones / Notas</th>
+                                                <th class="py-3 text-center" style="width: 160px;">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="lista-pedidos-minoristas-{{ loop_index }}">
+                                            {% for pedido in group.list %}
+                                            <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
+                                                <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
+                                                <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
+                                                <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
+                                                <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                <td>{{ pedido.unidad or 'unidades' }}</td>
+                                                <td class="text-center" id="estado-badge-{{ pedido.id }}">
+                                                    {% if pedido.estado == 'pendiente' %}
+                                                    <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
+                                                    {% elif pedido.estado == 'en_proceso' %}
+                                                    <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
+                                                    {% elif pedido.estado == 'completado' %}
+                                                    <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
+                                                    {% elif pedido.estado == 'cancelado' %}
+                                                    <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    <button type="button" 
+                                                            id="despacho-toggle-{{ pedido.id }}" 
+                                                            class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
+                                                            onclick="toggleDespacho({{ pedido.id }})">
+                                                        {% if pedido.despachado %}
+                                                        <i class="fas fa-truck"></i> <span>SI</span>
+                                                        {% else %}
+                                                        <i class="fas fa-truck-loading"></i> <span>NO</span>
+                                                        {% endif %}
+                                                    </button>
+                                                </td>
+                                                <td>
+                                                    {% if pedido.observaciones_fabrica %}
+                                                    <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                                    {% endif %}
+                                                    {% if pedido.notas_vendedor %}
+                                                    <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                    {% endif %}
+                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                    <span class="text-muted small font-monospace">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="d-flex gap-2 justify-content-center">
+                                                        <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
+                                                            <i class="fas fa-comments m-0"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-            </div>
+            {% else %}
+                <div class="table-container p-5 text-center text-muted">
+                    <i class="fas fa-inbox fa-3x mb-3 opacity-30"></i>
+                    <p class="mb-0">No hay pedidos minoristas registrados actualmente.</p>
+                </div>
+            {% endif %}
         </div>
 
         <!-- PANEL MAYORISTAS -->
         <div class="tab-pane fade" id="mayoristas-panel" role="tabpanel">
-            <div class="table-container p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light text-uppercase font-monospace text-muted small">
-                            <tr>
-                                <th class="py-3 px-4" style="width: 80px;">Nº Pedido</th>
-                                <th class="py-3">Fecha</th>
-                                <th class="py-3">Sucursal</th>
-                                <th class="py-3">Producto</th>
-                                <th class="py-3 text-center" style="width: 100px;">Cantidad</th>
-                                <th class="py-3" style="width: 100px;">Unidad</th>
-                                <th class="py-3 text-center" style="width: 160px;">Estado</th>
-                                <th class="py-3 text-center" style="width: 180px;">Despachado</th>
-                                <th class="py-3">Observaciones / Notas</th>
-                                <th class="py-3 text-center" style="width: 160px;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lista-pedidos-mayoristas">
-                            {% if pedidos_mayoristas %}
-                                {% for pedido in pedidos_mayoristas %}
-                                <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
-                                    <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
-                                    <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
-                                    <td class="fw-bold"><i class="fas fa-store text-muted me-1"></i> {{ pedido.cliente.nombre }}</td>
-                                    <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
-                                    <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
-                                    <td>{{ pedido.unidad or 'unidades' }}</td>
-                                    <td class="text-center" id="estado-badge-{{ pedido.id }}">
-                                        {% if pedido.estado == 'pendiente' %}
-                                        <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
-                                        {% elif pedido.estado == 'en_proceso' %}
-                                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
-                                        {% elif pedido.estado == 'completado' %}
-                                        <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
-                                        {% elif pedido.estado == 'cancelado' %}
-                                        <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <button type="button" 
-                                                id="despacho-toggle-{{ pedido.id }}" 
-                                                class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
-                                                onclick="toggleDespacho({{ pedido.id }})">
-                                            {% if pedido.despachado %}
-                                            <i class="fas fa-truck"></i> <span>SI</span>
-                                            {% else %}
-                                            <i class="fas fa-truck-loading"></i> <span>NO</span>
-                                            {% endif %}
-                                        </button>
-                                    </td>
-                                    <td>
-                                        {% if pedido.observaciones_fabrica %}
-                                        <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
-                                        {% endif %}
-                                        {% if pedido.notes_vendedor %}
-                                        <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
-                                        {% endif %}
-                                        {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
-                                        <span class="text-muted small font-monospace">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="d-flex gap-2 justify-content-center">
-                                            <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
-                                                <i class="fas fa-comments m-0"></i>
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>
-                                    <td colspan="10" class="text-center py-5 text-muted">
-                                        <i class="fas fa-inbox fa-3x mb-3 opacity-30"></i>
-                                        <p class="mb-0">No hay pedidos mayoristas registrados actualmente.</p>
-                                    </td>
-                                </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+            {% if pedidos_mayoristas %}
+                <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionMayoristas">
+                    {% for group in pedidos_mayoristas|groupby('cliente.nombre') %}
+                    {% set loop_index = loop.index %}
+                    <div class="accordion-item border-0 border-bottom">
+                        <h2 class="accordion-header" id="headingMayorista-{{ loop_index }}">
+                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                                    type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#collapseMayorista-{{ loop_index }}" 
+                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-controls="collapseMayorista-{{ loop_index }}"
+                                    style="background-color: #f8f9fa; color: #212529;">
+                                <i class="fas fa-store text-success me-2"></i> Lote {{ group.grouper }} 
+                                <span class="badge bg-success rounded-pill ms-3 font-monospace">{{ group.list|length }} pedido(s)</span>
+                            </button>
+                        </h2>
+                        <div id="collapseMayorista-{{ loop_index }}" 
+                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             aria-labelledby="headingMayorista-{{ loop_index }}" 
+                             data-bs-parent="#accordionMayoristas">
+                            <div class="accordion-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light text-uppercase font-monospace text-muted small">
+                                            <tr>
+                                                <th class="py-3 px-4" style="width: 80px;">Nº Pedido</th>
+                                                <th class="py-3">Fecha</th>
+                                                <th class="py-3">Producto</th>
+                                                <th class="py-3 text-center" style="width: 100px;">Cantidad</th>
+                                                <th class="py-3" style="width: 100px;">Unidad</th>
+                                                <th class="py-3 text-center" style="width: 160px;">Estado</th>
+                                                <th class="py-3 text-center" style="width: 180px;">Despachado</th>
+                                                <th class="py-3">Observaciones / Notas</th>
+                                                <th class="py-3 text-center" style="width: 160px;">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="lista-pedidos-mayoristas-{{ loop_index }}">
+                                            {% for pedido in group.list %}
+                                            <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
+                                                <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
+                                                <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
+                                                <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
+                                                <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                <td>{{ pedido.unidad or 'unidades' }}</td>
+                                                <td class="text-center" id="estado-badge-{{ pedido.id }}">
+                                                    {% if pedido.estado == 'pendiente' %}
+                                                    <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
+                                                    {% elif pedido.estado == 'en_proceso' %}
+                                                    <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
+                                                    {% elif pedido.estado == 'completado' %}
+                                                    <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
+                                                    {% elif pedido.estado == 'cancelado' %}
+                                                    <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    <button type="button" 
+                                                            id="despacho-toggle-{{ pedido.id }}" 
+                                                            class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
+                                                            onclick="toggleDespacho({{ pedido.id }})">
+                                                        {% if pedido.despachado %}
+                                                        <i class="fas fa-truck"></i> <span>SI</span>
+                                                        {% else %}
+                                                        <i class="fas fa-truck-loading"></i> <span>NO</span>
+                                                        {% endif %}
+                                                    </button>
+                                                </td>
+                                                <td>
+                                                    {% if pedido.observaciones_fabrica %}
+                                                    <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                                    {% endif %}
+                                                    {% if pedido.notes_vendedor %}
+                                                    <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                    {% endif %}
+                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                    <span class="text-muted small font-monospace">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="d-flex gap-2 justify-content-center">
+                                                        <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
+                                                            <i class="fas fa-comments m-0"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
-            </div>
+            {% else %}
+                <div class="table-container p-5 text-center text-muted">
+                    <i class="fas fa-inbox fa-3x mb-3 opacity-30"></i>
+                    <p class="mb-0">No hay pedidos mayoristas registrados actualmente.</p>
+                </div>
+            {% endif %}
         </div>
 
     </div>

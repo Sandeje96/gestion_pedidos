@@ -37,7 +37,7 @@ def administracion_requerido(f):
 def dashboard():
     """
     Panel principal de Administración de Fábrica.
-    Muestra los pedidos minoristas y mayoristas por separado.
+    Muestra los pedidos minoristas, mayoristas y los completados por fábrica listos para despacho.
     """
     # Pedidos minoristas y mayoristas no archivados
     pedidos_minoristas = Pedido.query.filter_by(
@@ -49,10 +49,18 @@ def dashboard():
         archivado=False,
         destinatario='admin_mayorista'
     ).order_by(Pedido.fecha_creacion.desc()).all()
+
+    # Pedidos de fábrica completados y no archivados
+    pedidos_fabrica = Pedido.query.filter_by(
+        archivado=False,
+        destinatario='fabrica',
+        estado='completado'
+    ).order_by(Pedido.fecha_creacion.desc()).all()
     
-    # Estadísticas generales (solo para pedidos de administración)
+    # Estadísticas generales
     total_minoristas = len(pedidos_minoristas)
     total_mayoristas = len(pedidos_mayoristas)
+    total_fabrica = len(pedidos_fabrica)
     
     pendientes_minoristas = sum(1 for p in pedidos_minoristas if p.estado == 'pendiente')
     pendientes_mayoristas = sum(1 for p in pedidos_mayoristas if p.estado == 'pendiente')
@@ -68,32 +76,46 @@ def dashboard():
     ).scalar()
     cantidad_minorista = float(cantidad_minorista) if cantidad_minorista else 0.0
     
+    # Litros/Unidades totales
     cantidad_mayorista = db.session.query(func.sum(Pedido.cantidad)).filter(
         Pedido.archivado == False,
         Pedido.destinatario == 'admin_mayorista',
         Pedido.estado != 'cancelado'
     ).scalar()
     cantidad_mayorista = float(cantidad_mayorista) if cantidad_mayorista else 0.0
+
+    # Litros/Unidades fábrica completados
+    cantidad_fabrica = db.session.query(func.sum(Pedido.cantidad)).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario == 'fabrica',
+        Pedido.estado == 'completado'
+    ).scalar()
+    cantidad_fabrica = float(cantidad_fabrica) if cantidad_fabrica else 0.0
     
-    # Pedidos despachados (de administración)
+    # Pedidos despachados (de administración y fábrica)
     despachados_minoristas = sum(1 for p in pedidos_minoristas if p.despachado)
     despachados_mayoristas = sum(1 for p in pedidos_mayoristas if p.despachado)
+    despachados_fabrica = sum(1 for p in pedidos_fabrica if p.despachado)
 
     return render_template(
         'administracion/dashboard.html',
         title='Panel de Administración',
         pedidos_minoristas=pedidos_minoristas,
         pedidos_mayoristas=pedidos_mayoristas,
+        pedidos_fabrica=pedidos_fabrica,
         total_minoristas=total_minoristas,
         total_mayoristas=total_mayoristas,
+        total_fabrica=total_fabrica,
         pendientes_minoristas=pendientes_minoristas,
         pendientes_mayoristas=pendientes_mayoristas,
         completados_minoristas=completados_minoristas,
         completados_mayoristas=completados_mayoristas,
         cantidad_minorista=cantidad_minorista,
         cantidad_mayorista=cantidad_mayorista,
+        cantidad_fabrica=cantidad_fabrica,
         despachados_minoristas=despachados_minoristas,
         despachados_mayoristas=despachados_mayoristas,
+        despachados_fabrica=despachados_fabrica,
         Pedido=Pedido
     )
 
@@ -106,9 +128,9 @@ def actualizar_despachado(pedido_id):
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    # Validar que sea un pedido dirigido a la administración
-    if pedido.destinatario not in ['admin_minorista', 'admin_mayorista']:
-        return jsonify({'success': False, 'error': 'El pedido no pertenece a Administración de Fábrica'}), 400
+    # Validar que sea un pedido dirigido a la administración o completado de fábrica
+    if pedido.destinatario not in ['admin_minorista', 'admin_mayorista', 'fabrica']:
+        return jsonify({'success': False, 'error': 'El pedido no es elegible para despacho'}), 400
         
     try:
         # Alternar el estado
@@ -216,8 +238,8 @@ def ver_mensajes_pedido(pedido_id):
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    # Validar que pertenezca a la administración
-    if pedido.destinatario not in ['admin_minorista', 'admin_mayorista']:
+    # Validar que pertenezca a la administración o a fábrica
+    if pedido.destinatario not in ['admin_minorista', 'admin_mayorista', 'fabrica']:
         flash('No tienes acceso a este pedido', 'danger')
         return redirect(url_for('administracion.dashboard'))
         

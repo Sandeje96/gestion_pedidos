@@ -154,3 +154,31 @@ socket.on('pedido_actualizado', function(data) {
         }, 1500);
     }
 });
+
+// Cuando un pedido es ELIMINADO
+socket.on('pedido_eliminado', function(data) {
+    console.log('🗑️ Pedido eliminado:', data.pedido_id);
+    const row = document.getElementById(`pedido-row-${data.pedido_id}`);
+    if (row) {
+        row.classList.add('bg-danger-subtle');
+        showBranchToast(`Pedido #${data.pedido_id} ha sido eliminado`, 'warning');
+        setTimeout(() => {
+            row.remove();
+            location.reload();
+        }, 1500);
+    }
+});
+
+// Cuando un pedido es ARCHIVADO (marcado como recibido o cerrado en semana)
+socket.on('pedido_archivado', function(data) {
+    console.log('📦 Pedido archivado:', data.pedido_id);
+    const row = document.getElementById(`pedido-row-${data.pedido_id}`);
+    if (row) {
+        row.classList.add('bg-success-subtle');
+        showBranchToast(`Pedido #${data.pedido_id} recibido conforme y archivado`, 'success');
+        setTimeout(() => {
+            row.remove();
+            location.reload();
+        }, 1500);
+    }
+});

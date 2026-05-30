@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Pedidos Recibidos{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.08);
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+    }
+    .gradient-recibidos {
+        background: linear-gradient(135deg, #198754 0%, #0f5132 100%);
+    }
+    .gradient-unidades {
+        background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%);
+    }
+    .badge-dest-fabrica {
+        background-color: #0d6efd;
+        color: white;
+    }
+    .badge-dest-minorista {
+        background-color: #6610f2;
+        color: white;
+    }
+    .badge-dest-mayorista {
+        background-color: #d63384;
+        color: white;
+    }
+    .glass-search {
+        border-radius: 30px;
+        padding-left: 2.5rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+    .glass-search:focus {
+        background: #ffffff;
+        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.15);
+        border-color: #0d6efd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in">
+    <!-- Encabezado con Botón de Retorno -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-6 fw-bold text-dark mb-1">
+                <i class="fas fa-archive text-success"></i> Pedidos Recibidos Conforme
+            </h1>
+            <p class="text-muted">Historial completo de pedidos que ya fueron recibidos y controlados por la sucursal.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{{ url_for('sucursal.dashboard') }}" class="btn btn-outline-secondary btn-lg shadow-sm rounded-pill py-3 px-4">
+                <i class="fas fa-arrow-left me-2"></i> VOLVER AL PANEL
+            </a>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Estadísticas del Historial -->
+    <div class="row mb-4">
+        <!-- Total Recibidos -->
+        <div class="col-md-6 mb-3">
+            <div class="card stat-card text-white gradient-recibidos border-0 h-100">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-white-50">Total Recibidos</h5>
+                            <i class="fas fa-check-double fa-2x opacity-50"></i>
+                        </div>
+                        <h2 class="mt-2 text-white fw-bold mb-0">{{ total_recibidos }}</h2>
+                    </div>
+                    <span class="text-white-50 small mt-3"><i class="fas fa-info-circle"></i> Cantidad total de registros archivados con conformidad</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Litros/Unidades Totales Recibidos -->
+        <div class="col-md-6 mb-3">
+            <div class="card stat-card text-white gradient-unidades border-0 h-100">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 text-white-50">Volumen Total Recibido</h5>
+                            <i class="fas fa-boxes fa-2x opacity-50"></i>
+                        </div>
+                        <h2 class="mt-2 text-white fw-bold mb-0">{{ "%.2f"|format(total_unidades) }}</h2>
+                    </div>
+                    <span class="text-white-50 small mt-3"><i class="fas fa-weight-hanging"></i> Sumatoria de cantidades de pedidos conformes</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtro / Buscador Dinámico -->
+    <div class="row mb-4">
+        <div class="col-md-6 position-relative">
+            <i class="fas fa-search position-absolute text-muted" style="top: 50%; left: 2.25rem; transform: translateY(-50%); z-index: 10;"></i>
+            <input type="text" id="buscar-pedido" class="form-control form-control-lg glass-search shadow-sm" placeholder="Buscar por producto, sucursal o notas del pedido...">
+        </div>
+    </div>
+
+    <!-- Tabla Histórica de Pedidos Recibidos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-dark fw-bold"><i class="fas fa-history text-success"></i> Listado del Historial</h5>
+                    <span class="badge bg-success" id="counter-mostrar">{{ pedidos|length }} registros</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if pedidos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="tabla-recibidos">
+                            <thead class="table-light text-uppercase font-monospace text-muted small">
+                                <tr>
+                                    <th class="py-3 px-4" style="width: 80px;">Nº</th>
+                                    <th class="py-3">Sucursal</th>
+                                    <th class="py-3">Producto</th>
+                                    <th class="py-3 text-center" style="width: 120px;">Cantidad</th>
+                                    <th class="py-3" style="width: 130px;">Unidad</th>
+                                    <th class="py-3 text-center" style="width: 180px;">Enviar A</th>
+                                    <th class="py-3 text-center" style="width: 160px;">Fecha Recepción</th>
+                                    <th class="py-3">Notas / Obs.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pedido in pedidos %}
+                                <tr class="pedido-row-recibido">
+                                    <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
+                                    <td class="fw-semibold text-secondary sucursal-name">{{ pedido.cliente.nombre }}</td>
+                                    <td class="fw-bold text-dark producto-name">{{ pedido.producto_nombre }}</td>
+                                    <td class="text-center fw-bold text-success">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                    <td>{{ pedido.unidad or 'unidades' }}</td>
+                                    <td class="text-center">
+                                        {% if pedido.destinatario == 'fabrica' %}
+                                        <span class="badge badge-dest-fabrica px-3 py-2 rounded-pill"><i class="fas fa-industry me-1"></i> Fábrica</span>
+                                        {% elif pedido.destinatario == 'admin_minorista' %}
+                                        <span class="badge badge-dest-minorista px-3 py-2 rounded-pill"><i class="fas fa-shopping-bag me-1"></i> Admin Minorista</span>
+                                        {% elif pedido.destinatario == 'admin_mayorista' %}
+                                        <span class="badge badge-dest-mayorista px-3 py-2 rounded-pill"><i class="fas fa-warehouse me-1"></i> Admin Mayorista</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center text-muted small">
+                                        {{ (pedido.fecha_archivado or pedido.fecha_actualizacion).strftime('%d/%m/%Y %H:%M') }}
+                                    </td>
+                                    <td class="pedido-notes">
+                                        {% if pedido.observaciones_fabrica %}
+                                        <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                        {% endif %}
+                                        {% if pedido.notas_vendedor %}
+                                        <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                        {% endif %}
+                                        {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                        <span class="text-muted font-monospace small">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-box-open fa-4x text-muted mb-3 opacity-30"></i>
+                        <h4 class="text-muted">Aún no hay pedidos recibidos conformes</h4>
+                        <p class="text-muted">Los pedidos aparecerán aquí cuando los operarios confirmen su recepción desde el panel activo.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('buscar-pedido');
+        const rows = document.querySelectorAll('.pedido-row-recibido');
+        const counterSpan = document.getElementById('counter-mostrar');
+
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const term = searchInput.value.toLowerCase().trim();
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    const sucursal = row.querySelector('.sucursal-name').textContent.toLowerCase();
+                    const producto = row.querySelector('.producto-name').textContent.toLowerCase();
+                    const notes = row.querySelector('.pedido-notes').textContent.toLowerCase();
+
+                    if (sucursal.includes(term) || producto.includes(term) || notes.includes(term)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                if (counterSpan) {
+                    counterSpan.textContent = `${visibleCount} de ${rows.length} registros`;
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

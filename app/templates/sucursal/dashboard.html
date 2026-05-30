@@ -79,7 +79,10 @@
             </h1>
             <p class="text-muted">Carga de pedidos y control de estados en tiempo real para sucursales.</p>
         </div>
-        <div class="col-md-4 text-md-end">
+        <div class="col-md-4 text-md-end d-flex gap-2 justify-content-md-end flex-wrap">
+            <a href="{{ url_for('sucursal.recibidos') }}" class="btn btn-outline-success btn-lg shadow-sm rounded-pill py-3 px-4">
+                <i class="fas fa-archive me-2"></i> PEDIDOS RECIBIDOS
+            </a>
             <a href="{{ url_for('sucursal.nuevo_pedido') }}" class="btn btn-primary btn-lg shadow-sm rounded-pill py-3 px-4 animate-pulse">
                 <i class="fas fa-cart-plus me-2"></i> NUEVO PEDIDO SUCURSAL
             </a>
@@ -194,7 +197,8 @@
                                                     <th class="py-3 text-center" style="width: 150px;">Estado</th>
                                                     <th class="py-3 text-center" style="width: 150px;">Despacho</th>
                                                     <th class="py-3" style="width: 180px;">Notas / Obs.</th>
-                                                    <th class="py-3 text-center" style="width: 100px;">Acciones</th>
+                                                    <th class="py-3 text-center" style="width: 110px;">Recibido</th>
+                                                    <th class="py-3 text-center" style="width: 120px;">Acciones</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="pedido-list-{{ cliente.id }}">
@@ -247,9 +251,29 @@
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-center">
-                                                        <a href="{{ url_for('sucursal.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-primary btn-sm rounded-circle p-2" title="Chat y Mensajes">
-                                                            <i class="fas fa-comments m-0"></i>
-                                                        </a>
+                                                        {% if pedido.estado == 'completado' or pedido.despachado %}
+                                                        <form method="POST" action="{{ url_for('sucursal.recibir_pedido', pedido_id=pedido.id) }}" class="form-recibir-pedido d-inline">
+                                                            <div class="form-check d-flex justify-content-center">
+                                                                <input class="form-check-input border-success shadow-sm" type="checkbox" onchange="if(confirm('¿Confirmás que recibiste este pedido conforme? Al marcarlo se archivará y quitará de esta vista.')) { this.form.submit(); } else { this.checked = false; }" style="width: 1.4rem; height: 1.4rem; cursor: pointer;">
+                                                            </div>
+                                                        </form>
+                                                        {% else %}
+                                                        <div class="d-flex justify-content-center">
+                                                            <input class="form-check-input" type="checkbox" disabled style="width: 1.4rem; height: 1.4rem; opacity: 0.4;" title="Disponible al completarse o despacharse">
+                                                        </div>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <div class="d-flex justify-content-center gap-1">
+                                                            <a href="{{ url_for('sucursal.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-primary btn-sm rounded-circle p-2" title="Chat y Mensajes">
+                                                                <i class="fas fa-comments m-0"></i>
+                                                            </a>
+                                                            <form method="POST" action="{{ url_for('sucursal.eliminar_pedido', pedido_id=pedido.id) }}" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar este pedido? Esta acción no se puede deshacer.')">
+                                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle p-2" title="Eliminar Pedido">
+                                                                    <i class="fas fa-trash m-0"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                 {% endfor %}

@@ -271,3 +271,98 @@ def nuevo_producto():
 
     flash(f'✅ Producto "{nombre}" agregado al catálogo. Ya podés seleccionarlo en el pedido.', 'success')
     return redirect(url_for('sucursal.nuevo_pedido'))
+
+
+@sucursal_bp.route('/pedido/<int:pedido_id>/eliminar', methods=['POST'])
+@sucursal_requerido
+def eliminar_pedido(pedido_id):
+    """
+    Eliminar un pedido realizado por la sucursal.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+    
+    # Validar que pertenezca a la sucursal (ruta SUCURSALES)
+    if pedido.cliente.ruta != 'SUCURSALES':
+        flash('No tienes permisos para eliminar este pedido', 'danger')
+        return redirect(url_for('sucursal.dashboard'))
+        
+    pedido_info = {
+        'id': pedido.id,
+        'producto_nombre': pedido.producto_nombre,
+        'cliente_id': pedido.cliente_id
+    }
+    
+    db.session.delete(pedido)
+    db.session.commit()
+    
+    # Emitir evento WebSocket
+    socketio.emit('pedido_eliminado', {
+        'pedido_id': pedido_info['id'],
+        'cliente_id': pedido_info['cliente_id']
+    }, namespace='/')
+    
+    flash(f'🗑️ Pedido #{pedido_info["id"]} de "{pedido_info["producto_nombre"]}" eliminado exitosamente.', 'success')
+    return redirect(url_for('sucursal.dashboard'))
+
+
+@sucursal_bp.route('/pedido/<int:pedido_id>/recibir', methods=['POST'])
+@sucursal_requerido
+def recibir_pedido(pedido_id):
+    """
+    Confirmar recepción conforme de un pedido por parte de la sucursal.
+    Lo marca como recibido_conforme y archivado para removerlo visualmente.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+    
+    # Validar que pertenezca a la sucursal (ruta SUCURSALES)
+    if pedido.cliente.ruta != 'SUCURSALES':
+        flash('No tienes permisos para operar este pedido', 'danger')
+        return redirect(url_for('sucursal.dashboard'))
+        
+    pedido.recibido_conforme = True
+    pedido.archivado = True
+    pedido.fecha_archivado = datetime.utcnow()
+    
+    # Asegurar que quede como completado
+    if pedido.estado != 'completado':
+        pedido.estado = 'completado'
+        
+    db.session.commit()
+    
+    # Emitir eventos WebSocket para sincronización en tiempo real en otros paneles
+    socketio.emit('pedido_archivado', {
+        'pedido_id': pedido.id,
+        'cliente_id': pedido.cliente_id
+    }, namespace='/')
+    
+    socketio.emit('pedido_actualizado', {
+        'pedido': pedido.to_dict()
+    }, namespace='/')
+    
+    flash(f'📦 Pedido #{pedido.id} de "{pedido.producto_nombre}" marcado como Recibido Conforme y archivado.', 'success')
+    return redirect(url_for('sucursal.dashboard'))
+
+
+@sucursal_bp.route('/recibidos')
+@sucursal_requerido
+def recibidos():
+    """
+    Historial de pedidos recibidos conforme o archivados de las sucursales.
+    """
+    # Obtener pedidos que pertenecen a SUCURSALES y están marcados como recibidos o archivados
+    pedidos_recibidos = Pedido.query.join(Cliente).filter(
+        Cliente.ruta == 'SUCURSALES',
+        db.or_(Pedido.recibido_conforme == True, Pedido.archivado == True)
+    ).order_by(db.coalesce(Pedido.fecha_archivado, Pedido.fecha_actualizacion).desc()).all()
+    
+    # Calcular algunas estadísticas rápidas del historial
+    total_recibidos = len(pedidos_recibidos)
+    total_unidades = sum(float(p.cantidad) for p in pedidos_recibidos if p.estado != 'cancelado')
+    
+    return render_template(
+        'sucursal/recibidos.html',
+        title='Pedidos Recibidos',
+        pedidos=pedidos_recibidos,
+        total_recibidos=total_recibidos,
+        total_unidades=total_unidades
+    )

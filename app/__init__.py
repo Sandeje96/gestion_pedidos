@@ -117,6 +117,14 @@ def create_app(config_name='development'):
         except Exception as e_idx:
             db.session.rollback()
             print(f"Migración: índice 'idx_pedidos_destinatario' no se pudo crear: {e_idx}")
+
+        # 4. Agregar columna 'recibido_conforme'
+        try:
+            db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS recibido_conforme BOOLEAN DEFAULT FALSE NOT NULL"))
+            db.session.commit()
+        except Exception as e_recibido:
+            db.session.rollback()
+            print(f"Migración: columna 'recibido_conforme' ya existe o no se pudo agregar: {e_recibido}")
     
     return app
 

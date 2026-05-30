@@ -62,6 +62,7 @@ class Pedido(db.Model):
     fecha_completado = db.Column(db.DateTime, nullable=True)
 
     # Campos de archivo
+    recibido_conforme = db.Column(db.Boolean, default=False, nullable=False, index=True)
     archivado = db.Column(db.Boolean, default=False, nullable=False, index=True)
     fecha_archivado = db.Column(db.DateTime, nullable=True)
     semana_archivado = db.Column(db.String(50), nullable=True)  # Ej: "Semana 2025-01"
@@ -109,6 +110,7 @@ class Pedido(db.Model):
             'modificado': self.modificado,
             'visto_por_fabrica': self.visto_por_fabrica,
             'visto_por_vendedor': self.visto_por_vendedor,
+            'recibido_conforme': self.recibido_conforme,
             'archivado': self.archivado,
             'fecha_archivado': self.fecha_archivado.isoformat() if self.fecha_archivado else None,
             'semana_archivado': self.semana_archivado,

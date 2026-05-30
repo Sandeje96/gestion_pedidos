@@ -228,6 +228,15 @@
                 <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionMinoristas">
                     {% for group in pedidos_minoristas|groupby('cliente.nombre') %}
                     {% set loop_index = loop.index %}
+                    {% set ns = namespace(pendientes=0, sin_despachar=0) %}
+                    {% for p in group.list %}
+                        {% if p.estado == 'pendiente' %}
+                            {% set ns.pendientes = ns.pendientes + 1 %}
+                        {% endif %}
+                        {% if not p.despachado %}
+                            {% set ns.sin_despachar = ns.sin_despachar + 1 %}
+                        {% endif %}
+                    {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingMinorista-{{ loop_index }}">
                             <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
@@ -238,7 +247,15 @@
                                     aria-controls="collapseMinorista-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-primary me-2"></i> Lote {{ group.grouper }} 
-                                <span class="badge bg-primary rounded-pill ms-3 font-monospace">{{ group.list|length }} pedido(s)</span>
+                                <span class="badge bg-primary rounded-pill ms-3 font-monospace" title="Total de pedidos en este lote">{{ group.list|length }} pedido(s)</span>
+                                {% if ns.pendientes > 0 %}
+                                <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace" title="Pedidos con estado Pendiente"><i class="fas fa-clock"></i> {{ ns.pendientes }} pendientes</span>
+                                {% endif %}
+                                {% if ns.sin_despachar > 0 %}
+                                <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace" title="Pedidos pendientes de despacho"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
+                                {% else %}
+                                <span class="badge bg-success text-white rounded-pill ms-2 font-monospace" title="Todos los pedidos de este lote están despachados"><i class="fas fa-check"></i> Todo despachado</span>
+                                {% endif %}
                             </button>
                         </h2>
                         <div id="collapseMinorista-{{ loop_index }}" 
@@ -337,6 +354,15 @@
                 <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionMayoristas">
                     {% for group in pedidos_mayoristas|groupby('cliente.nombre') %}
                     {% set loop_index = loop.index %}
+                    {% set ns = namespace(pendientes=0, sin_despachar=0) %}
+                    {% for p in group.list %}
+                        {% if p.estado == 'pendiente' %}
+                            {% set ns.pendientes = ns.pendientes + 1 %}
+                        {% endif %}
+                        {% if not p.despachado %}
+                            {% set ns.sin_despachar = ns.sin_despachar + 1 %}
+                        {% endif %}
+                    {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingMayorista-{{ loop_index }}">
                             <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
@@ -347,7 +373,15 @@
                                     aria-controls="collapseMayorista-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-success me-2"></i> Lote {{ group.grouper }} 
-                                <span class="badge bg-success rounded-pill ms-3 font-monospace">{{ group.list|length }} pedido(s)</span>
+                                <span class="badge bg-success rounded-pill ms-3 font-monospace" title="Total de pedidos en este lote">{{ group.list|length }} pedido(s)</span>
+                                {% if ns.pendientes > 0 %}
+                                <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace" title="Pedidos con estado Pendiente"><i class="fas fa-clock"></i> {{ ns.pendientes }} pendientes</span>
+                                {% endif %}
+                                {% if ns.sin_despachar > 0 %}
+                                <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace" title="Pedidos pendientes de despacho"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
+                                {% else %}
+                                <span class="badge bg-success text-white rounded-pill ms-2 font-monospace" title="Todos los pedidos de este lote están despachados"><i class="fas fa-check"></i> Todo despachado</span>
+                                {% endif %}
                             </button>
                         </h2>
                         <div id="collapseMayorista-{{ loop_index }}" 

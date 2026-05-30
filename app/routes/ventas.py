@@ -649,8 +649,6 @@ def stock():
     """
     Permite al usuario de ventas visualizar el stock de productos en fábrica.
     """
-    productos = Producto.query.order_by(Producto.nombre).all()
-
     # Total producido histórico por producto
     from app.models import ProduccionDiaria
     producciones_totales = db.session.query(
@@ -659,6 +657,9 @@ def stock():
     ).group_by(ProduccionDiaria.producto_id).all()
 
     totales_dict = {r.producto_id: float(r.total_producido) for r in producciones_totales}
+
+    # Mostrar solo productos que tienen al menos un registro de producción (cargado/manipulado por la fábrica)
+    productos = Producto.query.filter(Producto.id.in_(totales_dict.keys())).order_by(Producto.nombre).all()
 
     return render_template(
         'fabrica/stock.html',

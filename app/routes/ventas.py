@@ -652,7 +652,7 @@ def stock():
     productos = Producto.query.order_by(Producto.nombre).all()
 
     # Total producido histórico por producto
-    from app.models.produccion_diaria import ProduccionDiaria
+    from app.models import ProduccionDiaria
     producciones_totales = db.session.query(
         ProduccionDiaria.producto_id,
         func.sum(ProduccionDiaria.cantidad).label('total_producido')

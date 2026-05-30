@@ -347,6 +347,13 @@ def actualizar_estado_rapido(pedido_id):
     if nuevo_estado not in estados_validos:
         return jsonify({'success': False, 'error': 'Estado inválido'}), 400
 
+    # Validar que el pedido tenga un operario asignado antes de permitir el cambio de estado
+    if not pedido.operario_id:
+        return jsonify({
+            'success': False,
+            'error': 'Debes asignar un operario al pedido antes de cambiar su estado.'
+        }), 400
+
     try:
         # Guardar estado anterior por si necesitamos revertir
         estado_anterior = pedido.estado

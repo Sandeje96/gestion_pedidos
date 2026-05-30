@@ -113,6 +113,20 @@ const pedidosEnProceso = new Set();
 function actualizarEstadoRapido(pedidoId, nuevoEstado) {
     console.log(`Actualizando estado del pedido ${pedidoId} a ${nuevoEstado}`);
 
+    // Validar que el pedido tenga un operario asignado en el DOM
+    const selectOperario = document.querySelector(`.operario-select[data-pedido-id="${pedidoId}"]`);
+    if (selectOperario && selectOperario.value === "") {
+        mostrarToast("Debes asignar un operario al pedido antes de cambiar su estado.", "warning");
+        
+        // Revertir el valor del select de estado al estado actual
+        const selectEstado = document.querySelector(`.estado-select[data-pedido-id="${pedidoId}"]`);
+        if (selectEstado) {
+            const estadoActual = selectEstado.getAttribute('data-estado-actual') || 'pendiente';
+            selectEstado.value = estadoActual;
+        }
+        return;
+    }
+
     // Evitar requests duplicados para el mismo pedido
     if (pedidosEnProceso.has(pedidoId)) {
         console.warn(`Pedido ${pedidoId} ya tiene una actualización en curso`);

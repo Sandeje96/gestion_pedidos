@@ -353,7 +353,7 @@ def recibidos():
     pedidos_recibidos = Pedido.query.join(Cliente).filter(
         Cliente.ruta == 'SUCURSALES',
         db.or_(Pedido.recibido_conforme == True, Pedido.archivado == True)
-    ).order_by(db.coalesce(Pedido.fecha_archivado, Pedido.fecha_actualizacion).desc()).all()
+    ).order_by(func.coalesce(Pedido.fecha_archivado, Pedido.fecha_actualizacion).desc()).all()
     
     # Calcular algunas estadísticas rápidas del historial
     total_recibidos = len(pedidos_recibidos)

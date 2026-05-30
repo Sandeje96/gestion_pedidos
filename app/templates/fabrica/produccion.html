@@ -1,5 +1,27 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+    .sugerencias-productos {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+        background: white;
+    }
+    .product-suggestion-item {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+    }
+    .product-suggestion-item:last-child {
+        border-bottom: none !important;
+    }
+    .product-suggestion-item:hover {
+        background-color: rgba(13, 110, 253, 0.05);
+        padding-left: 1.25rem !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <!-- MODAL PARA AGREGAR NUEVO PRODUCTO -->
@@ -115,12 +137,18 @@
                         <label for="producto_id" class="form-label fw-semibold">
                             <i class="fas fa-box"></i> Producto *
                         </label>
-                        <select name="producto_id" id="producto_id" class="form-select" required>
-                            <option value="">— Seleccionar producto —</option>
-                            {% for p in productos %}
-                            <option value="{{ p.id }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="position-relative">
+                            <!-- Buscador predictivo autocompletado -->
+                            <input type="text" id="producto_buscar" class="form-control input-producto-buscar border-secondary-subtle" placeholder="🔍 Escribí el nombre del producto..." autocomplete="off" required>
+                            <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto; background: white;"></div>
+                            
+                            <select name="producto_id" id="producto_id" class="form-select input-producto" style="display: none;" required>
+                                <option value="">— Seleccionar producto —</option>
+                                {% for p in productos %}
+                                <option value="{{ p.id }}" data-unidad="{{ p.unidad or '' }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div class="form-text">
                             ¿No encontrás el producto?
                             <a href="#" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto"
@@ -320,4 +348,119 @@
     });
 </script>
 {% endif %}
+
+<script>
+    // Arreglo de catálogo de productos
+    const catalogoProductos = [
+        {% for p in productos %}
+        { id: "{{ p.id }}", nombre: "{{ p.nombre }}", unidad: "{{ p.unidad or '' }}" },
+        {% endfor %}
+    ];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputBuscar = document.getElementById('producto_buscar');
+        const listSugerencias = document.querySelector('.sugerencias-productos');
+        const selectProducto = document.getElementById('producto_id');
+        const selectUnidad = document.getElementById('unidad');
+        
+        if (!inputBuscar || !listSugerencias || !selectProducto) return;
+
+        // Si ya hay un valor seleccionado previamente (por ejemplo, después de un error de envío)
+        if (selectProducto.value) {
+            const opt = selectProducto.options[selectProducto.selectedIndex];
+            inputBuscar.value = opt.text;
+        }
+
+        // Evento de escritura para filtrar sugerencias
+        inputBuscar.addEventListener('input', function() {
+            const termino = inputBuscar.value.toLowerCase().trim();
+            
+            if (termino === '') {
+                selectProducto.value = '';
+                selectProducto.dispatchEvent(new Event('change'));
+                listSugerencias.style.display = 'none';
+                return;
+            }
+            
+            // Buscar coincidencias por subcadena en cualquier parte del nombre
+            const sugerencias = catalogoProductos.filter(p => p.nombre.toLowerCase().includes(termino)).slice(0, 5);
+            
+            if (sugerencias.length > 0) {
+                let html = '';
+                sugerencias.forEach(p => {
+                    const index = p.nombre.toLowerCase().indexOf(termino);
+                    let nombreResaltado = p.nombre;
+                    if (index >= 0) {
+                        const originalMatch = p.nombre.substr(index, termino.length);
+                        nombreResaltado = p.nombre.replace(originalMatch, `<strong class="text-primary">${originalMatch}</strong>`);
+                    }
+                    
+                    html += `
+                        <button type="button" class="list-group-item list-group-item-action py-2 px-3 border-0 small text-start product-suggestion-item" data-id="${p.id}" data-nombre="${p.nombre}" data-unidad="${p.unidad}">
+                            <i class="fas fa-box text-muted me-2 small"></i> ${nombreResaltado} ${p.unidad ? `<span class="badge bg-light text-secondary ms-1">${p.unidad}</span>` : ''}
+                        </button>
+                    `;
+                });
+                listSugerencias.innerHTML = html;
+                listSugerencias.style.display = 'block';
+            } else {
+                listSugerencias.innerHTML = `
+                    <div class="py-2 px-3 text-muted small text-start">
+                        <i class="fas fa-info-circle me-1"></i> Sin resultados
+                    </div>
+                `;
+                listSugerencias.style.display = 'block';
+            }
+        });
+
+        // Evento de clic en una sugerencia
+        listSugerencias.addEventListener('click', function(e) {
+            const btn = e.target.closest('.product-suggestion-item');
+            if (btn) {
+                const id = btn.getAttribute('data-id');
+                const nombre = btn.getAttribute('data-nombre');
+                const unidad = btn.getAttribute('data-unidad');
+                
+                inputBuscar.value = nombre;
+                selectProducto.value = id;
+                selectProducto.dispatchEvent(new Event('change'));
+                listSugerencias.style.display = 'none';
+                
+                // Auto-seleccionar unidad habitual
+                if (selectUnidad && unidad) {
+                    for (let i = 0; i < selectUnidad.options.length; i++) {
+                        if (selectUnidad.options[i].value === unidad) {
+                            selectUnidad.selectedIndex = i;
+                            // Sutil animación visual de éxito
+                            selectUnidad.classList.add('border-success');
+                            setTimeout(() => selectUnidad.classList.remove('border-success'), 1200);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+
+        // Ocultar sugerencias al hacer clic fuera del campo de búsqueda
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#producto_buscar') && !e.target.closest('.sugerencias-productos')) {
+                listSugerencias.style.display = 'none';
+            }
+        });
+
+        // Reactivar sugerencias al enfocar el campo si ya tiene texto escrito
+        inputBuscar.addEventListener('focus', function() {
+            if (inputBuscar.value.trim().length >= 1) {
+                inputBuscar.dispatchEvent(new Event('input'));
+            }
+        });
+
+        // Ocultar sugerencias al presionar la tecla Escape
+        inputBuscar.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                listSugerencias.style.display = 'none';
+            }
+        });
+    });
+</script>
 {% endblock %}

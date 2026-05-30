@@ -119,7 +119,7 @@
                             <th class="py-3 px-4">Producto</th>
                             <th class="py-3">Unidad de Medida</th>
                             <th class="py-3 text-end" style="width: 200px;">Stock Disponible</th>
-                            <th class="py-3 text-end" style="width: 220px;">Total Producido Histórico</th>
+                            <th class="py-3 text-end" style="width: 220px;">Producido en la Semana (Lunes a Viernes)</th>
                             <th class="py-3 text-center" style="width: 180px;">Estado</th>
                         </tr>
                     </thead>
@@ -140,7 +140,7 @@
                                 {{ "%.2f"|format(stock) }}
                             </td>
                             <td class="text-end text-dark fw-semibold px-4">
-                                {{ "%.2f"|format(totales_dict[producto.id]) if producto.id in totales_dict else '0.00' }}
+                                {{ "%.2f"|format(semanales_dict[producto.id]) if producto.id in semanales_dict else '0.00' }}
                             </td>
                             <td class="text-center">
                                 {% if stock == 0 %}

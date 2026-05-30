@@ -515,13 +515,30 @@ def stock():
     """
     Vista del stock actual de todos los productos.
     """
-    # Total producido histórico por producto
+    # 1. Obtener todas las producciones históricas para filtrar el catálogo
     producciones_totales = db.session.query(
         ProduccionDiaria.producto_id,
         func.sum(ProduccionDiaria.cantidad).label('total_producido')
     ).group_by(ProduccionDiaria.producto_id).all()
 
     totales_dict = {r.producto_id: float(r.total_producido) for r in producciones_totales}
+
+    # 2. Calcular límites de la semana actual (Lunes a Viernes)
+    from datetime import date, timedelta
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    friday = monday + timedelta(days=4)
+
+    # 3. Obtener producciones de la semana actual (Lunes a Viernes)
+    producciones_semanales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_semanal')
+    ).filter(
+        ProduccionDiaria.fecha_produccion >= monday,
+        ProduccionDiaria.fecha_produccion <= friday
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    semanales_dict = {r.producto_id: float(r.total_semanal) for r in producciones_semanales}
 
     # Mostrar solo productos que tienen al menos un registro de producción (cargado/manipulado por la fábrica)
     productos = Producto.query.filter(Producto.id.in_(totales_dict.keys())).order_by(Producto.nombre).all()
@@ -530,7 +547,7 @@ def stock():
         'fabrica/stock.html',
         title='Stock Actual',
         productos=productos,
-        totales_dict=totales_dict
+        semanales_dict=semanales_dict
     )
 
 

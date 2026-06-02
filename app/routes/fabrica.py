@@ -166,6 +166,9 @@ def actualizar_pedido(pedido_id):
     Actualizar el estado de un pedido.
     """
     pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.destinatario != 'fabrica':
+        flash('No tienes permisos para acceder a este pedido', 'danger')
+        return redirect(url_for('fabrica.dashboard'))
     form = ActualizarPedidoFabricaForm(obj=pedido)
     
     if form.validate_on_submit():
@@ -230,6 +233,9 @@ def ver_mensajes_pedido(pedido_id):
     Ver historial de mensajes de un pedido.
     """
     pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.destinatario != 'fabrica':
+        flash('No tienes permisos para acceder a este pedido', 'danger')
+        return redirect(url_for('fabrica.dashboard'))
     
     from app.models.mensaje_pedido import MensajePedido
     mensajes = MensajePedido.query.filter_by(pedido_id=pedido_id).order_by(MensajePedido.fecha_creacion.asc()).all()
@@ -248,6 +254,8 @@ def marcar_pedido_visto(pedido_id):
     Marcar un pedido modificado como visto por la fábrica.
     """
     pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.destinatario != 'fabrica':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
     
     # Marcar como visto
     pedido.modificado = False
@@ -302,6 +310,8 @@ def asignar_operario(pedido_id):
     Asignar un operario responsable a un pedido.
     """
     pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.destinatario != 'fabrica':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
     operario_id = request.form.get('operario_id', type=int)
     
     if operario_id:
@@ -332,6 +342,8 @@ def actualizar_estado_rapido(pedido_id):
     from flask import request, jsonify, current_app
 
     pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.destinatario != 'fabrica':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
 
     data = request.get_json()
     if not data:

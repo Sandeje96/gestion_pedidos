@@ -33,6 +33,9 @@ socket.on('nuevo_pedido', function(data) {
     console.log('🆕 Nuevo pedido recibido:', data);
     
     const pedido = data.pedido;
+    if (pedido.destinatario !== 'fabrica') {
+        return;
+    }
     
     // Reproducir sonido de notificación
     reproducirNotificacion();
@@ -52,6 +55,9 @@ socket.on('pedido_modificado', function(data) {
     console.log('⚠️ Pedido modificado:', data);
     
     const pedido = data.pedido;
+    if (pedido.destinatario !== 'fabrica') {
+        return;
+    }
     const pedidoRow = document.querySelector(`[data-pedido-id="${pedido.id}"]`);
     
     if (pedidoRow) {
@@ -692,6 +698,9 @@ socket.on('pedido_modificado', function(data) {
     console.log('📝 Pedido modificado por ventas:', data);
     
     const pedido = data.pedido;
+    if (pedido.destinatario !== 'fabrica') {
+        return;
+    }
     const pedidoRow = document.querySelector(`[data-pedido-id="${pedido.id}"]`);
     
     if (pedidoRow) {

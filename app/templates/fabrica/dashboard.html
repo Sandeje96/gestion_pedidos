@@ -127,7 +127,7 @@
                                         <!-- Badge de pendientes en esta ruta -->
                                         {% set pendientes_ruta = namespace(count=0) %}
                                         {% for cliente in clientes %}
-                                            {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
+                                            {% set pendientes_ruta.count = pendientes_ruta.count + cliente.pedidos.filter_by(archivado=False, estado='pendiente', destinatario='fabrica').count() %}
                                         {% endfor %}
                                         {% if pendientes_ruta.count > 0 %}
                                             <span class="badge bg-warning ms-2">
@@ -138,7 +138,7 @@
                                         <!-- Badge de esperando respuesta en esta ruta -->
                                         {% set esperando_ruta = namespace(count=0) %}
                                         {% for cliente in clientes %}
-                                            {% set esperando_ruta.count = esperando_ruta.count + cliente.pedidos.filter_by(archivado=False, esperando_contestacion=True).count() %}
+                                            {% set esperando_ruta.count = esperando_ruta.count + cliente.pedidos.filter_by(archivado=False, esperando_contestacion=True, destinatario='fabrica').count() %}
                                         {% endfor %}
                                         {% if esperando_ruta.count > 0 %}
                                             <span class="badge bg-info ms-2">
@@ -175,11 +175,11 @@
                                                         
                                                         <!-- Badge con cantidad de pedidos -->
                                                         <span class="badge bg-primary ms-2">
-                                                            {{ cliente.pedidos.filter_by(archivado=False).count() }} pedido(s)
+                                                            {{ cliente.pedidos.filter_by(archivado=False, destinatario='fabrica').count() }} pedido(s)
                                                         </span>
                                                         
                                                         <!-- Badge de modificados -->
-                                                        {% set modificados_count = cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False).count() %}
+                                                        {% set modificados_count = cliente.pedidos.filter_by(modificado=True, visto_por_fabrica=False, destinatario='fabrica').count() %}
                                                         {% if modificados_count > 0 %}
                                                             <span class="badge bg-danger ms-2 animate-pulse">
                                                                 <i class="fas fa-bell"></i> {{ modificados_count }} modificado(s)
@@ -187,7 +187,7 @@
                                                         {% endif %}
 
                                                         <!-- Badge de esperando respuesta -->
-                                                        {% set esperando_count = cliente.pedidos.filter_by(archivado=False, esperando_contestacion=True).count() %}
+                                                        {% set esperando_count = cliente.pedidos.filter_by(archivado=False, esperando_contestacion=True, destinatario='fabrica').count() %}
                                                         {% if esperando_count > 0 %}
                                                             <span class="badge bg-info ms-2">
                                                                 <i class="fas fa-reply"></i> {{ esperando_count }} esperando
@@ -195,7 +195,7 @@
                                                         {% endif %}
                                                         
                                                         <!-- Badge de pendientes -->
-                                                        {% set pendientes_count = cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
+                                                        {% set pendientes_count = cliente.pedidos.filter_by(archivado=False, estado='pendiente', destinatario='fabrica').count() %}
                                                         {% if pendientes_count > 0 %}
                                                             <span class="badge bg-warning ms-2">
                                                                 {{ pendientes_count }} pendiente(s)
@@ -247,11 +247,12 @@
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                {% for pedido in cliente.pedidos.filter_by(archivado=False).order_by(Pedido.fecha_creacion.desc()) %}
+                                                                {% for pedido in cliente.pedidos.filter_by(archivado=False, destinatario='fabrica').order_by(Pedido.fecha_creacion.desc()) %}
                                                                 <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado and not pedido.visto_por_fabrica %}table-danger animate-highlight{% endif %}" 
                                                                     id="pedido-{{ pedido.id }}"
                                                                     data-pedido-id="{{ pedido.id }}"
                                                                     data-estado="{{ pedido.estado }}"
+                                                                    data-destinatario="{{ pedido.destinatario }}"
                                                                     data-ruta="{{ cliente.ruta }}"
                                                                     data-operario-id="{{ pedido.operario_id or '' }}"
                                                                     data-cantidad="{{ pedido.cantidad|float }}"

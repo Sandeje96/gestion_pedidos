@@ -142,7 +142,7 @@
                             <input type="text" id="producto_buscar" class="form-control input-producto-buscar border-secondary-subtle" placeholder="🔍 Escribí el nombre del producto..." autocomplete="off" required>
                             <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto; background: white;"></div>
                             
-                            <select name="producto_id" id="producto_id" class="form-select input-producto" style="display: none;" required>
+                            <select name="producto_id" id="producto_id" class="form-select input-producto" style="display: none;">
                                 <option value="">— Seleccionar producto —</option>
                                 {% for p in productos %}
                                 <option value="{{ p.id }}" data-unidad="{{ p.unidad or '' }}">{{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}</option>
@@ -461,6 +461,24 @@
                 listSugerencias.style.display = 'none';
             }
         });
+
+        // Validar antes de enviar el formulario
+        const form = inputBuscar.closest('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                if (!selectProducto.value) {
+                    e.preventDefault();
+                    inputBuscar.setCustomValidity('Por favor, selecciona un producto de la lista sugerida.');
+                    inputBuscar.reportValidity();
+                    // Limpiar el mensaje de error personalizado cuando el usuario empiece a escribir de nuevo
+                    inputBuscar.addEventListener('input', function() {
+                        inputBuscar.setCustomValidity('');
+                    }, { once: true });
+                } else {
+                    inputBuscar.setCustomValidity('');
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

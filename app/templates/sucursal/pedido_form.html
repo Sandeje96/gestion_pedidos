@@ -30,6 +30,78 @@
         justify-content: center;
         font-weight: 700;
     }
+
+    /* ── Autocomplete Producto ── */
+    .autocomplete-wrapper {
+        position: relative;
+    }
+    .autocomplete-input {
+        border-radius: 6px;
+    }
+    .autocomplete-input.is-selected {
+        border-color: #0d6efd !important;
+        background-color: #f0f6ff;
+    }
+    .autocomplete-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        background: #fff;
+        border: 1px solid rgba(13, 110, 253, 0.25);
+        border-radius: 10px;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+        max-height: 260px;
+        overflow-y: auto;
+    }
+    .autocomplete-dropdown.show {
+        display: block;
+        animation: fadeInDown 0.15s ease;
+    }
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .autocomplete-item {
+        padding: 10px 14px;
+        cursor: pointer;
+        font-size: 0.92rem;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+        transition: background 0.15s;
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover,
+    .autocomplete-item.active {
+        background: #e8f0fe;
+        color: #0d47a1;
+    }
+    .autocomplete-item .match-highlight {
+        font-weight: 800;
+        color: #0d6efd;
+    }
+    .autocomplete-empty {
+        padding: 12px 14px;
+        color: #6c757d;
+        font-size: 0.88rem;
+        text-align: center;
+    }
+    .autocomplete-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #adb5bd;
+        cursor: pointer;
+        padding: 2px 4px;
+        font-size: 0.8rem;
+        line-height: 1;
+        display: none;
+    }
+    .autocomplete-clear:hover { color: #dc3545; }
 </style>
 {% endblock %}
 
@@ -123,16 +195,23 @@
                                     </div>
                                     
                                     <div class="row g-3">
-                                        <!-- Selector Producto -->
+                                        <!-- Buscador de Producto (autocomplete) -->
                                         <div class="col-md-4">
                                             <label class="form-label small fw-semibold">Producto *</label>
-                                            <select name="producto_ids[]" class="form-select border-secondary-subtle select-producto" required onchange="completarUnidad(this)">
-                                                <option value="" disabled selected>— Seleccionar Producto —</option>
-                                                {% for p in productos_disponibles %}
-                                                <option value="{{ p.id }}" data-unidad="{{ p.unidad or 'unidades' }}">{{ p.nombre }}</option>
-                                                {% endfor %}
-                                            </select>
-                                            <input type="hidden" name="productos[]" value="">
+                                            <div class="autocomplete-wrapper">
+                                                <input type="text"
+                                                       class="form-control border-secondary-subtle autocomplete-input"
+                                                       placeholder="Buscar producto..."
+                                                       autocomplete="off"
+                                                       required>
+                                                <button type="button" class="autocomplete-clear" tabindex="-1" title="Limpiar">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                                <div class="autocomplete-dropdown"></div>
+                                            </div>
+                                            <!-- Campos ocultos que el backend lee -->
+                                            <input type="hidden" name="producto_ids[]" class="hidden-producto-id">
+                                            <input type="hidden" name="productos[]" class="hidden-producto-nombre">
                                         </div>
 
                                         <!-- Cantidad -->
@@ -183,115 +262,286 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Catálogo de productos disponible para el autocomplete -->
 <script>
-    // Mostrar información de la sucursal seleccionada
-    function mostrarInfoSucursal(select) {
-        const option = select.options[select.selectedIndex];
-        const dir = option.getAttribute('data-direccion');
-        const tel = option.getAttribute('data-telefono');
-        
-        document.getElementById('sucursal-direccion').textContent = dir;
-        document.getElementById('sucursal-telefono').textContent = tel;
-        document.getElementById('info-sucursal').style.display = 'block';
+const PRODUCTOS_CATALOGO = [
+    {% for p in productos_disponibles %}
+    { id: {{ p.id }}, nombre: {{ p.nombre | tojson }}, unidad: {{ (p.unidad or 'unidades') | tojson }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+// ──────────────────────────────────────────────
+//  AUTOCOMPLETE ENGINE
+// ──────────────────────────────────────────────
+
+/**
+ * Verifica si la query coincide con la primera o segunda palabra del nombre.
+ * También acepta coincidencia en cualquier posición como fallback.
+ */
+function filtrarProductos(query) {
+    if (!query || query.trim().length < 1) return [];
+    const q = query.trim().toLowerCase();
+    const palabras = q.split(/\s+/);
+
+    // Clasificar por prioridad
+    const exactFirst  = [];  // coincide desde la 1ª palabra
+    const exactSecond = [];  // coincide desde la 2ª palabra
+    const anywhere    = [];  // coincide en cualquier parte
+
+    PRODUCTOS_CATALOGO.forEach(function(p) {
+        const nombre = p.nombre.toLowerCase();
+        const partes = nombre.split(/\s+/);
+
+        // ¿La 1ª palabra del producto empieza con el 1er token?
+        if (partes[0] && partes[0].startsWith(palabras[0])) {
+            exactFirst.push(p);
+        }
+        // ¿La 2ª palabra del producto empieza con el 1er token?
+        else if (partes[1] && partes[1].startsWith(palabras[0])) {
+            exactSecond.push(p);
+        }
+        // ¿Aparece en cualquier parte?
+        else if (nombre.includes(q)) {
+            anywhere.push(p);
+        }
+    });
+
+    return exactFirst.concat(exactSecond).concat(anywhere).slice(0, 12);
+}
+
+/**
+ * Resalta la parte del texto que coincide con la query.
+ */
+function resaltarCoincidencia(texto, query) {
+    if (!query) return texto;
+    const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return texto.replace(re, '<span class="match-highlight">$1</span>');
+}
+
+/**
+ * Inicializa el autocomplete en un elemento .autocomplete-wrapper.
+ */
+function initAutocomplete(wrapper) {
+    const input      = wrapper.querySelector('.autocomplete-input');
+    const dropdown   = wrapper.querySelector('.autocomplete-dropdown');
+    const clearBtn   = wrapper.querySelector('.autocomplete-clear');
+    const hiddenId   = wrapper.closest('.pedido-item').querySelector('.hidden-producto-id');
+    const hiddenNom  = wrapper.closest('.pedido-item').querySelector('.hidden-producto-nombre');
+    const unidadInp  = wrapper.closest('.pedido-item').querySelector('input[name="unidades[]"]');
+
+    let activeIndex = -1;
+
+    function mostrarDropdown(resultados) {
+        dropdown.innerHTML = '';
+        activeIndex = -1;
+
+        if (resultados.length === 0) {
+            dropdown.innerHTML = '<div class="autocomplete-empty"><i class="fas fa-search me-1"></i> Sin coincidencias</div>';
+            dropdown.classList.add('show');
+            return;
+        }
+
+        resultados.forEach(function(prod, i) {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-item';
+            item.setAttribute('data-index', i);
+            item.innerHTML = resaltarCoincidencia(prod.nombre, input.value.trim());
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault(); // evita que el input pierda foco antes de seleccionar
+                seleccionar(prod);
+            });
+            dropdown.appendChild(item);
+        });
+
+        dropdown.classList.add('show');
     }
 
-    // Completar automáticamente el campo de unidad según el producto seleccionado
-    function completarUnidad(select) {
-        const option = select.options[select.selectedIndex];
-        const unidad = option.getAttribute('data-unidad') || 'unidades';
-        
-        const row = select.closest('.pedido-item');
-        row.querySelector('input[name="unidades[]"]').value = unidad;
-        
-        // Sincronizar el campo productos[] (texto libre) con el nombre del producto
-        row.querySelector('input[name="productos[]"]').value = option.text;
+    function ocultarDropdown() {
+        dropdown.classList.remove('show');
+        activeIndex = -1;
     }
 
-    // Agregar nueva fila al formulario
-    let pedidoCount = 1;
-    function agregarFilaPedido() {
-        pedidoCount++;
-        
-        // Clonar la primera fila
-        const original = document.querySelector('.pedido-item[data-pedido-num="1"]');
-        const clone = original.cloneNode(true);
-        
-        // Actualizar número identificador
-        clone.setAttribute('data-pedido-num', pedidoCount);
-        clone.querySelector('.badge').textContent = 'Item #' + pedidoCount;
-        
-        // Habilitar y configurar botón de eliminación
-        const btnEliminar = clone.querySelector('.btn-eliminar-pedido');
-        btnEliminar.setAttribute('onclick', `eliminarFilaPedido(${pedidoCount})`);
-        btnEliminar.style.display = 'inline-block';
-        
-        // Limpiar inputs clonados
-        clone.querySelectorAll('input').forEach(input => {
-            if (input.name === 'unidades[]' || input.name === 'productos[]') {
-                input.value = '';
-            } else {
-                input.value = '';
+    function seleccionar(prod) {
+        input.value = prod.nombre;
+        hiddenId.value = prod.id;
+        hiddenNom.value = prod.nombre;
+        if (unidadInp) unidadInp.value = prod.unidad;
+        input.classList.add('is-selected');
+        clearBtn.style.display = 'block';
+        ocultarDropdown();
+    }
+
+    function limpiar() {
+        input.value = '';
+        hiddenId.value = '';
+        hiddenNom.value = '';
+        if (unidadInp) unidadInp.value = '';
+        input.classList.remove('is-selected');
+        clearBtn.style.display = 'none';
+        ocultarDropdown();
+        input.focus();
+    }
+
+    input.addEventListener('input', function() {
+        const q = input.value.trim();
+        // Si el usuario edita el texto manualmente, limpiar selección
+        if (hiddenId.value && input.classList.contains('is-selected')) {
+            input.classList.remove('is-selected');
+            hiddenId.value = '';
+            hiddenNom.value = '';
+            clearBtn.style.display = 'none';
+        }
+        clearBtn.style.display = q.length > 0 ? 'block' : 'none';
+
+        if (q.length === 0) { ocultarDropdown(); return; }
+        mostrarDropdown(filtrarProductos(q));
+    });
+
+    input.addEventListener('keydown', function(e) {
+        const items = dropdown.querySelectorAll('.autocomplete-item');
+        if (!items.length) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIndex = Math.min(activeIndex + 1, items.length - 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIndex = Math.max(activeIndex - 1, 0);
+        } else if (e.key === 'Enter') {
+            if (activeIndex >= 0 && items[activeIndex]) {
+                e.preventDefault();
+                const idx = parseInt(items[activeIndex].getAttribute('data-index'));
+                seleccionar(filtrarProductos(input.value)[idx]);
             }
-        });
-        clone.querySelectorAll('select').forEach(select => {
-            select.selectedIndex = 0;
-        });
-        
-        // Insertar en la lista
-        document.getElementById('lista-pedidos').appendChild(clone);
-        
-        // Mostrar botones de eliminar en todas las filas si es necesario
+            return;
+        } else if (e.key === 'Escape') {
+            ocultarDropdown(); return;
+        } else { return; }
+
+        items.forEach(function(it) { it.classList.remove('active'); });
+        if (items[activeIndex]) {
+            items[activeIndex].classList.add('active');
+            items[activeIndex].scrollIntoView({ block: 'nearest' });
+        }
+    });
+
+    input.addEventListener('focus', function() {
+        const q = input.value.trim();
+        if (q.length > 0 && !input.classList.contains('is-selected')) {
+            mostrarDropdown(filtrarProductos(q));
+        }
+    });
+
+    input.addEventListener('blur', function() {
+        // Pequeño delay para que el click en un item se registre antes de cerrar
+        setTimeout(ocultarDropdown, 150);
+    });
+
+    clearBtn.addEventListener('mousedown', function(e) { e.preventDefault(); limpiar(); });
+
+    // Validación: el input de texto no envía datos; los hidden sí.
+    // Aseguramos que el texto visible corresponda a un producto seleccionado al enviar.
+    input.closest('form') && input.closest('form').addEventListener('submit', function() {
+        if (!hiddenId.value && input.value.trim()) {
+            // Intento de selección automática del primer resultado
+            const res = filtrarProductos(input.value);
+            if (res.length > 0) seleccionar(res[0]);
+        }
+    }, { capture: true });
+}
+
+// Inicializar todos los wrappers existentes al cargar la página
+document.querySelectorAll('.autocomplete-wrapper').forEach(initAutocomplete);
+
+
+// ──────────────────────────────────────────────
+//  FORMULARIO DINÁMICO
+// ──────────────────────────────────────────────
+
+function mostrarInfoSucursal(select) {
+    const option = select.options[select.selectedIndex];
+    document.getElementById('sucursal-direccion').textContent = option.getAttribute('data-direccion');
+    document.getElementById('sucursal-telefono').textContent  = option.getAttribute('data-telefono');
+    document.getElementById('info-sucursal').style.display = 'block';
+}
+
+let pedidoCount = 1;
+function agregarFilaPedido() {
+    pedidoCount++;
+
+    // Clonar la primera fila
+    const original = document.querySelector('.pedido-item[data-pedido-num="1"]');
+    const clone = original.cloneNode(true);
+
+    clone.setAttribute('data-pedido-num', pedidoCount);
+    clone.querySelector('.badge').textContent = 'Item #' + pedidoCount;
+
+    const btnEliminar = clone.querySelector('.btn-eliminar-pedido');
+    btnEliminar.setAttribute('onclick', 'eliminarFilaPedido(' + pedidoCount + ')');
+    btnEliminar.style.display = 'inline-block';
+
+    // Limpiar valores clonados
+    clone.querySelectorAll('input').forEach(function(inp) { inp.value = ''; });
+    clone.querySelectorAll('select').forEach(function(sel) { sel.selectedIndex = 0; });
+
+    // Limpiar estado visual del autocomplete
+    const acInput = clone.querySelector('.autocomplete-input');
+    if (acInput) {
+        acInput.classList.remove('is-selected');
+        acInput.value = '';
+    }
+    const acDropdown = clone.querySelector('.autocomplete-dropdown');
+    if (acDropdown) { acDropdown.classList.remove('show'); acDropdown.innerHTML = ''; }
+    const acClear = clone.querySelector('.autocomplete-clear');
+    if (acClear) { acClear.style.display = 'none'; }
+
+    document.getElementById('lista-pedidos').appendChild(clone);
+
+    // Inicializar autocomplete en el nuevo wrapper
+    const nuevoWrapper = clone.querySelector('.autocomplete-wrapper');
+    if (nuevoWrapper) initAutocomplete(nuevoWrapper);
+
+    actualizarBotonesEliminación();
+}
+
+function eliminarFilaPedido(num) {
+    const item = document.querySelector('.pedido-item[data-pedido-num="' + num + '"]');
+    if (item) {
+        item.remove();
+        renumerarFilas();
         actualizarBotonesEliminación();
     }
+}
 
-    // Eliminar fila
-    function eliminarFilaPedido(num) {
-        const item = document.querySelector(`.pedido-item[data-pedido-num="${num}"]`);
-        if (item) {
-            item.remove();
-            
-            // Renumerar las filas restantes
-            renumerarFilas();
-            actualizarBotonesEliminación();
-        }
-    }
-
-    // Renumerar filas
-    function renumerarFilas() {
-        const filas = document.querySelectorAll('.pedido-item');
-        pedidoCount = 0;
-        filas.forEach((fila, index) => {
-            pedidoCount = index + 1;
-            fila.setAttribute('data-pedido-num', pedidoCount);
-            fila.querySelector('.badge').textContent = 'Item #' + pedidoCount;
-            
-            const btn = fila.querySelector('.btn-eliminar-pedido');
-            if (btn) {
-                btn.setAttribute('onclick', `eliminarFilaPedido(${pedidoCount})`);
-            }
-        });
-    }
-
-    // Mostrar/ocultar botones de eliminar según cantidad de filas
-    function actualizarBotonesEliminación() {
-        const filas = document.querySelectorAll('.pedido-item');
-        const btnFila1 = document.querySelector('.pedido-item[data-pedido-num="1"] .btn-eliminar-pedido');
-        
-        if (filas.length > 1) {
-            if (btnFila1) btnFila1.style.display = 'inline-block';
-        } else {
-            if (btnFila1) btnFila1.style.display = 'none';
-        }
-    }
-
-    // Sincronizar campo notes[] con notas[] antes del submit
-    document.getElementById('form-pedidos-sucursal').addEventListener('submit', function(e) {
-        const filas = document.querySelectorAll('.pedido-item');
-        filas.forEach(fila => {
-            const noteVal = fila.querySelector('input[name="notes[]"]').value;
-            fila.querySelector('.input-notas').value = noteVal;
-        });
+function renumerarFilas() {
+    const filas = document.querySelectorAll('.pedido-item');
+    pedidoCount = 0;
+    filas.forEach(function(fila, index) {
+        pedidoCount = index + 1;
+        fila.setAttribute('data-pedido-num', pedidoCount);
+        fila.querySelector('.badge').textContent = 'Item #' + pedidoCount;
+        const btn = fila.querySelector('.btn-eliminar-pedido');
+        if (btn) btn.setAttribute('onclick', 'eliminarFilaPedido(' + pedidoCount + ')');
     });
+}
+
+function actualizarBotonesEliminación() {
+    const filas = document.querySelectorAll('.pedido-item');
+    const btnFila1 = document.querySelector('.pedido-item[data-pedido-num="1"] .btn-eliminar-pedido');
+    if (filas.length > 1) {
+        if (btnFila1) btnFila1.style.display = 'inline-block';
+    } else {
+        if (btnFila1) btnFila1.style.display = 'none';
+    }
+}
+
+// Sincronizar notas antes del submit
+document.getElementById('form-pedidos-sucursal').addEventListener('submit', function() {
+    document.querySelectorAll('.pedido-item').forEach(function(fila) {
+        const noteVal = fila.querySelector('input[name="notes[]"]').value;
+        fila.querySelector('.input-notas').value = noteVal;
+    });
+});
 </script>
 
 <!-- Modal Nuevo Producto -->

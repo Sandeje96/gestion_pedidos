@@ -212,6 +212,31 @@ def nuevo_pedido():
     )
 
 
+@sucursal_bp.route('/pedido/<int:pedido_id>/marcar-leido', methods=['POST'])
+@sucursal_requerido
+def marcar_pedido_leido(pedido_id):
+    """
+    Marcar las observaciones de fábrica como leídas por la sucursal.
+    Limpia el flag 'esperando_contestacion' para que la fábrica no vea la notificación pendiente.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+
+    # Validar que pertenezca a la sucursal
+    if pedido.cliente.ruta != 'SUCURSALES':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    pedido.visto_por_vendedor = True
+    pedido.esperando_contestacion = False
+    db.session.commit()
+
+    # Emitir evento WebSocket para que fábrica actualice en tiempo real
+    socketio.emit('pedido_actualizado', {
+        'pedido': pedido.to_dict()
+    }, namespace='/')
+
+    return jsonify({'success': True, 'pedido_id': pedido.id})
+
+
 @sucursal_bp.route('/pedido/<int:pedido_id>/mensajes')
 @sucursal_requerido
 def ver_mensajes_pedido(pedido_id):

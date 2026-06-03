@@ -39,22 +39,25 @@ def dashboard():
     Panel principal de Administración de Fábrica.
     Muestra los pedidos minoristas, mayoristas y los completados por fábrica listos para despacho.
     """
-    # Pedidos minoristas y mayoristas no archivados
-    pedidos_minoristas = Pedido.query.filter_by(
-        archivado=False,
-        destinatario='admin_minorista'
+    # Pedidos minoristas y mayoristas no archivados — SOLO de clientes de la ruta SUCURSALES
+    pedidos_minoristas = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario == 'admin_minorista',
+        Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
     
-    pedidos_mayoristas = Pedido.query.filter_by(
-        archivado=False,
-        destinatario='admin_mayorista'
+    pedidos_mayoristas = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario == 'admin_mayorista',
+        Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
 
-    # Pedidos de fábrica completados y no archivados
-    pedidos_fabrica = Pedido.query.filter_by(
-        archivado=False,
-        destinatario='fabrica',
-        estado='completado'
+    # Pedidos de fábrica completados — SOLO de clientes de la ruta SUCURSALES
+    pedidos_fabrica = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario == 'fabrica',
+        Pedido.estado == 'completado',
+        Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
     
     # Estadísticas generales
@@ -68,27 +71,29 @@ def dashboard():
     completados_minoristas = sum(1 for p in pedidos_minoristas if p.estado == 'completado')
     completados_mayoristas = sum(1 for p in pedidos_mayoristas if p.estado == 'completado')
     
-    # Litros/Unidades totales
-    cantidad_minorista = db.session.query(func.sum(Pedido.cantidad)).filter(
+    # Litros/Unidades totales — SOLO SUCURSALES
+    cantidad_minorista = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
         Pedido.archivado == False,
         Pedido.destinatario == 'admin_minorista',
-        Pedido.estado != 'cancelado'
+        Pedido.estado != 'cancelado',
+        Cliente.ruta == 'SUCURSALES'
     ).scalar()
     cantidad_minorista = float(cantidad_minorista) if cantidad_minorista else 0.0
     
-    # Litros/Unidades totales
-    cantidad_mayorista = db.session.query(func.sum(Pedido.cantidad)).filter(
+    cantidad_mayorista = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
         Pedido.archivado == False,
         Pedido.destinatario == 'admin_mayorista',
-        Pedido.estado != 'cancelado'
+        Pedido.estado != 'cancelado',
+        Cliente.ruta == 'SUCURSALES'
     ).scalar()
     cantidad_mayorista = float(cantidad_mayorista) if cantidad_mayorista else 0.0
 
-    # Litros/Unidades fábrica completados
-    cantidad_fabrica = db.session.query(func.sum(Pedido.cantidad)).filter(
+    # Litros/Unidades fábrica completados — SOLO SUCURSALES
+    cantidad_fabrica = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
         Pedido.archivado == False,
         Pedido.destinatario == 'fabrica',
-        Pedido.estado == 'completado'
+        Pedido.estado == 'completado',
+        Cliente.ruta == 'SUCURSALES'
     ).scalar()
     cantidad_fabrica = float(cantidad_fabrica) if cantidad_fabrica else 0.0
     

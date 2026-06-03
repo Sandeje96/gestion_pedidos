@@ -229,14 +229,12 @@
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-center" id="despacho-badge-{{ pedido.id }}">
-                                                        {% if pedido.destinatario == 'fabrica' %}
-                                                        <span class="text-muted small">-</span>
+                                                        {% if pedido.despachado %}
+                                                        <span class="badge badge-desp-si px-3 py-2 rounded-pill"><i class="fas fa-truck me-1"></i> SI</span>
+                                                        {% elif pedido.estado == 'completado' %}
+                                                        <span class="badge badge-desp-no px-3 py-2 rounded-pill"><i class="fas fa-truck-loading me-1"></i> NO</span>
                                                         {% else %}
-                                                            {% if pedido.despachado %}
-                                                            <span class="badge badge-desp-si px-3 py-2 rounded-pill"><i class="fas fa-truck me-1"></i> SI</span>
-                                                            {% else %}
-                                                            <span class="badge badge-desp-no px-3 py-2 rounded-pill"><i class="fas fa-truck-loading me-1"></i> NO</span>
-                                                            {% endif %}
+                                                        <span class="text-muted small">-</span>
                                                         {% endif %}
                                                     </td>
                                                     <td>

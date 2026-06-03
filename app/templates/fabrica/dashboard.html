@@ -1,5 +1,38 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+    /* ── Colores del select de estado en fábrica ── */
+    .estado-select {
+        font-weight: 600;
+        border-radius: 20px;
+        transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+    }
+    .estado-select.sel-pendiente {
+        background-color: #fff3cd;
+        color: #856404;
+        border-color: #ffc107;
+    }
+    .estado-select.sel-completado {
+        background-color: #d1e7dd;
+        color: #0a3622;
+        border-color: #198754;
+    }
+    .estado-select.sel-cancelado {
+        background-color: #f8d7da;
+        color: #58151c;
+        border-color: #dc3545;
+    }
+    /* Animar la fila cuando el estado cambia */
+    @keyframes estadoFlash {
+        0%   { opacity: 1; }
+        30%  { opacity: 0.4; }
+        100% { opacity: 1; }
+    }
+    .estado-flash { animation: estadoFlash 0.4s ease; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row mb-4">
     <div class="col">
@@ -382,4 +415,32 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/fabrica.js') }}"></script>
+<script>
+// ── Aplica la clase de color al select de estado según su valor actual ──
+function colorEstadoSelect(sel) {
+    sel.classList.remove('sel-pendiente', 'sel-completado', 'sel-cancelado');
+    if (sel.value === 'completado') sel.classList.add('sel-completado');
+    else if (sel.value === 'cancelado') sel.classList.add('sel-cancelado');
+    else sel.classList.add('sel-pendiente');
+}
+
+// Inicializar colores al cargar la página
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.estado-select').forEach(colorEstadoSelect);
+});
+
+// Parchar actualizarEstadoRapido para que coloree instantáneamente
+const _actualizarEstadoOriginal = actualizarEstadoRapido;
+window.actualizarEstadoRapido = function(pedidoId, nuevoEstado) {
+    // Colorear inmediatamente (UX instantáneo)
+    const sel = document.querySelector(`.estado-select[data-pedido-id="${pedidoId}"]`);
+    if (sel) {
+        colorEstadoSelect(sel);
+        sel.classList.add('estado-flash');
+        sel.addEventListener('animationend', () => sel.classList.remove('estado-flash'), { once: true });
+    }
+    // Ejecutar la lógica original (fetch al backend)
+    _actualizarEstadoOriginal(pedidoId, nuevoEstado);
+};
+</script>
 {% endblock %}

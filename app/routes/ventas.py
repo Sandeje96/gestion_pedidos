@@ -376,6 +376,71 @@ def eliminar_pedido(pedido_id):
     flash(f'Pedido eliminado correctamente', 'success')
     return redirect(url_for('ventas.dashboard'))
 
+@ventas_bp.route('/pedido/<int:pedido_id>/toggle-despachado', methods=['POST'])
+@vendedor_requerido
+def toggle_despachado(pedido_id):
+    """
+    AJAX: Alterna el estado despachado (SI/NO) de un pedido individual.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+
+    try:
+        pedido.despachado = not pedido.despachado
+        pedido.fecha_actualizacion = datetime.utcnow()
+        db.session.commit()
+
+        # Notificar en tiempo real
+        socketio.emit('pedido_actualizado', {
+            'pedido': pedido.to_dict(),
+            'despacho_cambiado': True,
+        }, namespace='/')
+
+        return jsonify({
+            'success': True,
+            'despachado': pedido.despachado,
+            'pedido_id': pedido.id
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@ventas_bp.route('/cliente/<int:cliente_id>/despachar-todos', methods=['POST'])
+@vendedor_requerido
+def despachar_todos(cliente_id):
+    """
+    AJAX: Marca como despachado=True todos los pedidos activos de un cliente.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    pedidos = Pedido.query.filter_by(cliente_id=cliente_id, archivado=False).all()
+
+    try:
+        actualizados = 0
+        for pedido in pedidos:
+            if not pedido.despachado:
+                pedido.despachado = True
+                pedido.fecha_actualizacion = datetime.utcnow()
+                actualizados += 1
+
+        db.session.commit()
+
+        # Notificar cada pedido actualizado
+        for pedido in pedidos:
+            socketio.emit('pedido_actualizado', {
+                'pedido': pedido.to_dict(),
+                'despacho_cambiado': True,
+            }, namespace='/')
+
+        return jsonify({
+            'success': True,
+            'actualizados': actualizados,
+            'cliente_id': cliente_id
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @ventas_bp.route('/pedido/<int:pedido_id>/marcar-leido', methods=['POST'])
 @vendedor_requerido
 def marcar_pedido_leido(pedido_id):

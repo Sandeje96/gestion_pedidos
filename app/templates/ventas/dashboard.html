@@ -224,10 +224,15 @@
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <a href="{{ url_for('ventas.editar_cliente', cliente_id=cliente.id) }}" 
+                                                        <a href="{{ url_for('ventas.editar_cliente', cliente_id=cliente.id) }}"
                                                            class="btn btn-sm btn-outline-primary">
                                                             <i class="fas fa-edit"></i> Editar Cliente
                                                         </a>
+                                                        <button class="btn btn-sm btn-success"
+                                                                onclick="despacharTodos({{ cliente.id }})"
+                                                                title="Marcar todos los pedidos de este cliente como despachados">
+                                                            <i class="fas fa-truck"></i> Despachar todos
+                                                        </button>
                                                     </div>
                                                     
                                                     <!-- Pedidos del cliente -->
@@ -244,6 +249,7 @@
                                                                         <th>Cantidad</th>
                                                                         <th>Estado</th>
                                                                         <th>Operario</th>
+                                                                        <th>Despacho</th>
                                                                         <th>Observaciones</th>
                                                                         <th>Acciones</th>
                                                                     </tr>
@@ -274,6 +280,15 @@
                                                                         <td>
                                                                             {{ pedido.operario_responsable.nombre if pedido.operario_responsable else 'Sin asignar' }}
                                                                         </td>
+                                                                        <td class="text-center" id="desp-badge-{{ pedido.id }}">
+                                                                            {% if pedido.despachado %}
+                                                                            <span class="badge bg-success px-2 py-1 rounded-pill"><i class="fas fa-truck me-1"></i>SI</span>
+                                                                            {% elif pedido.estado == 'completado' %}
+                                                                            <span class="badge bg-secondary px-2 py-1 rounded-pill"><i class="fas fa-truck-loading me-1"></i>NO</span>
+                                                                            {% else %}
+                                                                            <span class="text-muted small">-</span>
+                                                                            {% endif %}
+                                                                        </td>
                                                                         <td>
                                                                             {% if pedido.observaciones_fabrica %}
                                                                                 <div class="d-flex align-items-center gap-2">
@@ -300,18 +315,24 @@
                                                                                 <small class="text-muted">-</small>
                                                                             {% endif %}
                                                                         </td>
-                                                                        <td>
-                                                                            <a href="{{ url_for('ventas.ver_mensajes_pedido', pedido_id=pedido.id) }}" 
+                                                                        <td class="text-nowrap">
+                                                                            <a href="{{ url_for('ventas.ver_mensajes_pedido', pedido_id=pedido.id) }}"
                                                                                class="btn btn-sm btn-info"
                                                                                title="Ver conversación">
                                                                                 <i class="fas fa-comments"></i>
                                                                             </a>
-                                                                            <a href="{{ url_for('ventas.editar_pedido', pedido_id=pedido.id) }}" 
+                                                                            <a href="{{ url_for('ventas.editar_pedido', pedido_id=pedido.id) }}"
                                                                                class="btn btn-sm btn-warning">
                                                                                 <i class="fas fa-edit"></i>
                                                                             </a>
-                                                                            <form method="POST" 
-                                                                                  action="{{ url_for('ventas.eliminar_pedido', pedido_id=pedido.id) }}" 
+                                                                            <button class="btn btn-sm {% if pedido.despachado %}btn-success{% else %}btn-outline-success{% endif %}"
+                                                                                    id="btn-desp-{{ pedido.id }}"
+                                                                                    onclick="despacharPedido({{ pedido.id }})"
+                                                                                    title="{% if pedido.despachado %}Marcar como NO despachado{% else %}Marcar como despachado{% endif %}">
+                                                                                <i class="fas fa-truck"></i>
+                                                                            </button>
+                                                                            <form method="POST"
+                                                                                  action="{{ url_for('ventas.eliminar_pedido', pedido_id=pedido.id) }}"
                                                                                   style="display: inline;"
                                                                                   onsubmit="return confirm('¿Eliminar este pedido?');">
                                                                                 <button type="submit" class="btn btn-sm btn-danger">
@@ -358,4 +379,76 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/ventas.js') }}"></script>
+<script>
+// ── Toggle despacho de un pedido individual ──
+function despacharPedido(pedidoId) {
+    fetch(`/ventas/pedido/${pedidoId}/toggle-despachado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) { alert('Error: ' + (data.error || 'No se pudo actualizar')); return; }
+
+        const despachado = data.despachado;
+        // Actualizar badge de despacho
+        const badge = document.getElementById(`desp-badge-${pedidoId}`);
+        if (badge) {
+            badge.innerHTML = despachado
+                ? '<span class="badge bg-success px-2 py-1 rounded-pill"><i class="fas fa-truck me-1"></i>SI</span>'
+                : '<span class="badge bg-secondary px-2 py-1 rounded-pill"><i class="fas fa-truck-loading me-1"></i>NO</span>';
+        }
+        // Actualizar estilo del botón
+        const btn = document.getElementById(`btn-desp-${pedidoId}`);
+        if (btn) {
+            btn.classList.toggle('btn-success', despachado);
+            btn.classList.toggle('btn-outline-success', !despachado);
+            btn.title = despachado ? 'Marcar como NO despachado' : 'Marcar como despachado';
+        }
+    })
+    .catch(() => alert('Error de conexión'));
+}
+
+// ── Despachar todos los pedidos de un cliente ──
+function despacharTodos(clienteId) {
+    if (!confirm('¿Marcar TODOS los pedidos de este cliente como despachados?')) return;
+
+    fetch(`/ventas/cliente/${clienteId}/despachar-todos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) { alert('Error: ' + (data.error || 'No se pudo actualizar')); return; }
+
+        // Actualizar todos los badges y botones de ese cliente
+        const clienteEl = document.getElementById(`cliente-${clienteId}`);
+        if (clienteEl) {
+            clienteEl.querySelectorAll('[id^="desp-badge-"]').forEach(badge => {
+                // Solo actualizar si no mostraba "-" (pedidos pendientes)
+                if (!badge.querySelector('.text-muted')) {
+                    badge.innerHTML = '<span class="badge bg-success px-2 py-1 rounded-pill"><i class="fas fa-truck me-1"></i>SI</span>';
+                }
+            });
+            clienteEl.querySelectorAll('[id^="btn-desp-"]').forEach(btn => {
+                btn.classList.add('btn-success');
+                btn.classList.remove('btn-outline-success');
+                btn.title = 'Marcar como NO despachado';
+            });
+        }
+
+        const msg = data.actualizados > 0
+            ? `✅ ${data.actualizados} pedido(s) marcados como despachados`
+            : 'ℹ️ Todos los pedidos ya estaban despachados';
+        // Toast simple
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-success position-fixed bottom-0 end-0 m-3 shadow';
+        toast.style.zIndex = 9999;
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    })
+    .catch(() => alert('Error de conexión'));
+}
+</script>
 {% endblock %}

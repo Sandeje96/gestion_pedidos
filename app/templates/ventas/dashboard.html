@@ -147,17 +147,18 @@
                                         </span>
                                     {% endif %}
 
-                                    {# Badge "Todo Despachado": verde si todos los pedidos completados de la ruta tienen despachado=True #}
-                                    {% set desp_ruta = namespace(total=0, despachados=0) %}
+                                    {# Badge "Todo Despachado": verde solo si NO hay pedidos pendientes Y todos los completados están despachados #}
+                                    {% set desp_ruta = namespace(total_completados=0, despachados=0, pendientes=0) %}
                                     {% for cliente in clientes %}
+                                        {% set desp_ruta.pendientes = desp_ruta.pendientes + cliente.pedidos.filter_by(archivado=False, estado='pendiente').count() %}
                                         {% for pedido in cliente.pedidos.filter_by(archivado=False, estado='completado') %}
-                                            {% set desp_ruta.total = desp_ruta.total + 1 %}
+                                            {% set desp_ruta.total_completados = desp_ruta.total_completados + 1 %}
                                             {% if pedido.despachado %}
                                                 {% set desp_ruta.despachados = desp_ruta.despachados + 1 %}
                                             {% endif %}
                                         {% endfor %}
                                     {% endfor %}
-                                    {% if desp_ruta.total > 0 and desp_ruta.total == desp_ruta.despachados %}
+                                    {% if desp_ruta.pendientes == 0 and desp_ruta.total_completados > 0 and desp_ruta.total_completados == desp_ruta.despachados %}
                                         <span class="badge bg-success ms-2">
                                             <i class="fas fa-check-circle"></i> Todo Despachado
                                         </span>

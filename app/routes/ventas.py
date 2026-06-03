@@ -41,9 +41,10 @@ def dashboard():
     Muestra TODOS los clientes con sus pedidos agrupados por ruta (unificado para todos los vendedores).
     """
     
-    # Obtener TODOS los clientes activos (sin filtrar por vendedor)
+    # Obtener clientes activos EXCLUYENDO los de la ruta SUCURSALES (esos son del panel de sucursal)
     clientes = Cliente.query.join(Pedido).filter(
         Cliente.activo == True,
+        Cliente.ruta != 'SUCURSALES',
         Pedido.archivado == False
     ).distinct().order_by(Cliente.ruta, Cliente.nombre).all()
     
@@ -56,17 +57,29 @@ def dashboard():
     # Convertir a dict normal y ordenar rutas
     clientes_por_ruta = dict(sorted(clientes_por_ruta.items()))
     
-    # Estadísticas rápidas
+    # Estadísticas rápidas — solo pedidos de clientes que NO son SUCURSALES
     total_clientes = len(clientes)
-    total_pedidos = Pedido.query.filter_by(archivado=False).count()
-    pedidos_pendientes = Pedido.query.filter_by(archivado=False, estado='pendiente').count()
-    pedidos_completados = Pedido.query.filter_by(archivado=False, estado='completado').count()
-    
-    # Contar notificaciones sin leer
-    pedidos_no_leidos = Pedido.query.filter(
+    total_pedidos = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Cliente.ruta != 'SUCURSALES'
+    ).count()
+    pedidos_pendientes = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.estado == 'pendiente',
+        Cliente.ruta != 'SUCURSALES'
+    ).count()
+    pedidos_completados = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.estado == 'completado',
+        Cliente.ruta != 'SUCURSALES'
+    ).count()
+
+    # Notificaciones sin leer — solo de pedidos de clientes que NO son SUCURSALES
+    pedidos_no_leidos = Pedido.query.join(Cliente).filter(
         Pedido.archivado == False,
         Pedido.observaciones_fabrica.isnot(None),
-        Pedido.visto_por_vendedor == False
+        Pedido.visto_por_vendedor == False,
+        Cliente.ruta != 'SUCURSALES'
     ).count()
 
     # Calcular litros totales por ruta (pedidos no archivados y no cancelados)

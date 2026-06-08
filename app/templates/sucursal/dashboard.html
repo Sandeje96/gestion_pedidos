@@ -254,15 +254,16 @@
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-center">
-                                                        {% if pedido.estado == 'completado' or pedido.despachado %}
+                                                        {% if pedido.estado == 'completado' or pedido.despachado or pedido.estado == 'cancelado' %}
                                                         <form method="POST" action="{{ url_for('sucursal.recibir_pedido', pedido_id=pedido.id) }}" class="form-recibir-pedido d-inline">
                                                             <div class="form-check d-flex justify-content-center">
-                                                                <input class="form-check-input border-success shadow-sm" type="checkbox" onchange="if(confirm('¿Confirmás que recibiste este pedido conforme? Al marcarlo se archivará y quitará de esta vista.')) { this.form.submit(); } else { this.checked = false; }" style="width: 1.4rem; height: 1.4rem; cursor: pointer;">
+                                                                {% set confirm_msg = '¿Confirmás que recibiste este pedido conforme?' if pedido.estado != 'cancelado' else '¿Confirmás que tomaste conocimiento de que este pedido fue cancelado por fábrica?' %}
+                                                                <input class="form-check-input border-success shadow-sm" type="checkbox" onchange="if(confirm('{{ confirm_msg }} Al marcarlo se archivará y pasará al historial de recibidos.')) { this.form.submit(); } else { this.checked = false; }" style="width: 1.4rem; height: 1.4rem; cursor: pointer;">
                                                             </div>
                                                         </form>
                                                         {% else %}
                                                         <div class="d-flex justify-content-center">
-                                                            <input class="form-check-input" type="checkbox" disabled style="width: 1.4rem; height: 1.4rem; opacity: 0.4;" title="Disponible al completarse o despacharse">
+                                                            <input class="form-check-input" type="checkbox" disabled style="width: 1.4rem; height: 1.4rem; opacity: 0.4;" title="Disponible al completarse, despacharse o cancelarse">
                                                         </div>
                                                         {% endif %}
                                                     </td>

@@ -348,8 +348,8 @@ def recibir_pedido(pedido_id):
     pedido.archivado = True
     pedido.fecha_archivado = datetime.utcnow()
     
-    # Asegurar que quede como completado
-    if pedido.estado != 'completado':
+    # Asegurar que quede como completado solo si no estaba cancelado
+    if pedido.estado not in ['completado', 'cancelado']:
         pedido.estado = 'completado'
         
     db.session.commit()
@@ -364,7 +364,11 @@ def recibir_pedido(pedido_id):
         'pedido': pedido.to_dict()
     }, namespace='/')
     
-    flash(f'📦 Pedido #{pedido.id} de "{pedido.producto_nombre}" marcado como Recibido Conforme y archivado.', 'success')
+    if pedido.estado == 'cancelado':
+        flash(f'ℹ️ Tomaste conocimiento de que el pedido #{pedido.id} de "{pedido.producto_nombre}" fue cancelado. Ha sido archivado en el historial.', 'info')
+    else:
+        flash(f'📦 Pedido #{pedido.id} de "{pedido.producto_nombre}" marcado como Recibido Conforme y archivado.', 'success')
+        
     return redirect(url_for('sucursal.dashboard'))
 
 

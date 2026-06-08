@@ -400,10 +400,6 @@ def recuperar_pedidos():
     Ruta temporal de emergencia para desarchivar pedidos de SUCURSALES
     que fueron archivados por error al cerrar la semana en ventas.
     """
-    if not current_user.es_administrador():
-        # Vamos a permitirle al admin o a la sucursal misma ejecutarlo
-        pass
-
     # Buscamos los pedidos de sucursales que están archivados
     pedidos_archivados = Pedido.query.join(Cliente).filter(
         Pedido.archivado == True,

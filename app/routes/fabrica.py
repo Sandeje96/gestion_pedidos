@@ -373,11 +373,13 @@ def actualizar_estado_rapido(pedido_id):
         # Actualizar estado
         pedido.estado = nuevo_estado
 
+        # Inicializar info_stock siempre para evitar UnboundLocalError
+        info_stock = None
+
         # Si se completó, registrar fecha
         if nuevo_estado == 'completado' and not pedido.fecha_completado:
             pedido.marcar_como_completado()
             # Descontar stock con fallback por nombre
-            info_stock = None
             try:
                 info_stock = _descontar_stock_pedido(pedido)
             except Exception as stock_err:

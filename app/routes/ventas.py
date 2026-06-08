@@ -511,14 +511,18 @@ def cerrar_semana():
     # Formato: Semana YYYY-#L (ej: Semana 2026-1F)
     nombre_semana = f"Semana {fecha_actual.year}-{numero_semana_mes}{mes_letra}"
     
-    # Obtener todos los pedidos no archivados
-    pedidos_activos = Pedido.query.filter_by(archivado=False).all()
+    # Obtener solo los pedidos de clientes que NO son SUCURSALES
+    # Los pedidos de sucursales tienen su propio ciclo de vida y no deben archivarse aquí
+    pedidos_activos = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Cliente.ruta != 'SUCURSALES'
+    ).all()
     
     if not pedidos_activos:
         flash('No hay pedidos activos para archivar', 'warning')
         return redirect(url_for('ventas.dashboard'))
     
-    # Archivar todos los pedidos
+    # Archivar los pedidos de ventas
     total_archivados = 0
     for pedido in pedidos_activos:
         pedido.archivar(nombre_semana)

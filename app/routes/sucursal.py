@@ -391,3 +391,34 @@ def recibidos():
         total_recibidos=total_recibidos,
         total_unidades=total_unidades
     )
+
+
+@sucursal_bp.route('/recuperar-pedidos')
+@login_required
+def recuperar_pedidos():
+    """
+    Ruta temporal de emergencia para desarchivar pedidos de SUCURSALES
+    que fueron archivados por error al cerrar la semana en ventas.
+    """
+    if not current_user.es_administrador():
+        # Vamos a permitirle al admin o a la sucursal misma ejecutarlo
+        pass
+
+    # Buscamos los pedidos de sucursales que están archivados
+    pedidos_archivados = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == True,
+        Cliente.ruta == 'SUCURSALES'
+    ).all()
+
+    recuperados = 0
+    for pedido in pedidos_archivados:
+        # Solo desarchivamos los que no hayan sido recibidos conforme (que es el fin natural en sucursal)
+        if not pedido.recibido_conforme:
+            pedido.archivado = False
+            pedido.semana_archivada = None
+            pedido.fecha_archivado = None
+            recuperados += 1
+
+    db.session.commit()
+    flash(f'¡Recuperados {recuperados} pedidos de sucursales!', 'success')
+    return redirect(url_for('sucursal.dashboard'))

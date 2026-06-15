@@ -9,8 +9,10 @@ from app import db, socketio
 from app.models.pedido import Pedido
 from app.models.cliente import Cliente
 from app.models.mensaje_pedido import MensajePedido
+from app.models.producto import Producto
+from app.models.produccion import ProduccionDiaria
 from app.routes.fabrica import _descontar_stock_pedido
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from functools import wraps
 from sqlalchemy import func
 
@@ -255,4 +257,45 @@ def ver_mensajes_pedido(pedido_id):
         pedido=pedido,
         mensajes=mensajes,
         title=f'Chat Pedido #{pedido.id}'
+    )
+
+
+@administracion_bp.route('/stock')
+@administracion_requerido
+def stock():
+    """
+    Vista de solo lectura del stock actual de fábrica para el usuario Administración.
+    """
+    # Obtener todas las producciones históricas para filtrar el catálogo
+    producciones_totales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_producido')
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    totales_dict = {r.producto_id: float(r.total_producido) for r in producciones_totales}
+
+    # Calcular límites de la semana actual (Lunes a Viernes)
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    friday = monday + timedelta(days=4)
+
+    # Obtener producciones de la semana actual
+    producciones_semanales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_semanal')
+    ).filter(
+        ProduccionDiaria.fecha_produccion >= monday,
+        ProduccionDiaria.fecha_produccion <= friday
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    semanales_dict = {r.producto_id: float(r.total_semanal) for r in producciones_semanales}
+
+    # Mostrar solo productos que tienen al menos un registro de producción
+    productos = Producto.query.filter(Producto.id.in_(totales_dict.keys())).order_by(Producto.nombre).all()
+
+    return render_template(
+        'fabrica/stock.html',
+        title='Stock Actual',
+        productos=productos,
+        semanales_dict=semanales_dict
     )

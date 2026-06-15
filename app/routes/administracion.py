@@ -61,11 +61,19 @@ def dashboard():
         Pedido.estado == 'completado',
         Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
+
+    # Pedidos que el usuario Ventas hizo a Fábrica (clientes fuera de SUCURSALES) — todos los estados
+    pedidos_ventas_fabrica = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario == 'fabrica',
+        Cliente.ruta != 'SUCURSALES'
+    ).order_by(Pedido.fecha_creacion.desc()).all()
     
     # Estadísticas generales
     total_minoristas = len(pedidos_minoristas)
     total_mayoristas = len(pedidos_mayoristas)
     total_fabrica = len(pedidos_fabrica)
+    total_ventas_fabrica = len(pedidos_ventas_fabrica)
     
     pendientes_minoristas = sum(1 for p in pedidos_minoristas if p.estado == 'pendiente')
     pendientes_mayoristas = sum(1 for p in pedidos_mayoristas if p.estado == 'pendiente')
@@ -103,6 +111,7 @@ def dashboard():
     despachados_minoristas = sum(1 for p in pedidos_minoristas if p.despachado)
     despachados_mayoristas = sum(1 for p in pedidos_mayoristas if p.despachado)
     despachados_fabrica = sum(1 for p in pedidos_fabrica if p.despachado)
+    despachados_ventas_fabrica = sum(1 for p in pedidos_ventas_fabrica if p.despachado)
 
     return render_template(
         'administracion/dashboard.html',
@@ -110,9 +119,11 @@ def dashboard():
         pedidos_minoristas=pedidos_minoristas,
         pedidos_mayoristas=pedidos_mayoristas,
         pedidos_fabrica=pedidos_fabrica,
+        pedidos_ventas_fabrica=pedidos_ventas_fabrica,
         total_minoristas=total_minoristas,
         total_mayoristas=total_mayoristas,
         total_fabrica=total_fabrica,
+        total_ventas_fabrica=total_ventas_fabrica,
         pendientes_minoristas=pendientes_minoristas,
         pendientes_mayoristas=pendientes_mayoristas,
         completados_minoristas=completados_minoristas,
@@ -123,6 +134,7 @@ def dashboard():
         despachados_minoristas=despachados_minoristas,
         despachados_mayoristas=despachados_mayoristas,
         despachados_fabrica=despachados_fabrica,
+        despachados_ventas_fabrica=despachados_ventas_fabrica,
         Pedido=Pedido
     )
 
@@ -135,7 +147,7 @@ def actualizar_despachado(pedido_id):
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    # Validar que sea un pedido dirigido a la administración o completado de fábrica
+    # Validar que sea un pedido dirigido a la administración o completado de fábrica (incluyendo pedidos de ventas a fábrica)
     if pedido.destinatario not in ['admin_minorista', 'admin_mayorista', 'fabrica']:
         return jsonify({'success': False, 'error': 'El pedido no es elegible para despacho'}), 400
         

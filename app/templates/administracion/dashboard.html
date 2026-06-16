@@ -250,11 +250,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingMinorista-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                            <button class="accordion-button collapsed fw-bold py-3 px-4" 
                                     type="button" 
                                     data-bs-toggle="collapse" 
                                     data-bs-target="#collapseMinorista-{{ loop_index }}" 
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-expanded="false" 
                                     aria-controls="collapseMinorista-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-primary me-2"></i> Lote {{ group.grouper }} 
@@ -270,7 +270,7 @@
                             </button>
                         </h2>
                         <div id="collapseMinorista-{{ loop_index }}" 
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             class="accordion-collapse collapse" 
                              aria-labelledby="headingMinorista-{{ loop_index }}" 
                              data-bs-parent="#accordionMinoristas">
                             <div class="accordion-body p-0">
@@ -376,11 +376,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingMayorista-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                            <button class="accordion-button collapsed fw-bold py-3 px-4" 
                                     type="button" 
                                     data-bs-toggle="collapse" 
                                     data-bs-target="#collapseMayorista-{{ loop_index }}" 
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-expanded="false" 
                                     aria-controls="collapseMayorista-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-success me-2"></i> Lote {{ group.grouper }} 
@@ -396,7 +396,7 @@
                             </button>
                         </h2>
                         <div id="collapseMayorista-{{ loop_index }}" 
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             class="accordion-collapse collapse" 
                              aria-labelledby="headingMayorista-{{ loop_index }}" 
                              data-bs-parent="#accordionMayoristas">
                             <div class="accordion-body p-0">
@@ -499,11 +499,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingFabrica-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                            <button class="accordion-button collapsed fw-bold py-3 px-4" 
                                     type="button" 
                                     data-bs-toggle="collapse" 
                                     data-bs-target="#collapseFabrica-{{ loop_index }}" 
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-expanded="false" 
                                     aria-controls="collapseFabrica-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-info me-2"></i> Lote {{ group.grouper }} 
@@ -516,7 +516,7 @@
                             </button>
                         </h2>
                         <div id="collapseFabrica-{{ loop_index }}" 
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             class="accordion-collapse collapse" 
                              aria-labelledby="headingFabrica-{{ loop_index }}" 
                              data-bs-parent="#accordionFabrica">
                              <div class="accordion-body p-0">
@@ -614,11 +614,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingVF-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4"
+                            <button class="accordion-button collapsed fw-bold py-3 px-4"
                                     type="button"
                                     data-bs-toggle="collapse"
                                     data-bs-target="#collapseVF-{{ loop_index }}"
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}"
+                                    aria-expanded="false"
                                     aria-controls="collapseVF-{{ loop_index }}"
                                     style="background-color: #f3f0ff; color: #212529;">
                                 <i class="fas fa-user-tie me-2" style="color:#6610f2;"></i>
@@ -635,7 +635,7 @@
                             </button>
                         </h2>
                         <div id="collapseVF-{{ loop_index }}"
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+                             class="accordion-collapse collapse"
                              aria-labelledby="headingVF-{{ loop_index }}"
                              data-bs-parent="#accordionVentasFabrica">
                             <div class="accordion-body p-0">

@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Reparar Pedidos de Sucursales{% endblock %}
+
+{% block content %}
+<div class="container fade-in">
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="display-6 fw-bold text-dark mb-1">
+                <i class="fas fa-tools text-warning"></i> Reparar Pedidos de Sucursales
+            </h1>
+            <p class="text-muted">
+                Detecta y corrige pedidos que no aparecen en el panel de Administración
+                porque el cliente no tiene la ruta <code>SUCURSALES</code> asignada.
+            </p>
+        </div>
+        <div class="col-auto">
+            <a href="{{ url_for('administracion.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+
+    <!-- Tarjeta de estado actual -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">
+                        <i class="fas fa-eye me-1"></i> Pedidos visibles actualmente
+                    </h6>
+                    <h2 class="fw-bold text-success mb-1">{{ pedidos_visibles }}</h2>
+                    <p class="text-muted small mb-0">pedidos de sucursales visibles en Administración</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 {% if detalle %}border-warning{% endif %}">
+                <div class="card-body p-4">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-3">
+                        <i class="fas fa-exclamation-triangle me-1 text-warning"></i> Clientes con problema
+                    </h6>
+                    <h2 class="fw-bold {% if detalle %}text-warning{% else %}text-success{% endif %} mb-1">
+                        {{ detalle | length }}
+                    </h2>
+                    <p class="text-muted small mb-0">
+                        {% if detalle %}
+                            cliente(s) con pedidos ocultos por ruta incorrecta
+                        {% else %}
+                            todos los clientes tienen la ruta correcta
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if detalle %}
+    <!-- Formulario de reparación -->
+    <form method="POST">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-warning bg-opacity-10 border-0 py-3 px-4 rounded-top-4">
+                <h5 class="mb-0 fw-bold text-warning-emphasis">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Clientes con pedidos ocultos — necesitan corrección
+                </h5>
+                <p class="mb-0 text-muted small mt-1">
+                    Seleccioná los clientes que querés corregir y hacé clic en <strong>Reparar</strong>.
+                    Esto cambiará su ruta a <code>SUCURSALES</code> y sus pedidos aparecerán en el panel.
+                </p>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light text-uppercase font-monospace text-muted small">
+                            <tr>
+                                <th class="py-3 px-4" style="width: 50px;">
+                                    <input type="checkbox" id="check-all" class="form-check-input"
+                                           title="Seleccionar todos" checked>
+                                </th>
+                                <th class="py-3">Cliente</th>
+                                <th class="py-3">Ruta Actual</th>
+                                <th class="py-3 text-center">Pedidos Ocultos</th>
+                                <th class="py-3">Pedidos afectados</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in detalle %}
+                            <tr>
+                                <td class="px-4">
+                                    <input type="checkbox" name="cliente_ids[]"
+                                           value="{{ item.cliente.id }}"
+                                           class="form-check-input cliente-check" checked>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">{{ item.cliente.nombre }}</span>
+                                    <small class="text-muted d-block">ID: {{ item.cliente.id }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger rounded-pill font-monospace">
+                                        {{ item.cliente.ruta }}
+                                    </span>
+                                    <i class="fas fa-arrow-right text-muted mx-2"></i>
+                                    <span class="badge bg-success rounded-pill font-monospace">SUCURSALES</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-warning text-dark rounded-pill fw-bold">
+                                        {{ item.pedidos | length }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        {% for p in item.pedidos %}
+                                        <span class="badge bg-light text-dark border font-monospace small"
+                                              title="{{ p.producto_nombre }} — {{ p.estado }}">
+                                            #{{ p.id }} {{ p.producto_nombre[:20] }}{% if p.producto_nombre|length > 20 %}…{% endif %}
+                                            <span class="ms-1
+                                                {% if p.estado == 'pendiente' %}text-secondary
+                                                {% elif p.estado == 'completado' %}text-success
+                                                {% else %}text-warning{% endif %}">
+                                                ({{ p.estado }})
+                                            </span>
+                                        </span>
+                                        {% endfor %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-light border-0 py-3 px-4 rounded-bottom-4 d-flex justify-content-end gap-3">
+                <a href="{{ url_for('administracion.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn btn-warning fw-bold rounded-pill px-5">
+                    <i class="fas fa-wrench me-2"></i> Reparar Clientes Seleccionados
+                </button>
+            </div>
+        </div>
+    </form>
+
+    {% else %}
+    <!-- Todo OK -->
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-5 text-center">
+            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+            <h5 class="fw-bold text-success mb-2">Todo está en orden</h5>
+            <p class="text-muted mb-4">
+                No se encontraron pedidos ocultos. Todos los clientes con pedidos activos
+                tienen la ruta <code>SUCURSALES</code> correctamente asignada.
+            </p>
+            <p class="text-muted small">
+                Si aún no ves algún pedido, verificá que:
+            </p>
+            <ul class="list-unstyled text-muted small">
+                <li><i class="fas fa-circle-dot me-1 text-primary"></i> El pedido no fue archivado</li>
+                <li><i class="fas fa-circle-dot me-1 text-primary"></i> El destinatario es <code>fabrica</code>, <code>admin_minorista</code> o <code>admin_mayorista</code></li>
+                <li><i class="fas fa-circle-dot me-1 text-primary"></i> La aplicación fue reiniciada/redesplegada con los últimos cambios</li>
+            </ul>
+            <a href="{{ url_for('administracion.dashboard') }}" class="btn btn-primary rounded-pill px-5 mt-2">
+                <i class="fas fa-arrow-left me-2"></i> Volver al Panel
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.getElementById('check-all').addEventListener('change', function() {
+    document.querySelectorAll('.cliente-check').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{% endblock %}

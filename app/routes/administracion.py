@@ -37,7 +37,9 @@ def administracion_requerido(f):
 def dashboard():
     """
     Panel principal de Administración de Fábrica.
-    Muestra los pedidos minoristas, mayoristas y los completados por fábrica listos para despacho.
+    Muestra los pedidos minoristas, mayoristas y TODOS los pedidos de fábrica (todos los estados).
+    Administración es responsable del despacho, por lo tanto ve todos los pedidos de fábrica
+    sin importar si están pendientes, en proceso o completados.
     """
     # Pedidos minoristas y mayoristas no archivados — SOLO de clientes de la ruta SUCURSALES
     pedidos_minoristas = Pedido.query.join(Cliente).filter(
@@ -52,11 +54,11 @@ def dashboard():
         Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
 
-    # Pedidos de fábrica completados — SOLO de clientes de la ruta SUCURSALES
+    # Pedidos de fábrica — TODOS los estados — SOLO de clientes de la ruta SUCURSALES
+    # Administración ve todos los pedidos de fábrica porque es responsable del despacho
     pedidos_fabrica = Pedido.query.join(Cliente).filter(
         Pedido.archivado == False,
         Pedido.destinatario == 'fabrica',
-        Pedido.estado == 'completado',
         Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
     
@@ -67,9 +69,11 @@ def dashboard():
     
     pendientes_minoristas = sum(1 for p in pedidos_minoristas if p.estado == 'pendiente')
     pendientes_mayoristas = sum(1 for p in pedidos_mayoristas if p.estado == 'pendiente')
+    pendientes_fabrica = sum(1 for p in pedidos_fabrica if p.estado == 'pendiente')
     
     completados_minoristas = sum(1 for p in pedidos_minoristas if p.estado == 'completado')
     completados_mayoristas = sum(1 for p in pedidos_mayoristas if p.estado == 'completado')
+    completados_fabrica = sum(1 for p in pedidos_fabrica if p.estado == 'completado')
     
     # Litros/Unidades totales — SOLO SUCURSALES
     cantidad_minorista = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
@@ -88,11 +92,11 @@ def dashboard():
     ).scalar()
     cantidad_mayorista = float(cantidad_mayorista) if cantidad_mayorista else 0.0
 
-    # Litros/Unidades fábrica completados — SOLO SUCURSALES
+    # Litros/Unidades fábrica (todos los estados activos) — SOLO SUCURSALES
     cantidad_fabrica = db.session.query(func.sum(Pedido.cantidad)).join(Cliente).filter(
         Pedido.archivado == False,
         Pedido.destinatario == 'fabrica',
-        Pedido.estado == 'completado',
+        Pedido.estado != 'cancelado',
         Cliente.ruta == 'SUCURSALES'
     ).scalar()
     cantidad_fabrica = float(cantidad_fabrica) if cantidad_fabrica else 0.0
@@ -113,8 +117,10 @@ def dashboard():
         total_fabrica=total_fabrica,
         pendientes_minoristas=pendientes_minoristas,
         pendientes_mayoristas=pendientes_mayoristas,
+        pendientes_fabrica=pendientes_fabrica,
         completados_minoristas=completados_minoristas,
         completados_mayoristas=completados_mayoristas,
+        completados_fabrica=completados_fabrica,
         cantidad_minorista=cantidad_minorista,
         cantidad_mayorista=cantidad_mayorista,
         cantidad_fabrica=cantidad_fabrica,
@@ -255,4 +261,72 @@ def ver_mensajes_pedido(pedido_id):
         pedido=pedido,
         mensajes=mensajes,
         title=f'Chat Pedido #{pedido.id}'
+    )
+
+
+@administracion_bp.route('/reparar-sucursales', methods=['GET', 'POST'])
+@administracion_requerido
+def reparar_sucursales():
+    """
+    Ruta de diagnóstico y reparación de pedidos de sucursales.
+    Detecta clientes con pedidos activos que no tienen ruta='SUCURSALES'
+    y permite corregirlos para que aparezcan en el panel de Administración.
+    """
+    # Pedidos visibles actualmente en Administración
+    pedidos_visibles = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario.in_(['fabrica', 'admin_minorista', 'admin_mayorista']),
+        Cliente.ruta == 'SUCURSALES'
+    ).count()
+
+    # Clientes con pedidos activos pero sin ruta='SUCURSALES'
+    clientes_problema = (
+        db.session.query(Cliente)
+        .join(Pedido)
+        .filter(
+            Pedido.archivado == False,
+            Pedido.destinatario.in_(['fabrica', 'admin_minorista', 'admin_mayorista']),
+            Cliente.ruta != 'SUCURSALES'
+        )
+        .distinct()
+        .all()
+    )
+
+    # Armar detalle de pedidos afectados por cliente
+    detalle = []
+    for c in clientes_problema:
+        pedidos_afectados = Pedido.query.filter(
+            Pedido.cliente_id == c.id,
+            Pedido.archivado == False,
+            Pedido.destinatario.in_(['fabrica', 'admin_minorista', 'admin_mayorista'])
+        ).all()
+        detalle.append({
+            'cliente': c,
+            'pedidos': pedidos_afectados
+        })
+
+    reparados = 0
+    if request.method == 'POST':
+        ids_a_reparar = request.form.getlist('cliente_ids[]', type=int)
+        for c in clientes_problema:
+            if c.id in ids_a_reparar:
+                c.ruta = 'SUCURSALES'
+                reparados += 1
+        try:
+            db.session.commit()
+            flash(
+                f'{reparados} cliente(s) actualizados a ruta SUCURSALES. '
+                f'Sus pedidos ahora son visibles en Administración.',
+                'success'
+            )
+            return redirect(url_for('administracion.reparar_sucursales'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al reparar: {str(e)}', 'danger')
+
+    return render_template(
+        'administracion/reparar_sucursales.html',
+        title='Reparar Pedidos de Sucursales',
+        pedidos_visibles=pedidos_visibles,
+        detalle=detalle,
     )

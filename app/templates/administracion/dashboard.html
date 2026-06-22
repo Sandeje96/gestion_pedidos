@@ -117,7 +117,10 @@
             </h1>
             <p class="text-muted">Gestión de pedidos de reventa (Minoristas y Mayoristas) y despacho.</p>
         </div>
-        <div class="col-auto">
+        <div class="col-auto d-flex gap-2">
+            <a href="{{ url_for('administracion.reparar_sucursales') }}" class="btn btn-outline-warning rounded-pill px-4" title="Herramienta para detectar y corregir pedidos que no aparecen">
+                <i class="fas fa-tools me-1"></i> Reparar Pedidos
+            </a>
             <button class="btn btn-outline-secondary rounded-pill px-4" onclick="window.location.reload();">
                 <i class="fas fa-sync-alt"></i> Actualizar
             </button>
@@ -486,8 +489,11 @@
                 <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionFabrica">
                     {% for group in pedidos_fabrica|groupby('cliente.nombre') %}
                     {% set loop_index = loop.index %}
-                    {% set ns = namespace(sin_despachar=0) %}
+                    {% set ns = namespace(pendientes=0, sin_despachar=0) %}
                     {% for p in group.list %}
+                        {% if p.estado == 'pendiente' or p.estado == 'en_proceso' %}
+                            {% set ns.pendientes = ns.pendientes + 1 %}
+                        {% endif %}
                         {% if not p.despachado %}
                             {% set ns.sin_despachar = ns.sin_despachar + 1 %}
                         {% endif %}
@@ -501,8 +507,11 @@
                                     aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
                                     aria-controls="collapseFabrica-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
-                                <i class="fas fa-store text-info me-2"></i> Lote {{ group.grouper }} 
+                                 <i class="fas fa-store text-info me-2"></i> Lote {{ group.grouper }} 
                                 <span class="badge bg-info text-white rounded-pill ms-3 font-monospace" title="Total de pedidos en este lote">{{ group.list|length }} pedido(s)</span>
+                                {% if ns.pendientes > 0 %}
+                                <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace" title="Pedidos pendientes o en proceso"><i class="fas fa-clock"></i> {{ ns.pendientes }} en preparación</span>
+                                {% endif %}
                                 {% if ns.sin_despachar > 0 %}
                                 <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace" title="Pedidos pendientes de despacho"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
                                 {% else %}
@@ -539,7 +548,15 @@
                                                  <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
                                                  <td>{{ pedido.unidad or 'unidades' }}</td>
                                                  <td class="text-center" id="estado-badge-{{ pedido.id }}">
+                                                     {% if pedido.estado == 'pendiente' %}
+                                                     <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
+                                                     {% elif pedido.estado == 'en_proceso' %}
+                                                     <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
+                                                     {% elif pedido.estado == 'completado' %}
                                                      <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
+                                                     {% elif pedido.estado == 'cancelado' %}
+                                                     <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                                     {% endif %}
                                                  </td>
                                                  <td class="text-center">
                                                      <button type="button" 
@@ -584,7 +601,7 @@
             {% else %}
                 <div class="table-container p-5 text-center text-muted">
                     <i class="fas fa-inbox fa-3x mb-3 opacity-30"></i>
-                    <p class="mb-0">No hay pedidos de fábrica completados para despacho actualmente.</p>
+                    <p class="mb-0">No hay pedidos de fábrica activos actualmente.</p>
                 </div>
             {% endif %}
         </div>

@@ -348,8 +348,8 @@ def recibir_pedido(pedido_id):
     pedido.archivado = True
     pedido.fecha_archivado = datetime.utcnow()
     
-    # Asegurar que quede como completado
-    if pedido.estado != 'completado':
+    # Asegurar que quede como completado solo si no estaba cancelado
+    if pedido.estado not in ['completado', 'cancelado']:
         pedido.estado = 'completado'
         
     db.session.commit()
@@ -364,7 +364,11 @@ def recibir_pedido(pedido_id):
         'pedido': pedido.to_dict()
     }, namespace='/')
     
-    flash(f'📦 Pedido #{pedido.id} de "{pedido.producto_nombre}" marcado como Recibido Conforme y archivado.', 'success')
+    if pedido.estado == 'cancelado':
+        flash(f'ℹ️ Tomaste conocimiento de que el pedido #{pedido.id} de "{pedido.producto_nombre}" fue cancelado. Ha sido archivado en el historial.', 'info')
+    else:
+        flash(f'📦 Pedido #{pedido.id} de "{pedido.producto_nombre}" marcado como Recibido Conforme y archivado.', 'success')
+        
     return redirect(url_for('sucursal.dashboard'))
 
 
@@ -391,3 +395,30 @@ def recibidos():
         total_recibidos=total_recibidos,
         total_unidades=total_unidades
     )
+
+
+@sucursal_bp.route('/recuperar-pedidos')
+@login_required
+def recuperar_pedidos():
+    """
+    Ruta temporal de emergencia para desarchivar pedidos de SUCURSALES
+    que fueron archivados por error al cerrar la semana en ventas.
+    """
+    # Buscamos los pedidos de sucursales que están archivados
+    pedidos_archivados = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == True,
+        Cliente.ruta == 'SUCURSALES'
+    ).all()
+
+    recuperados = 0
+    for pedido in pedidos_archivados:
+        # Solo desarchivamos los que no hayan sido recibidos conforme (que es el fin natural en sucursal)
+        if not pedido.recibido_conforme:
+            pedido.archivado = False
+            pedido.semana_archivada = None
+            pedido.fecha_archivado = None
+            recuperados += 1
+
+    db.session.commit()
+    flash(f'¡Recuperados {recuperados} pedidos de sucursales!', 'success')
+    return redirect(url_for('sucursal.dashboard'))

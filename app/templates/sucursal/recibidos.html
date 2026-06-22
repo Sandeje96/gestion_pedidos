@@ -138,7 +138,12 @@
                                 <tr class="pedido-row-recibido">
                                     <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
                                     <td class="fw-semibold text-secondary sucursal-name">{{ pedido.cliente.nombre }}</td>
-                                    <td class="fw-bold text-dark producto-name">{{ pedido.producto_nombre }}</td>
+                                    <td class="fw-bold text-dark producto-name">
+                                        {{ pedido.producto_nombre }}
+                                        {% if pedido.estado == 'cancelado' %}
+                                        <span class="badge bg-danger ms-2"><i class="fas fa-times-circle"></i> Cancelado</span>
+                                        {% endif %}
+                                    </td>
                                     <td class="text-center fw-bold text-success">{{ "%.2f"|format(pedido.cantidad) }}</td>
                                     <td>{{ pedido.unidad or 'unidades' }}</td>
                                     <td class="text-center">

@@ -66,6 +66,10 @@
             <a href="{{ url_for('fabrica.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
                 <i class="fas fa-arrow-left me-2"></i> Volver al Panel
             </a>
+            {% elif current_user.es_administracion() %}
+            <a href="{{ url_for('administracion.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i> Volver al Panel
+            </a>
             {% elif current_user.es_vendedor() %}
             <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
                 <i class="fas fa-arrow-left me-2"></i> Volver al Panel

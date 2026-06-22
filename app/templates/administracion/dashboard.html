@@ -221,8 +221,13 @@
                 <li class="nav-item" role="presentation">
                     <button class="nav-link shadow-sm" id="fabrica-tab" data-bs-toggle="tab" data-bs-target="#fabrica-panel" type="button" role="tab">
                         <i class="fas fa-industry me-2 text-info"></i> PEDIDOS DE FÁBRICA
-                        <span class="badge bg-secondary ms-2" id="badge-count-fabrica">{{ total_fabrica }}</span>
+                        <span class="badge bg-secondary ms-2" id="badge-count-fabrica">{{ total_fabrica + total_ventas_fabrica }}</span>
                     </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <a class="nav-link shadow-sm" href="{{ url_for('administracion.stock') }}">
+                        <i class="fas fa-boxes me-2 text-warning"></i> STOCK
+                    </a>
                 </li>
             </ul>
         </div>
@@ -248,11 +253,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingMinorista-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                            <button class="accordion-button collapsed fw-bold py-3 px-4" 
                                     type="button" 
                                     data-bs-toggle="collapse" 
                                     data-bs-target="#collapseMinorista-{{ loop_index }}" 
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-expanded="false" 
                                     aria-controls="collapseMinorista-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-primary me-2"></i> Lote {{ group.grouper }} 
@@ -268,7 +273,7 @@
                             </button>
                         </h2>
                         <div id="collapseMinorista-{{ loop_index }}" 
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             class="accordion-collapse collapse" 
                              aria-labelledby="headingMinorista-{{ loop_index }}" 
                              data-bs-parent="#accordionMinoristas">
                             <div class="accordion-body p-0">
@@ -374,11 +379,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingMayorista-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                            <button class="accordion-button collapsed fw-bold py-3 px-4" 
                                     type="button" 
                                     data-bs-toggle="collapse" 
                                     data-bs-target="#collapseMayorista-{{ loop_index }}" 
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-expanded="false" 
                                     aria-controls="collapseMayorista-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                 <i class="fas fa-store text-success me-2"></i> Lote {{ group.grouper }} 
@@ -394,7 +399,7 @@
                             </button>
                         </h2>
                         <div id="collapseMayorista-{{ loop_index }}" 
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             class="accordion-collapse collapse" 
                              aria-labelledby="headingMayorista-{{ loop_index }}" 
                              data-bs-parent="#accordionMayoristas">
                             <div class="accordion-body p-0">
@@ -500,11 +505,11 @@
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
                         <h2 class="accordion-header" id="headingFabrica-{{ loop_index }}">
-                            <button class="accordion-button {% if not loop.first %}collapsed{% endif %} fw-bold py-3 px-4" 
+                            <button class="accordion-button collapsed fw-bold py-3 px-4" 
                                     type="button" 
                                     data-bs-toggle="collapse" 
                                     data-bs-target="#collapseFabrica-{{ loop_index }}" 
-                                    aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" 
+                                    aria-expanded="false" 
                                     aria-controls="collapseFabrica-{{ loop_index }}"
                                     style="background-color: #f8f9fa; color: #212529;">
                                  <i class="fas fa-store text-info me-2"></i> Lote {{ group.grouper }} 
@@ -520,7 +525,7 @@
                             </button>
                         </h2>
                         <div id="collapseFabrica-{{ loop_index }}" 
-                             class="accordion-collapse collapse {% if loop.first %}show{% endif %}" 
+                             class="accordion-collapse collapse" 
                              aria-labelledby="headingFabrica-{{ loop_index }}" 
                              data-bs-parent="#accordionFabrica">
                              <div class="accordion-body p-0">
@@ -604,6 +609,144 @@
                     <p class="mb-0">No hay pedidos de fábrica activos actualmente.</p>
                 </div>
             {% endif %}
+
+            <!-- ── LOTE USUARIO VENTAS (colapsable) ── -->
+            {% if pedidos_ventas_fabrica %}
+            <div class="accordion border-0 mt-3" id="accordionLoteVentas">
+                <div class="accordion-item border-0 rounded-4 shadow-sm overflow-hidden">
+                    <h2 class="accordion-header" id="headingLoteVentas">
+                        <button class="accordion-button collapsed fw-bold py-3 px-4"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#collapseLoteVentas"
+                                aria-expanded="false"
+                                aria-controls="collapseLoteVentas"
+                                style="background: linear-gradient(135deg,#f3f0ff,#ede7f6); color:#4b0082;">
+                            <i class="fas fa-user-tie me-2" style="color:#6610f2;"></i>
+                            LOTE USUARIO VENTAS
+                            <span class="badge rounded-pill ms-3 font-monospace text-white" style="background:#6610f2;">{{ total_ventas_fabrica }} pedido(s)</span>
+                            <span class="text-muted small fw-normal ms-3">Pedidos de ventas directamente a fábrica</span>
+                        </button>
+                    </h2>
+                    <div id="collapseLoteVentas"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="headingLoteVentas"
+                         data-bs-parent="#accordionLoteVentas">
+                        <div class="accordion-body p-3">
+
+                            <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionVentasFabrica">
+                                {% for group in pedidos_ventas_fabrica|groupby('cliente.nombre') %}
+                                {% set loop_index = loop.index %}
+                                {% set ns = namespace(pendientes=0, sin_despachar=0) %}
+                                {% for p in group.list %}
+                                    {% if p.estado == 'pendiente' %}{% set ns.pendientes = ns.pendientes + 1 %}{% endif %}
+                                    {% if not p.despachado %}{% set ns.sin_despachar = ns.sin_despachar + 1 %}{% endif %}
+                                {% endfor %}
+                                <div class="accordion-item border-0 border-bottom">
+                                    <h2 class="accordion-header" id="headingVF-{{ loop_index }}">
+                                        <button class="accordion-button collapsed fw-bold py-3 px-4"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#collapseVF-{{ loop_index }}"
+                                                aria-expanded="false"
+                                                aria-controls="collapseVF-{{ loop_index }}"
+                                                style="background-color: #f3f0ff; color: #212529;">
+                                            <i class="fas fa-user-tie me-2" style="color:#6610f2;"></i>
+                                            {{ group.grouper }}
+                                            <span class="badge rounded-pill ms-3 font-monospace text-white" style="background:#6610f2;">{{ group.list|length }} pedido(s)</span>
+                                            {% if ns.pendientes > 0 %}
+                                            <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace"><i class="fas fa-clock"></i> {{ ns.pendientes }} pendientes</span>
+                                            {% endif %}
+                                            {% if ns.sin_despachar > 0 %}
+                                            <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
+                                            {% else %}
+                                            <span class="badge bg-success text-white rounded-pill ms-2 font-monospace"><i class="fas fa-check"></i> Todo despachado</span>
+                                            {% endif %}
+                                        </button>
+                                    </h2>
+                                    <div id="collapseVF-{{ loop_index }}"
+                                         class="accordion-collapse collapse"
+                                         aria-labelledby="headingVF-{{ loop_index }}"
+                                         data-bs-parent="#accordionVentasFabrica">
+                                        <div class="accordion-body p-0">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover align-middle mb-0">
+                                                    <thead class="table-light text-uppercase font-monospace text-muted small">
+                                                        <tr>
+                                                            <th class="py-3 px-4" style="width:80px;">Nº Pedido</th>
+                                                            <th class="py-3">Fecha</th>
+                                                            <th class="py-3">Cliente / Ruta</th>
+                                                            <th class="py-3">Producto</th>
+                                                            <th class="py-3 text-center" style="width:100px;">Cantidad</th>
+                                                            <th class="py-3" style="width:100px;">Unidad</th>
+                                                            <th class="py-3 text-center" style="width:160px;">Estado</th>
+                                                            <th class="py-3 text-center" style="width:180px;">Despachado</th>
+                                                            <th class="py-3">Observaciones / Notas</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="lista-pedidos-ventas-fabrica-{{ loop_index }}">
+                                                        {% for pedido in group.list %}
+                                                        <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
+                                                            <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
+                                                            <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
+                                                            <td>
+                                                                <div class="fw-semibold">{{ pedido.cliente.nombre }}</div>
+                                                                <div class="text-muted small font-monospace">{{ pedido.cliente.ruta }}</div>
+                                                            </td>
+                                                            <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
+                                                            <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                            <td>{{ pedido.unidad or 'unidades' }}</td>
+                                                            <td class="text-center" id="estado-badge-{{ pedido.id }}">
+                                                                {% if pedido.estado == 'pendiente' %}
+                                                                <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
+                                                                {% elif pedido.estado == 'en_proceso' %}
+                                                                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
+                                                                {% elif pedido.estado == 'completado' %}
+                                                                <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
+                                                                {% elif pedido.estado == 'cancelado' %}
+                                                                <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                                                {% endif %}
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <button type="button"
+                                                                        id="despacho-toggle-{{ pedido.id }}"
+                                                                        class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}"
+                                                                        onclick="toggleDespacho({{ pedido.id }})">
+                                                                    {% if pedido.despachado %}
+                                                                    <i class="fas fa-truck"></i> <span>SI</span>
+                                                                    {% else %}
+                                                                    <i class="fas fa-truck-loading"></i> <span>NO</span>
+                                                                    {% endif %}
+                                                                </button>
+                                                            </td>
+                                                            <td>
+                                                                {% if pedido.observaciones_fabrica %}
+                                                                <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                                                {% endif %}
+                                                                {% if pedido.notas_vendedor %}
+                                                                <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                                {% endif %}
+                                                                {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                                <span class="text-muted small font-monospace">-</span>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
 
     </div>

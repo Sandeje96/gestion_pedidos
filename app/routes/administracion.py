@@ -9,8 +9,10 @@ from app import db, socketio
 from app.models.pedido import Pedido
 from app.models.cliente import Cliente
 from app.models.mensaje_pedido import MensajePedido
+from app.models.producto import Producto
+from app.models.produccion import ProduccionDiaria
 from app.routes.fabrica import _descontar_stock_pedido
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from functools import wraps
 from sqlalchemy import func
 
@@ -61,11 +63,19 @@ def dashboard():
         Pedido.destinatario == 'fabrica',
         Cliente.ruta == 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
+
+    # Pedidos que el usuario Ventas hizo a Fábrica (clientes fuera de SUCURSALES) — todos los estados
+    pedidos_ventas_fabrica = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Pedido.destinatario == 'fabrica',
+        Cliente.ruta != 'SUCURSALES'
+    ).order_by(Pedido.fecha_creacion.desc()).all()
     
     # Estadísticas generales
     total_minoristas = len(pedidos_minoristas)
     total_mayoristas = len(pedidos_mayoristas)
     total_fabrica = len(pedidos_fabrica)
+    total_ventas_fabrica = len(pedidos_ventas_fabrica)
     
     pendientes_minoristas = sum(1 for p in pedidos_minoristas if p.estado == 'pendiente')
     pendientes_mayoristas = sum(1 for p in pedidos_mayoristas if p.estado == 'pendiente')
@@ -105,6 +115,7 @@ def dashboard():
     despachados_minoristas = sum(1 for p in pedidos_minoristas if p.despachado)
     despachados_mayoristas = sum(1 for p in pedidos_mayoristas if p.despachado)
     despachados_fabrica = sum(1 for p in pedidos_fabrica if p.despachado)
+    despachados_ventas_fabrica = sum(1 for p in pedidos_ventas_fabrica if p.despachado)
 
     return render_template(
         'administracion/dashboard.html',
@@ -112,9 +123,11 @@ def dashboard():
         pedidos_minoristas=pedidos_minoristas,
         pedidos_mayoristas=pedidos_mayoristas,
         pedidos_fabrica=pedidos_fabrica,
+        pedidos_ventas_fabrica=pedidos_ventas_fabrica,
         total_minoristas=total_minoristas,
         total_mayoristas=total_mayoristas,
         total_fabrica=total_fabrica,
+        total_ventas_fabrica=total_ventas_fabrica,
         pendientes_minoristas=pendientes_minoristas,
         pendientes_mayoristas=pendientes_mayoristas,
         pendientes_fabrica=pendientes_fabrica,
@@ -127,6 +140,7 @@ def dashboard():
         despachados_minoristas=despachados_minoristas,
         despachados_mayoristas=despachados_mayoristas,
         despachados_fabrica=despachados_fabrica,
+        despachados_ventas_fabrica=despachados_ventas_fabrica,
         Pedido=Pedido
     )
 
@@ -139,7 +153,7 @@ def actualizar_despachado(pedido_id):
     """
     pedido = Pedido.query.get_or_404(pedido_id)
     
-    # Validar que sea un pedido dirigido a la administración o completado de fábrica
+    # Validar que sea un pedido dirigido a la administración o completado de fábrica (incluyendo pedidos de ventas a fábrica)
     if pedido.destinatario not in ['admin_minorista', 'admin_mayorista', 'fabrica']:
         return jsonify({'success': False, 'error': 'El pedido no es elegible para despacho'}), 400
         
@@ -329,4 +343,45 @@ def reparar_sucursales():
         title='Reparar Pedidos de Sucursales',
         pedidos_visibles=pedidos_visibles,
         detalle=detalle,
+    )
+
+
+@administracion_bp.route('/stock')
+@administracion_requerido
+def stock():
+    """
+    Vista de solo lectura del stock actual de fábrica para el usuario Administración.
+    """
+    # Obtener todas las producciones históricas para filtrar el catálogo
+    producciones_totales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_producido')
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    totales_dict = {r.producto_id: float(r.total_producido) for r in producciones_totales}
+
+    # Calcular límites de la semana actual (Lunes a Viernes)
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    friday = monday + timedelta(days=4)
+
+    # Obtener producciones de la semana actual
+    producciones_semanales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_semanal')
+    ).filter(
+        ProduccionDiaria.fecha_produccion >= monday,
+        ProduccionDiaria.fecha_produccion <= friday
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    semanales_dict = {r.producto_id: float(r.total_semanal) for r in producciones_semanales}
+
+    # Mostrar solo productos que tienen al menos un registro de producción
+    productos = Producto.query.filter(Producto.id.in_(totales_dict.keys())).order_by(Producto.nombre).all()
+
+    return render_template(
+        'fabrica/stock.html',
+        title='Stock Actual',
+        productos=productos,
+        semanales_dict=semanales_dict
     )

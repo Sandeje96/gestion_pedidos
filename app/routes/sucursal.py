@@ -364,6 +364,9 @@ def recibir_pedido(pedido_id):
         'pedido': pedido.to_dict()
     }, namespace='/')
     
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'message': 'Pedido archivado correctamente.'})
+
     if pedido.estado == 'cancelado':
         flash(f'ℹ️ Tomaste conocimiento de que el pedido #{pedido.id} de "{pedido.producto_nombre}" fue cancelado. Ha sido archivado en el historial.', 'info')
     else:

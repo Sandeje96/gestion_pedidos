@@ -94,6 +94,12 @@
                             <i class="fas fa-warehouse"></i> Panel Administración
                         </a>
                     </li>
+                    {% elif current_user.es_repartidor() %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('repartidor.dashboard') }}">
+                            <i class="fas fa-truck"></i> Panel Repartidor
+                        </a>
+                    </li>
                     {% endif %}
                 </ul>
                 

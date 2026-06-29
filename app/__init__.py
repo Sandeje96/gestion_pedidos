@@ -52,12 +52,14 @@ def create_app(config_name='development'):
     from app.routes.fabrica import fabrica_bp
     from app.routes.sucursal import sucursal_bp
     from app.routes.administracion import administracion_bp
+    from app.routes.repartidor import repartidor_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(fabrica_bp, url_prefix='/fabrica')
     app.register_blueprint(sucursal_bp, url_prefix='/sucursal')
     app.register_blueprint(administracion_bp, url_prefix='/administracion')
+    app.register_blueprint(repartidor_bp, url_prefix='/repartidor')
     
     # Ruta principal (redirecciona segun el rol del usuario)
     from flask import redirect, url_for

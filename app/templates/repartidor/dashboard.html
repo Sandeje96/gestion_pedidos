@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="card shadow">
+                <div class="card-body py-5">
+                    <i class="fas fa-truck fa-4x text-primary mb-4"></i>
+                    <h2 class="card-title">Panel de Repartidor</h2>
+                    <p class="card-text text-muted">Bienvenido, {{ current_user.nombre }}. Tu panel está en construcción.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

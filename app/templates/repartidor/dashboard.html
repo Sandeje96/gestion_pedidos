@@ -197,6 +197,8 @@
     padding: 0.9rem 1.4rem;
     border-bottom: 1px solid var(--repartidor-border);
     transition: background 0.15s;
+    text-decoration: none;
+    color: inherit;
   }
 
   .cliente-item:last-child {
@@ -394,7 +396,7 @@
       <div class="collapse" id="{{ ruta_id }}">
         <div class="clientes-body">
           {% for cliente in clientes %}
-          <div class="cliente-item">
+          <a href="{{ url_for('repartidor.cobro_cliente', cliente_id=cliente.id) }}" class="cliente-item">
             <div class="cliente-numero">{{ loop.index }}</div>
             <div class="cliente-data">
               <div class="cliente-nombre">{{ cliente.nombre }}</div>
@@ -419,7 +421,8 @@
                 {% endif %}
               </div>
             </div>
-          </div>
+            <i class="fas fa-chevron-right" style="color: var(--repartidor-muted); font-size:0.75rem; flex-shrink:0;"></i>
+          </a>
           {% endfor %}
         </div>
       </div>

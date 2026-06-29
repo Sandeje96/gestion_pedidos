@@ -112,6 +112,14 @@
 <div class="gastos-header shadow-sm">
   <div class="total-lbl">Total Gastos Hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
   <div class="total-num">${{ "%.2f"|format(total_gastos) }}</div>
+  {% if gastos_hoy %}
+  <form action="{{ url_for('repartidor.limpiar_gastos') }}" method="POST" style="margin-top: 15px;">
+    <button type="submit" class="btn-submit" style="background: #d32f2f; padding: 10px;" 
+            onclick="return confirm('¿Estás seguro de que deseas limpiar el viaje? Esto reseteará tus gastos mostrados a cero para que puedas cargar un nuevo viaje hoy.');">
+      🧹 Limpiar Viaje
+    </button>
+  </form>
+  {% endif %}
 </div>
 
 <!-- FORMULARIO CARGAR GASTO -->

@@ -11,7 +11,7 @@ from app.models.boleta import Boleta, PagoBoleta
 from app.models.gasto_repartidor import GastoRepartidor
 from functools import wraps
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 # Crear el Blueprint
@@ -366,4 +366,32 @@ def eliminar_gasto(gasto_id):
     db.session.delete(gasto)
     db.session.commit()
     flash('Gasto eliminado correctamente.', 'success')
+    return redirect(url_for('repartidor.gastos'))
+
+
+@repartidor_bp.route('/gastos/limpiar', methods=['POST'])
+@repartidor_requerido
+def limpiar_gastos():
+    """
+    Limpia los gastos del viaje actual (del día de hoy).
+    Los mueve al día de ayer para que desaparezcan de la vista actual,
+    permitiendo cargar un nuevo viaje en el mismo día.
+    """
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
+    
+    gastos_hoy = GastoRepartidor.query.filter_by(
+        repartidor_id=current_user.id,
+        fecha=hoy
+    ).all()
+    
+    if not gastos_hoy:
+        flash('No hay gastos para limpiar en este viaje.', 'warning')
+        return redirect(url_for('repartidor.gastos'))
+        
+    for gasto in gastos_hoy:
+        gasto.fecha = ayer
+        
+    db.session.commit()
+    flash('Viaje limpiado con éxito. Los gastos volvieron a cero.', 'success')
     return redirect(url_for('repartidor.gastos'))

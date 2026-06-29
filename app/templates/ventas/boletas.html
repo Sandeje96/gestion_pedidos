@@ -285,7 +285,9 @@
                 <th class="text-end">Boleta hoy</th>
                 <th class="text-end">Cuenta Cte.</th>
                 <th class="text-end">Total a cobrar</th>
-                <th>Estado</th>
+                <th class="text-end text-success">Total cobrado</th>
+                <th class="text-end text-danger">Debe</th>
+                <th>Estado boleta</th>
                 <th>Último cobro</th>
                 <th></th>
               </tr>
@@ -319,15 +321,31 @@
                   {% endif %}
                 </td>
                 <td class="text-end">
-                  {% if d.total_deuda > 0 %}
-                    <span class="fw-bold text-danger">${{ "%.2f"|format(d.total_deuda) }}</span>
+                  {% if d.total_a_cobrar > 0 %}
+                    <span class="fw-bold">${{ "%.2f"|format(d.total_a_cobrar) }}</span>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-success">
+                  {% if d.cobrado_hoy > 0 %}
+                    <span class="fw-bold">${{ "%.2f"|format(d.cobrado_hoy) }}</span>
+                  {% else %}
+                    <span class="text-muted small">$0.00</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-danger">
+                  {% if d.debe > 0 %}
+                    <span class="fw-bold">${{ "%.2f"|format(d.debe) }}</span>
                   {% else %}
                     <span class="text-success small"><i class="fas fa-check me-1"></i>Al día</span>
                   {% endif %}
                 </td>
                 <td>
                   {% if d.boleta_hoy %}
-                    {% if d.boleta_hoy.estado == 'parcial' %}
+                    {% if d.boleta_hoy.estado == 'cobrada' %}
+                      <span class="badge bg-success">Cobrada</span>
+                    {% elif d.boleta_hoy.estado == 'parcial' %}
                       <span class="badge bg-warning text-dark">Parcial</span>
                     {% else %}
                       <span class="badge bg-primary">Pendiente</span>
@@ -340,7 +358,7 @@
                   {% if d.ultimo_cobro %}
                     <small class="text-muted">
                       <i class="fas fa-truck fa-xs me-1"></i>
-                      {{ d.ultimo_cobro.fecha_cobro.strftime('%d/%m %H:%M') }}
+                      {{ d.ultimo_cobro_fecha.strftime('%d/%m %H:%M') if d.ultimo_cobro_fecha else d.ultimo_cobro.fecha_cobro.strftime('%d/%m %H:%M') }}
                     </small>
                   {% else %}
                     <small class="text-muted">—</small>

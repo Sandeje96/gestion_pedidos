@@ -790,6 +790,10 @@ def boletas():
         .all()
     )
 
+    # Rango de fechas para los cobros de hoy
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    fin_hoy = datetime.combine(hoy, datetime.max.time())
+
     # Para cada cliente, obtener boleta de hoy y saldo CC
     datos_clientes = []
     for cliente in clientes:
@@ -797,22 +801,43 @@ def boletas():
             Boleta.query
             .filter(
                 Boleta.cliente_id == cliente.id,
-                Boleta.fecha_entrega == hoy,
-                Boleta.estado.in_(['pendiente', 'parcial'])
+                Boleta.fecha_entrega == hoy
             )
             .order_by(Boleta.fecha_creacion.desc())
             .first()
         )
 
-        # Saldo de cuenta corriente (boletas anteriores no cobradas)
-        saldo_cc = db.session.query(
+        # Deuda pendiente (incluye hoy y anteriores que aún tengan saldo pendiente)
+        deuda_actual_agregada = db.session.query(
             func.sum(Boleta.saldo_pendiente)
         ).filter(
             Boleta.cliente_id == cliente.id,
-            Boleta.fecha_entrega < hoy,
+            Boleta.fecha_entrega <= hoy,
             Boleta.estado.in_(['pendiente', 'parcial'])
         ).scalar()
-        saldo_cc = float(saldo_cc) if saldo_cc else 0.0
+        deuda_actual = float(deuda_actual_agregada) if deuda_actual_agregada else 0.0
+
+        # Pagos aplicados hoy por este cliente a deuda
+        pagos_hoy = db.session.query(
+            func.sum(PagoBoleta.aplicado_boleta + PagoBoleta.aplicado_cc)
+        ).filter(
+            PagoBoleta.cliente_id == cliente.id,
+            PagoBoleta.fecha_cobro >= inicio_hoy,
+            PagoBoleta.fecha_cobro <= fin_hoy
+        ).scalar()
+        cobrado_hoy = float(pagos_hoy) if pagos_hoy else 0.0
+
+        # El monto de la boleta de hoy SIEMPRE muestra lo que se cargó, sin importar si ya se cobró
+        monto_hoy = float(boleta_hoy.monto_boleta) if boleta_hoy else 0.0
+        
+        # Total a cobrar = Lo que debe AHORA + Lo que ya pagó HOY 
+        # (Esto reconstruye el saldo inicial del día antes de que el repartidor cobre)
+        total_a_cobrar = deuda_actual + cobrado_hoy
+        
+        # La cuenta corriente = Total a cobrar (inicio del día) - boleta de hoy
+        saldo_cc = total_a_cobrar - monto_hoy
+        if saldo_cc < 0:
+            saldo_cc = 0.0
 
         # Último cobro registrado por el repartidor
         ultimo_cobro = (
@@ -821,14 +846,21 @@ def boletas():
             .order_by(PagoBoleta.fecha_cobro.desc())
             .first()
         )
+        ultimo_cobro_fecha = None
+        if ultimo_cobro and ultimo_cobro.fecha_cobro:
+            # Convertir de UTC a GMT-3 (Argentina)
+            ultimo_cobro_fecha = ultimo_cobro.fecha_cobro - timedelta(hours=3)
 
         datos_clientes.append({
             'cliente': cliente,
             'boleta_hoy': boleta_hoy,
-            'monto_hoy': float(boleta_hoy.saldo_pendiente) if boleta_hoy else 0.0,
+            'monto_hoy': monto_hoy,
             'saldo_cc': saldo_cc,
-            'total_deuda': (float(boleta_hoy.saldo_pendiente) if boleta_hoy else 0.0) + saldo_cc,
+            'total_a_cobrar': total_a_cobrar,
+            'cobrado_hoy': cobrado_hoy,
+            'debe': deuda_actual,
             'ultimo_cobro': ultimo_cobro,
+            'ultimo_cobro_fecha': ultimo_cobro_fecha,
         })
 
     # Agrupar por ruta, ordenadas alfabéticamente

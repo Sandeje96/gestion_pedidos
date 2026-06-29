@@ -1,558 +1,420 @@
-{% extends 'base.html' %}
+{% extends 'repartidor/base_repartidor.html' %}
 
 {% block extra_css %}
-<style>
-  :root {
-    --bg-main:      #0d1117;
-    --bg-card:      #161b22;
-    --bg-card2:     #1c2128;
-    --border:       rgba(255,255,255,0.08);
-    --text:         #e6edf3;
-    --muted:        #7d8590;
-    --accent-blue:  #388bfd;
-    --accent-green: #3fb950;
-    --accent-red:   #f85149;
-    --accent-amber: #d29922;
-    --accent-purple:#bc8cff;
-  }
+/* ── ENCABEZADO DEL CLIENTE ── */
+.btn-volver {
+  display: inline-block;
+  padding: 10px 16px;
+  background: #e8e8e8;
+  color: #111;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 14px;
+}
+.btn-volver:active { background: #d0d0d0; }
 
-  body { background: var(--bg-main) !important; color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+.cliente-titulo {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #111;
+  margin-bottom: 4px;
+}
+.cliente-sub {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 20px;
+}
 
-  /* ── PAGE HEADER ── */
-  .cobro-header {
-    background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 1.4rem 0 1rem;
-    margin-bottom: 1.5rem;
-  }
-  .cobro-header .back-btn {
-    display: inline-flex; align-items: center; gap: 0.4rem;
-    color: var(--muted); text-decoration: none; font-size: 0.85rem;
-    margin-bottom: 0.6rem; transition: color 0.2s;
-  }
-  .cobro-header .back-btn:hover { color: var(--text); }
-  .cobro-header h1 {
-    font-size: 1.5rem; font-weight: 700; color: var(--text); margin: 0;
-  }
-  .cobro-header .sub { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+/* ── CARDS DE RESUMEN ── */
+.card-resumen {
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.card-resumen .card-etiqueta {
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+  margin-bottom: 8px;
+}
+.card-resumen .card-monto {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #111;
+  line-height: 1;
+}
+.card-resumen .card-nota {
+  font-size: 0.85rem;
+  color: #777;
+  margin-top: 6px;
+}
 
-  /* ── CARDS ── */
-  .info-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.3rem 1.4rem;
-    margin-bottom: 1rem;
-  }
-  .info-card .card-label {
-    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 0.6rem;
-    display: flex; align-items: center; gap: 0.4rem;
-  }
-  .info-card .card-label .dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  }
-  .monto-grande {
-    font-size: 2.2rem; font-weight: 800; line-height: 1; letter-spacing: -0.5px;
-  }
-  .monto-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.4rem; }
+/* Color de borde por tipo */
+.card-boleta  { border-left: 6px solid #1a6b3c; }
+.card-cc      { border-left: 6px solid #c8860a; }
+.card-total   { border-left: 6px solid #333; background: #f0f0f0; }
+.card-boleta  .card-monto { color: #1a6b3c; }
+.card-cc      .card-monto { color: #c8860a; }
 
-  /* Colores por tipo */
-  .card-boleta  .card-label { color: var(--accent-blue);   }
-  .card-boleta  .dot        { background: var(--accent-blue);   }
-  .card-boleta  .monto-grande { color: var(--accent-blue);   }
-  .card-cc      .card-label { color: var(--accent-amber);  }
-  .card-cc      .dot        { background: var(--accent-amber);  }
-  .card-cc      .monto-grande { color: var(--accent-amber);  }
-  .card-total   .card-label { color: var(--text);           }
-  .card-total   .dot        { background: var(--muted);          }
-  .card-total   .monto-grande { color: var(--text);           }
+/* Detalle CC */
+.cc-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+.cc-fila:last-child { border-bottom: none; }
+.cc-fila .cc-fecha { color: #666; }
+.cc-fila .cc-monto { font-weight: bold; color: #c8860a; }
 
-  /* ── CC DETAIL LIST ── */
-  .cc-list { margin-top: 0.8rem; }
-  .cc-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.45rem 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.82rem;
-  }
-  .cc-item:last-child { border-bottom: none; }
-  .cc-item .cc-fecha { color: var(--muted); }
-  .cc-item .cc-monto { font-weight: 600; color: var(--accent-amber); }
-  .cc-item .cc-estado {
-    font-size: 0.68rem; padding: 0.15rem 0.5rem; border-radius: 20px;
-    background: rgba(210,153,34,0.15); color: var(--accent-amber);
-  }
+/* ── FORMULARIO ── */
+.seccion-titulo {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #333;
+  border-bottom: 2px solid #ccc;
+  padding-bottom: 6px;
+  margin: 20px 0 14px;
+}
 
-  /* ── SIN DATOS ── */
-  .no-data {
-    color: var(--muted); font-size: 0.85rem; font-style: italic;
-    padding: 0.4rem 0;
-  }
+.campo {
+  margin-bottom: 16px;
+}
+.campo label {
+  display: block;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 6px;
+}
+.campo input[type="number"],
+.campo input[type="date"],
+.campo textarea {
+  width: 100%;
+  padding: 14px 12px;
+  font-size: 1.3rem;
+  border: 2px solid #bbb;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.campo input:focus,
+.campo textarea:focus {
+  outline: none;
+  border-color: #1a6b3c;
+}
+.campo textarea { font-size: 1rem; min-height: 70px; resize: vertical; }
 
-  /* ── FORM DE COBRO ── */
-  .cobro-form-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.4rem;
-    margin-bottom: 1rem;
-  }
-  .form-title {
-    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--muted);
-    margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;
-  }
-  .form-title i { color: var(--accent-green); }
+.campo-fecha-cheque { display: none; margin-top: 10px; }
+.campo-fecha-cheque.visible { display: block; }
+.campo-fecha-cheque label { font-size: 0.95rem; font-weight: bold; color: #333; margin-bottom: 6px; display: block; }
 
-  .pago-field { margin-bottom: 1rem; }
-  .pago-field label {
-    display: block; font-size: 0.72rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--muted); margin-bottom: 0.4rem;
-  }
-  .input-currency {
-    position: relative;
-  }
-  .input-currency .currency-sym {
-    position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%);
-    color: var(--muted); font-size: 0.9rem; pointer-events: none;
-  }
-  .input-currency input {
-    background: var(--bg-card2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    padding: 0.65rem 0.9rem 0.65rem 2rem;
-    width: 100%;
-    font-size: 1rem;
-    font-weight: 600;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-  .input-currency input:focus {
-    outline: none;
-    border-color: var(--accent-green);
-    box-shadow: 0 0 0 3px rgba(63,185,80,0.15);
-    background: var(--bg-card2);
-    color: var(--text);
-  }
-  .input-currency input::placeholder { color: var(--muted); font-weight: 400; }
+/* ── RESUMEN EN VIVO ── */
+.resumen-vivo {
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.resumen-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 1rem;
+}
+.resumen-fila:last-child { border-bottom: none; }
+.resumen-fila .r-etiqueta { color: #555; }
+.resumen-fila .r-valor { font-weight: bold; }
 
-  .cheque-fecha {
-    margin-top: 0.6rem;
-  }
-  .cheque-fecha input[type="date"] {
-    background: var(--bg-card2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    padding: 0.55rem 0.9rem;
-    width: 100%;
-    font-size: 0.88rem;
-    transition: border-color 0.2s;
-  }
-  .cheque-fecha input[type="date"]:focus {
-    outline: none;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 3px rgba(188,140,255,0.15);
-    background: var(--bg-card2);
-    color: var(--text);
-  }
-  .cheque-fecha label {
-    font-size: 0.7rem; color: var(--muted); margin-bottom: 0.3rem; display: block;
-  }
-  .cheque-fecha-wrapper { display: none; }
-  .cheque-fecha-wrapper.visible { display: block; }
+.resumen-total-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0 4px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-top: 2px solid #ccc;
+  margin-top: 4px;
+}
 
-  .notas-field textarea {
-    background: var(--bg-card2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text);
-    padding: 0.65rem 0.9rem;
-    width: 100%;
-    font-size: 0.88rem;
-    resize: vertical;
-    min-height: 70px;
-    transition: border-color 0.2s;
-  }
-  .notas-field textarea:focus {
-    outline: none; border-color: rgba(56,139,253,0.5);
-    box-shadow: 0 0 0 3px rgba(56,139,253,0.12);
-    background: var(--bg-card2); color: var(--text);
-  }
-  .notas-field textarea::placeholder { color: var(--muted); }
+/* Estado del cobro */
+.estado-cobro {
+  padding: 14px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 12px;
+  display: none;
+}
+.estado-cobro.visible { display: block; }
+.estado-ok      { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.estado-parcial { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+.estado-favor   { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
 
-  /* ── RESUMEN EN VIVO ── */
-  .resumen-card {
-    background: var(--bg-card2);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.3rem 1.4rem;
-    margin-bottom: 1rem;
-    position: sticky;
-    bottom: 1rem;
-  }
+/* ── BOTON PRINCIPAL ── */
+.btn-registrar {
+  display: block;
+  width: 100%;
+  padding: 18px;
+  background: #1a6b3c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 16px;
+  text-align: center;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+}
+.btn-registrar:active { background: #145530; }
+.btn-registrar:disabled { background: #aaa; cursor: not-allowed; }
 
-  .resumen-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.45rem 0; font-size: 0.88rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .resumen-row:last-child { border-bottom: none; }
-  .resumen-row .r-label { color: var(--muted); }
-  .resumen-row .r-value { font-weight: 700; }
-
-  .resumen-total-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.8rem 0 0; margin-top: 0.3rem;
-  }
-  .resumen-total-row .r-label { font-size: 0.8rem; color: var(--muted); }
-  .resumen-total-row .r-value { font-size: 1.6rem; font-weight: 800; }
-
-  .estado-cobro {
-    border-radius: 10px; padding: 0.7rem 1rem;
-    text-align: center; font-size: 0.85rem; font-weight: 600;
-    margin-top: 0.8rem; transition: all 0.3s;
-  }
-  .estado-cobro.saldo-ok      { background: rgba(63,185,80,0.12);  color: var(--accent-green); border: 1px solid rgba(63,185,80,0.2); }
-  .estado-cobro.saldo-parcial { background: rgba(210,153,34,0.12); color: var(--accent-amber); border: 1px solid rgba(210,153,34,0.2); }
-  .estado-cobro.saldo-favor   { background: rgba(56,139,253,0.12); color: var(--accent-blue);  border: 1px solid rgba(56,139,253,0.2); }
-  .estado-cobro.saldo-cero    { background: rgba(125,133,144,0.1); color: var(--muted);         border: 1px solid var(--border); }
-
-  /* ── BTN REGISTRAR ── */
-  .btn-registrar {
-    display: block; width: 100%;
-    background: linear-gradient(135deg, #238636, #2ea043);
-    color: #fff; border: none; border-radius: 12px;
-    padding: 0.9rem; font-size: 1rem; font-weight: 700;
-    cursor: pointer; margin-top: 1rem;
-    transition: opacity 0.2s, transform 0.1s;
-  }
-  .btn-registrar:hover { opacity: 0.9; transform: translateY(-1px); }
-  .btn-registrar:active { transform: translateY(0); }
-  .btn-registrar:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-  /* ── HISTORIAL ── */
-  .historial-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.3rem 1.4rem;
-    margin-bottom: 2rem;
-  }
-  .hist-title {
-    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 1rem;
-  }
-  .hist-item {
-    padding: 0.7rem 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.82rem;
-  }
-  .hist-item:last-child { border-bottom: none; }
-  .hist-item .h-fecha { color: var(--muted); font-size: 0.75rem; margin-bottom: 0.3rem; }
-  .hist-item .h-total { font-size: 1.05rem; font-weight: 700; color: var(--accent-green); }
-  .hist-item .h-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.3rem; }
-  .h-chip {
-    font-size: 0.7rem; padding: 0.15rem 0.55rem; border-radius: 20px;
-    background: rgba(255,255,255,0.07); color: var(--muted);
-  }
-  .h-chip.efectivo-chip    { background: rgba(63,185,80,0.15); color: var(--accent-green); }
-  .h-chip.transfer-chip    { background: rgba(56,139,253,0.15); color: var(--accent-blue); }
-  .h-chip.cheque-chip      { background: rgba(188,140,255,0.15); color: var(--accent-purple); }
-  .h-chip.favor-chip       { background: rgba(210,153,34,0.15); color: var(--accent-amber); }
-
-  @media (max-width: 576px) {
-    .cobro-header h1 { font-size: 1.2rem; }
-    .monto-grande { font-size: 1.8rem; }
-  }
-</style>
+/* ── HISTORIAL ── */
+.historial-titulo {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #333;
+  border-bottom: 2px solid #ccc;
+  padding-bottom: 6px;
+  margin: 24px 0 12px;
+}
+.hist-fila {
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.95rem;
+}
+.hist-fila:last-child { border-bottom: none; }
+.hist-fecha { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
+.hist-total { font-size: 1.1rem; font-weight: bold; color: #1a6b3c; margin-bottom: 4px; }
+.hist-detalle { font-size: 0.85rem; color: #555; }
 {% endblock %}
 
 {% block content %}
-<!-- HEADER -->
-<div class="cobro-header">
-  <div class="container">
-    <a href="{{ url_for('repartidor.dashboard') }}" class="back-btn">
-      <i class="fas fa-arrow-left"></i> Volver a rutas
-    </a>
-    <h1>{{ cliente.nombre }}</h1>
-    <div class="sub">
-      <i class="fas fa-route me-1"></i>{{ cliente.ruta }}
-      {% if cliente.direccion %}
-        &nbsp;·&nbsp;<i class="fas fa-map-marker-alt me-1"></i>{{ cliente.direccion }}
-      {% endif %}
-    </div>
-  </div>
+
+<!-- VOLVER -->
+<a href="/repartidor/dashboard" class="btn-volver">&#x2190; Volver</a>
+
+<!-- NOMBRE DEL CLIENTE -->
+<div class="cliente-titulo">{{ cliente.nombre }}</div>
+<div class="cliente-sub">
+  {{ cliente.ruta }}
+  {% if cliente.direccion %}&middot; {{ cliente.direccion }}{% endif %}
 </div>
 
-<div class="container pb-5">
-
-  <!-- ════════════════════════════
-       FILA SUPERIOR: BOLETA + CC
-       ════════════════════════════ -->
-  <div class="row g-3 mb-1">
-
-    <!-- BOLETA ACTUAL -->
-    <div class="col-12 col-md-4">
-      <div class="info-card card-boleta h-100">
-        <div class="card-label">
-          <span class="dot"></span>
-          Boleta Actual
-          <small class="ms-auto" style="font-size:0.68rem; letter-spacing:0; text-transform:none;">{{ hoy.strftime('%d/%m/%Y') }}</small>
-        </div>
-        {% if boleta_actual %}
-          <div class="monto-grande">${{ "%.2f"|format(monto_boleta_actual) }}</div>
-          {% if boleta_actual.descripcion %}
-            <div class="monto-sub">{{ boleta_actual.descripcion }}</div>
-          {% endif %}
-          {% if boleta_actual.estado == 'parcial' %}
-            <div class="monto-sub" style="color: var(--accent-amber);">
-              <i class="fas fa-exclamation-circle me-1"></i>Pago parcial registrado
-            </div>
-          {% endif %}
-        {% else %}
-          <div class="monto-grande" style="color: var(--muted);">$0,00</div>
-          <div class="monto-sub">Sin boleta cargada para hoy</div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- CUENTA CORRIENTE -->
-    <div class="col-12 col-md-4">
-      <div class="info-card card-cc h-100">
-        <div class="card-label">
-          <span class="dot"></span>
-          Cuenta Corriente
-        </div>
-        <div class="monto-grande">${{ "%.2f"|format(saldo_cc) }}</div>
-        <div class="monto-sub">
-          {{ boletas_cc|length }} boleta{{ 's' if boletas_cc|length != 1 else '' }} pendiente{{ 's' if boletas_cc|length != 1 else '' }}
-        </div>
-        {% if boletas_cc %}
-        <div class="cc-list">
-          {% for b in boletas_cc %}
-          <div class="cc-item">
-            <span class="cc-fecha">{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</span>
-            <span class="cc-estado">{{ b.estado }}</span>
-            <span class="cc-monto">${{ "%.2f"|format(b.saldo_pendiente|float) }}</span>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- TOTAL A COBRAR -->
-    <div class="col-12 col-md-4">
-      <div class="info-card card-total h-100">
-        <div class="card-label">
-          <span class="dot"></span>
-          Total a Cobrar
-        </div>
-        <div class="monto-grande" id="totalDeudaDisplay">${{ "%.2f"|format(total_deuda) }}</div>
-        <div class="monto-sub">Boleta actual + Cuenta corriente</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ════════════════════════
-       FORMULARIO DE COBRO
-       ════════════════════════ -->
-  <form method="POST" action="{{ url_for('repartidor.registrar_pago', cliente_id=cliente.id) }}" id="formCobro">
-
-    <div class="cobro-form-card">
-      <div class="form-title">
-        <i class="fas fa-hand-holding-usd"></i>
-        Registrar Cobro
-      </div>
-
-      <!-- EFECTIVO -->
-      <div class="pago-field">
-        <label for="efectivo"><i class="fas fa-money-bill-wave me-1" style="color:#3fb950"></i> Efectivo</label>
-        <div class="input-currency">
-          <span class="currency-sym">$</span>
-          <input type="number" id="efectivo" name="efectivo"
-                 min="0" step="0.01" placeholder="0,00"
-                 oninput="calcularTotal()">
-        </div>
-      </div>
-
-      <!-- TRANSFERENCIA -->
-      <div class="pago-field">
-        <label for="transferencia"><i class="fas fa-university me-1" style="color:#388bfd"></i> Transferencia</label>
-        <div class="input-currency">
-          <span class="currency-sym">$</span>
-          <input type="number" id="transferencia" name="transferencia"
-                 min="0" step="0.01" placeholder="0,00"
-                 oninput="calcularTotal()">
-        </div>
-      </div>
-
-      <!-- CHEQUE -->
-      <div class="pago-field">
-        <label for="cheque"><i class="fas fa-file-invoice me-1" style="color:#bc8cff"></i> Cheque</label>
-        <div class="input-currency">
-          <span class="currency-sym">$</span>
-          <input type="number" id="cheque" name="cheque"
-                 min="0" step="0.01" placeholder="0,00"
-                 oninput="onChequeChange()">
-        </div>
-        <!-- Fecha del cheque (aparece solo si hay monto) -->
-        <div class="cheque-fecha-wrapper" id="chequeFechaWrapper">
-          <div class="cheque-fecha mt-2">
-            <label for="fecha_cobro_cheque"><i class="fas fa-calendar-alt me-1"></i> Fecha de cobro del cheque</label>
-            <input type="date" id="fecha_cobro_cheque" name="fecha_cobro_cheque">
-          </div>
-        </div>
-      </div>
-
-      <!-- NOTAS OPCIONALES -->
-      <div class="pago-field notas-field">
-        <label for="notas"><i class="fas fa-comment-alt me-1"></i> Observaciones (opcional)</label>
-        <textarea id="notas" name="notas" placeholder="Ej: Cliente pagó con dos cheques, el segundo vence el…"></textarea>
-      </div>
-    </div>
-
-    <!-- ── RESUMEN EN VIVO ── -->
-    <div class="resumen-card">
-      <div class="resumen-row">
-        <span class="r-label"><i class="fas fa-money-bill-wave me-1" style="color:#3fb950"></i> Efectivo</span>
-        <span class="r-value" id="res-efectivo" style="color:#3fb950">$0,00</span>
-      </div>
-      <div class="resumen-row">
-        <span class="r-label"><i class="fas fa-university me-1" style="color:#388bfd"></i> Transferencia</span>
-        <span class="r-value" id="res-transferencia" style="color:#388bfd">$0,00</span>
-      </div>
-      <div class="resumen-row">
-        <span class="r-label"><i class="fas fa-file-invoice me-1" style="color:#bc8cff"></i> Cheque</span>
-        <span class="r-value" id="res-cheque" style="color:#bc8cff">$0,00</span>
-      </div>
-      <div class="resumen-total-row">
-        <span class="r-label">Total recibido</span>
-        <span class="r-value" id="res-total">$0,00</span>
-      </div>
-      <div class="estado-cobro saldo-cero" id="estadoCobro">
-        Ingresá los montos para calcular
-      </div>
-
-      <button type="submit" class="btn-registrar" id="btnRegistrar" disabled>
-        <i class="fas fa-check-circle me-2"></i>Registrar Cobro
-      </button>
-    </div>
-
-  </form>
-
-  <!-- ════════════════════
-       HISTORIAL RECIENTE
-       ════════════════════ -->
-  {% if historial_pagos %}
-  <div class="historial-card">
-    <div class="hist-title"><i class="fas fa-history me-1"></i>Últimos cobros</div>
-    {% for pago in historial_pagos %}
-    <div class="hist-item">
-      <div class="h-fecha">{{ pago.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}</div>
-      <div class="h-total">${{ "%.2f"|format(pago.total_recibido|float) }}</div>
-      <div class="h-chips">
-        {% if pago.efectivo > 0 %}
-          <span class="h-chip efectivo-chip"><i class="fas fa-money-bill-wave me-1"></i>${{ "%.2f"|format(pago.efectivo|float) }} efectivo</span>
-        {% endif %}
-        {% if pago.transferencia > 0 %}
-          <span class="h-chip transfer-chip"><i class="fas fa-university me-1"></i>${{ "%.2f"|format(pago.transferencia|float) }} transfer</span>
-        {% endif %}
-        {% if pago.cheque > 0 %}
-          <span class="h-chip cheque-chip"><i class="fas fa-file-invoice me-1"></i>${{ "%.2f"|format(pago.cheque|float) }} cheque
-            {% if pago.fecha_cobro_cheque %} ({{ pago.fecha_cobro_cheque.strftime('%d/%m/%Y') }}){% endif %}
-          </span>
-        {% endif %}
-        {% if pago.saldo_favor > 0 %}
-          <span class="h-chip favor-chip"><i class="fas fa-plus-circle me-1"></i>${{ "%.2f"|format(pago.saldo_favor|float) }} a favor</span>
-        {% endif %}
-        {% if pago.notas %}
-          <span class="h-chip">{{ pago.notas[:40] }}{% if pago.notas|length > 40 %}…{% endif %}</span>
-        {% endif %}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
+<!-- ══════════════════════
+     BOLETA ACTUAL
+     ══════════════════════ -->
+<div class="card-resumen card-boleta">
+  <div class="card-etiqueta">Boleta de hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
+  <div class="card-monto">${{ "%.2f"|format(monto_boleta_actual) }}</div>
+  {% if not boleta_actual %}
+    <div class="card-nota">Sin boleta cargada para hoy.</div>
+  {% elif boleta_actual.estado == 'parcial' %}
+    <div class="card-nota">Pago parcial registrado anteriormente.</div>
+  {% elif boleta_actual.descripcion %}
+    <div class="card-nota">{{ boleta_actual.descripcion }}</div>
   {% endif %}
-
 </div>
+
+<!-- ══════════════════════
+     CUENTA CORRIENTE
+     ══════════════════════ -->
+<div class="card-resumen card-cc">
+  <div class="card-etiqueta">Cuenta corriente — deudas anteriores</div>
+  <div class="card-monto">${{ "%.2f"|format(saldo_cc) }}</div>
+  {% if boletas_cc %}
+    <div style="margin-top: 12px;">
+      {% for b in boletas_cc %}
+      <div class="cc-fila">
+        <span class="cc-fecha">{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</span>
+        <span class="cc-monto">${{ "%.2f"|format(b.saldo_pendiente|float) }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card-nota">Sin deudas anteriores.</div>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════
+     TOTAL A COBRAR
+     ══════════════════════ -->
+<div class="card-resumen card-total">
+  <div class="card-etiqueta">Total a cobrar</div>
+  <div class="card-monto">${{ "%.2f"|format(total_deuda) }}</div>
+</div>
+
+<!-- ══════════════════════
+     FORMULARIO DE COBRO
+     ══════════════════════ -->
+<form method="POST" action="/repartidor/cliente/{{ cliente.id }}/registrar-pago" id="formCobro">
+
+  <div class="seccion-titulo">Registrar cobro</div>
+
+  <div class="campo">
+    <label for="efectivo">Efectivo ($)</label>
+    <input type="number" id="efectivo" name="efectivo"
+           min="0" step="0.01" placeholder="0.00"
+           inputmode="decimal"
+           oninput="calcular()">
+  </div>
+
+  <div class="campo">
+    <label for="transferencia">Transferencia ($)</label>
+    <input type="number" id="transferencia" name="transferencia"
+           min="0" step="0.01" placeholder="0.00"
+           inputmode="decimal"
+           oninput="calcular()">
+  </div>
+
+  <div class="campo">
+    <label for="cheque">Cheque ($)</label>
+    <input type="number" id="cheque" name="cheque"
+           min="0" step="0.01" placeholder="0.00"
+           inputmode="decimal"
+           oninput="onCheque()">
+    <div class="campo-fecha-cheque" id="fechaChequeDiv">
+      <label for="fecha_cobro_cheque">Fecha de cobro del cheque</label>
+      <input type="date" id="fecha_cobro_cheque" name="fecha_cobro_cheque">
+    </div>
+  </div>
+
+  <div class="campo">
+    <label for="notas">Observaciones (opcional)</label>
+    <textarea id="notas" name="notas" placeholder="Dejar en blanco si no hay nada que aclarar"></textarea>
+  </div>
+
+  <!-- RESUMEN EN VIVO -->
+  <div class="resumen-vivo">
+    <div class="resumen-fila">
+      <span class="r-etiqueta">Efectivo</span>
+      <span class="r-valor" id="r-efectivo">$0.00</span>
+    </div>
+    <div class="resumen-fila">
+      <span class="r-etiqueta">Transferencia</span>
+      <span class="r-valor" id="r-transferencia">$0.00</span>
+    </div>
+    <div class="resumen-fila">
+      <span class="r-etiqueta">Cheque</span>
+      <span class="r-valor" id="r-cheque">$0.00</span>
+    </div>
+    <div class="resumen-total-fila">
+      <span>Total recibido</span>
+      <span id="r-total">$0.00</span>
+    </div>
+    <div class="estado-cobro" id="estadoCobro"></div>
+  </div>
+
+  <button type="submit" class="btn-registrar" id="btnRegistrar" disabled>
+    REGISTRAR COBRO
+  </button>
+
+</form>
+
+<!-- ══════════════════════
+     HISTORIAL RECIENTE
+     ══════════════════════ -->
+{% if historial_pagos %}
+<div class="historial-titulo">Cobros anteriores</div>
+{% for pago in historial_pagos %}
+<div class="hist-fila">
+  <div class="hist-fecha">{{ pago.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}</div>
+  <div class="hist-total">Total: ${{ "%.2f"|format(pago.total_recibido|float) }}</div>
+  <div class="hist-detalle">
+    {% if pago.efectivo > 0 %}Efectivo: ${{ "%.2f"|format(pago.efectivo|float) }}  {% endif %}
+    {% if pago.transferencia > 0 %}Transf: ${{ "%.2f"|format(pago.transferencia|float) }}  {% endif %}
+    {% if pago.cheque > 0 %}Cheque: ${{ "%.2f"|format(pago.cheque|float) }}
+      {% if pago.fecha_cobro_cheque %}({{ pago.fecha_cobro_cheque.strftime('%d/%m/%Y') }}){% endif %}
+    {% endif %}
+    {% if pago.saldo_favor > 0 %} — A favor: ${{ "%.2f"|format(pago.saldo_favor|float) }}{% endif %}
+  </div>
+  {% if pago.notas %}
+  <div class="hist-detalle" style="margin-top:4px; font-style:italic;">{{ pago.notas }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  const TOTAL_DEUDA = {{ total_deuda }};
+  var DEUDA = {{ total_deuda }};
 
-  function parseMonto(id) {
-    const v = parseFloat(document.getElementById(id).value);
-    return isNaN(v) || v < 0 ? 0 : v;
+  function num(id) {
+    var v = parseFloat(document.getElementById(id).value);
+    return (isNaN(v) || v < 0) ? 0 : v;
   }
 
-  function formatPesos(n) {
-    return '$' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function fmt(n) {
+    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  function calcularTotal() {
-    const ef = parseMonto('efectivo');
-    const tr = parseMonto('transferencia');
-    const ch = parseMonto('cheque');
-    const total = ef + tr + ch;
+  function calcular() {
+    var ef = num('efectivo');
+    var tr = num('transferencia');
+    var ch = num('cheque');
+    var total = ef + tr + ch;
 
-    document.getElementById('res-efectivo').textContent     = formatPesos(ef);
-    document.getElementById('res-transferencia').textContent = formatPesos(tr);
-    document.getElementById('res-cheque').textContent       = formatPesos(ch);
-    document.getElementById('res-total').textContent        = formatPesos(total);
+    document.getElementById('r-efectivo').textContent     = fmt(ef);
+    document.getElementById('r-transferencia').textContent = fmt(tr);
+    document.getElementById('r-cheque').textContent       = fmt(ch);
+    document.getElementById('r-total').textContent        = fmt(total);
 
-    const btn = document.getElementById('btnRegistrar');
-    const estado = document.getElementById('estadoCobro');
-    const diff = total - TOTAL_DEUDA;
+    var estado = document.getElementById('estadoCobro');
+    var btn    = document.getElementById('btnRegistrar');
+    var diff   = total - DEUDA;
+
+    estado.className = 'estado-cobro visible';
+    btn.disabled = false;
 
     if (total <= 0) {
-      estado.className = 'estado-cobro saldo-cero';
-      estado.innerHTML = 'Ingresá los montos para calcular';
+      estado.className = 'estado-cobro';
       btn.disabled = true;
     } else if (Math.abs(diff) < 0.01) {
-      // Pago exacto
-      estado.className = 'estado-cobro saldo-ok';
-      estado.innerHTML = '<i class="fas fa-check-circle me-1"></i>Pago exacto — sin diferencia';
-      btn.disabled = false;
+      estado.className = 'estado-cobro visible estado-ok';
+      estado.textContent = 'Pago exacto. Sin diferencia.';
     } else if (diff > 0) {
-      // Saldo a favor del cliente
-      estado.className = 'estado-cobro saldo-favor';
-      estado.innerHTML = '<i class="fas fa-arrow-up me-1"></i>Saldo a favor del cliente: ' + formatPesos(diff);
-      btn.disabled = false;
+      estado.className = 'estado-cobro visible estado-favor';
+      estado.textContent = 'Saldo a favor del cliente: ' + fmt(diff);
     } else {
-      // Pago parcial / pendiente
-      estado.className = 'estado-cobro saldo-parcial';
-      estado.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Saldo pendiente: ' + formatPesos(Math.abs(diff));
-      btn.disabled = false;
+      estado.className = 'estado-cobro visible estado-parcial';
+      estado.textContent = 'Falta cobrar: ' + fmt(Math.abs(diff));
     }
   }
 
-  function onChequeChange() {
-    calcularTotal();
-    const monto = parseMonto('cheque');
-    const wrapper = document.getElementById('chequeFechaWrapper');
-    const fechaInput = document.getElementById('fecha_cobro_cheque');
+  function onCheque() {
+    calcular();
+    var monto = num('cheque');
+    var div   = document.getElementById('fechaChequeDiv');
+    var input = document.getElementById('fecha_cobro_cheque');
     if (monto > 0) {
-      wrapper.classList.add('visible');
-      fechaInput.required = true;
+      div.classList.add('visible');
+      input.required = true;
     } else {
-      wrapper.classList.remove('visible');
-      fechaInput.required = false;
-      fechaInput.value = '';
+      div.classList.remove('visible');
+      input.required = false;
+      input.value = '';
     }
   }
 
-  // Bloquear submit si hay cheque sin fecha
   document.getElementById('formCobro').addEventListener('submit', function(e) {
-    const chMonto = parseMonto('cheque');
-    const fechaCheque = document.getElementById('fecha_cobro_cheque').value;
-    if (chMonto > 0 && !fechaCheque) {
+    if (num('cheque') > 0 && !document.getElementById('fecha_cobro_cheque').value) {
       e.preventDefault();
-      alert('Debés ingresar la fecha de cobro del cheque.');
+      alert('Ingresa la fecha de cobro del cheque antes de continuar.');
     }
   });
 </script>

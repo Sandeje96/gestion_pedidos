@@ -1,484 +1,174 @@
-{% extends 'base.html' %}
+{% extends 'repartidor/base_repartidor.html' %}
 
 {% block extra_css %}
-<style>
-  :root {
-    --repartidor-primary: #1a1a2e;
-    --repartidor-accent: #e94560;
-    --repartidor-accent2: #0f3460;
-    --repartidor-card-bg: #16213e;
-    --repartidor-text: #eaeaea;
-    --repartidor-muted: #8892a4;
-    --repartidor-border: rgba(255,255,255,0.07);
-    --repartidor-success: #27c78a;
-    --repartidor-route-colors: #e94560, #4361ee, #f77f00, #27c78a, #9b5de5, #00b4d8, #e9c46a, #ff6b6b;
-  }
+/* Panel de rutas */
+.pagina-titulo {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+.pagina-sub {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 16px;
+}
 
-  body {
-    background: var(--repartidor-primary) !important;
-    color: var(--repartidor-text);
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    min-height: 100vh;
-  }
+/* Buscador */
+.buscador {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 1.1rem;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  margin-bottom: 16px;
+}
+.buscador:focus { outline: none; border-color: #1a6b3c; }
 
-  /* ── HEADER STATS ── */
-  .repartidor-header {
-    background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #1a1a2e 100%);
-    border-bottom: 1px solid var(--repartidor-border);
-    padding: 2rem 0 1.5rem;
-    margin-bottom: 2rem;
-  }
+/* Acordeón nativo con <details> / <summary> — sin JavaScript */
+.ruta-bloque {
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
 
-  .repartidor-header h1 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #fff;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
+.ruta-bloque summary {
+  padding: 16px 14px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #111;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  user-select: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+}
+.ruta-bloque summary::-webkit-details-marker { display: none; }
+.ruta-bloque[open] summary { border-bottom: 2px solid #ccc; background: #f0f0f0; }
 
-  .repartidor-header h1 .icon-truck {
-    background: var(--repartidor-accent);
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    flex-shrink: 0;
-    box-shadow: 0 4px 15px rgba(233,69,96,0.4);
-  }
+.ruta-bloque summary .ruta-nombre { flex: 1; }
+.ruta-bloque summary .ruta-count {
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: #666;
+  margin-right: 10px;
+}
+.ruta-bloque summary .ruta-flecha {
+  font-size: 1rem;
+  color: #999;
+  transition: transform 0.2s;
+}
+.ruta-bloque[open] summary .ruta-flecha { transform: rotate(180deg); }
 
-  .stat-pills {
-    display: flex;
-    gap: 0.8rem;
-    flex-wrap: wrap;
-    margin-top: 1rem;
-  }
+/* Lista de clientes */
+.cliente-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px;
+  border-bottom: 1px solid #eee;
+  text-decoration: none;
+  color: #111;
+  font-size: 1rem;
+  background: #fff;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+}
+.cliente-link:last-child { border-bottom: none; }
+.cliente-link:active { background: #f0f0f0; }
 
-  .stat-pill {
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 30px;
-    padding: 0.4rem 1rem;
-    font-size: 0.85rem;
-    color: var(--repartidor-muted);
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    transition: all 0.2s;
-  }
+.cliente-info { flex: 1; }
+.cliente-info .c-nombre { font-weight: bold; font-size: 1rem; }
+.cliente-info .c-detalle { font-size: 0.82rem; color: #777; margin-top: 3px; }
+.cliente-chevron { color: #bbb; font-size: 1.1rem; font-weight: bold; }
 
-  .stat-pill strong {
-    color: #fff;
-    font-size: 1rem;
-  }
-
-  /* ── RUTA CARD ── */
-  .ruta-card {
-    background: var(--repartidor-card-bg);
-    border: 1px solid var(--repartidor-border);
-    border-radius: 16px;
-    margin-bottom: 1rem;
-    overflow: hidden;
-    transition: box-shadow 0.3s, border-color 0.3s;
-  }
-
-  .ruta-card:hover {
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  }
-
-  .ruta-card.is-open {
-    border-color: rgba(255,255,255,0.15);
-  }
-
-  /* Header de la ruta (botón acordeón) */
-  .ruta-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.1rem 1.4rem;
-    cursor: pointer;
-    user-select: none;
-    gap: 1rem;
-    border: none;
-    background: transparent;
-    width: 100%;
-    text-align: left;
-    color: var(--repartidor-text);
-  }
-
-  .ruta-header:focus {
-    outline: none;
-  }
-
-  .ruta-left {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .ruta-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 11px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    flex-shrink: 0;
-    font-weight: 700;
-    color: #fff;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  .ruta-info h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .ruta-info small {
-    color: var(--repartidor-muted);
-    font-size: 0.78rem;
-  }
-
-  .ruta-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    flex-shrink: 0;
-  }
-
-  .badge-clientes {
-    background: rgba(255,255,255,0.1);
-    border-radius: 20px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.78rem;
-    color: var(--repartidor-muted);
-    white-space: nowrap;
-  }
-
-  .badge-clientes strong {
-    color: #fff;
-  }
-
-  .chevron-icon {
-    color: var(--repartidor-muted);
-    font-size: 0.9rem;
-    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
-    flex-shrink: 0;
-  }
-
-  .ruta-header[aria-expanded="true"] .chevron-icon {
-    transform: rotate(180deg);
-    color: #fff;
-  }
-
-  /* ── LISTA DE CLIENTES (accordion body) ── */
-  .clientes-body {
-    border-top: 1px solid var(--repartidor-border);
-  }
-
-  .cliente-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.9rem 1.4rem;
-    border-bottom: 1px solid var(--repartidor-border);
-    transition: background 0.15s;
-    text-decoration: none;
-    color: inherit;
-  }
-
-  .cliente-item:last-child {
-    border-bottom: none;
-  }
-
-  .cliente-item:hover {
-    background: rgba(255,255,255,0.04);
-  }
-
-  .cliente-numero {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.06);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.72rem;
-    color: var(--repartidor-muted);
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-
-  .cliente-data {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .cliente-nombre {
-    font-size: 0.92rem;
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-bottom: 0.2rem;
-  }
-
-  .cliente-details {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-  }
-
-  .detail-chip {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.75rem;
-    color: var(--repartidor-muted);
-  }
-
-  .detail-chip i {
-    font-size: 0.7rem;
-    opacity: 0.7;
-  }
-
-  /* ── EMPTY STATE ── */
-  .empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: var(--repartidor-muted);
-  }
-
-  .empty-state i {
-    font-size: 3.5rem;
-    opacity: 0.3;
-    margin-bottom: 1rem;
-    display: block;
-  }
-
-  /* ── SEARCH BAR ── */
-  .search-wrapper {
-    position: relative;
-    margin-bottom: 1.5rem;
-  }
-
-  .search-wrapper i {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--repartidor-muted);
-    font-size: 0.9rem;
-    pointer-events: none;
-  }
-
-  #buscarRuta {
-    background: var(--repartidor-card-bg);
-    border: 1px solid var(--repartidor-border);
-    border-radius: 12px;
-    color: #fff;
-    padding: 0.7rem 1rem 0.7rem 2.6rem;
-    width: 100%;
-    font-size: 0.9rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-
-  #buscarRuta::placeholder {
-    color: var(--repartidor-muted);
-  }
-
-  #buscarRuta:focus {
-    outline: none;
-    border-color: rgba(233,69,96,0.5);
-    box-shadow: 0 0 0 3px rgba(233,69,96,0.12);
-    background: var(--repartidor-card-bg);
-    color: #fff;
-  }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 576px) {
-    .ruta-header { padding: 0.9rem 1rem; }
-    .cliente-item { padding: 0.8rem 1rem; }
-    .repartidor-header h1 { font-size: 1.4rem; }
-    .stat-pill { font-size: 0.78rem; }
-  }
-</style>
+/* Sin clientes / sin rutas */
+.sin-datos {
+  text-align: center;
+  padding: 30px 16px;
+  color: #888;
+  font-size: 1rem;
+}
 {% endblock %}
 
 {% block content %}
-<!-- HEADER -->
-<div class="repartidor-header">
-  <div class="container">
-    <h1>
-      <span class="icon-truck"><i class="fas fa-truck"></i></span>
-      Panel de Repartidor
-    </h1>
-    <div class="stat-pills">
-      <div class="stat-pill">
-        <i class="fas fa-route"></i>
-        <strong>{{ total_rutas }}</strong> ruta{{ 's' if total_rutas != 1 else '' }}
-      </div>
-      <div class="stat-pill">
-        <i class="fas fa-store"></i>
-        <strong>{{ total_clientes }}</strong> cliente{{ 's' if total_clientes != 1 else '' }}
-      </div>
-      <div class="stat-pill">
-        <i class="fas fa-user"></i>
-        {{ current_user.nombre }}
-      </div>
-    </div>
-  </div>
-</div>
+<p class="pagina-titulo">Rutas del dia</p>
+<p class="pagina-sub">
+  {{ total_rutas }} ruta{{ 's' if total_rutas != 1 else '' }}
+  &middot;
+  {{ total_clientes }} cliente{{ 's' if total_clientes != 1 else '' }}
+</p>
 
-<div class="container pb-5">
+{% if clientes_por_ruta %}
 
-  {% if clientes_por_ruta %}
+  <input
+    type="search"
+    class="buscador"
+    id="buscar"
+    placeholder="Buscar ruta o cliente..."
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="off"
+  >
 
-  <!-- BUSCADOR -->
-  <div class="search-wrapper">
-    <i class="fas fa-search"></i>
-    <input type="text" id="buscarRuta" placeholder="Buscar ruta o cliente…" autocomplete="off">
-  </div>
-
-  <!-- ACORDEÓN DE RUTAS -->
-  <div id="rutasAccordion">
-    {% set route_colors = ['#e94560','#4361ee','#f77f00','#27c78a','#9b5de5','#00b4d8','#e9c46a','#ff6b6b'] %}
-
+  <div id="listaRutas">
     {% for ruta, clientes in clientes_por_ruta.items() %}
-    {% set color = route_colors[loop.index0 % route_colors|length] %}
-    {% set ruta_id = 'ruta-' ~ loop.index %}
+    <details class="ruta-bloque" data-ruta="{{ ruta|lower }}" data-clientes="{{ clientes|map(attribute='nombre')|join(' ')|lower }}">
+      <summary>
+        <span class="ruta-nombre">{{ ruta }}</span>
+        <span class="ruta-count">{{ clientes|length }} cliente{{ 's' if clientes|length != 1 else '' }}</span>
+        <span class="ruta-flecha">&#9660;</span>
+      </summary>
 
-    <div class="ruta-card" data-ruta="{{ ruta|lower }}" data-clientes="{{ clientes|map(attribute='nombre')|join(' ')|lower }}">
-      <!-- Header de la ruta -->
-      <button
-        class="ruta-header"
-        type="button"
-        data-bs-toggle="collapse"
-        data-bs-target="#{{ ruta_id }}"
-        aria-expanded="false"
-        aria-controls="{{ ruta_id }}"
-        onclick="toggleCard(this)"
-      >
-        <div class="ruta-left">
-          <div class="ruta-icon" style="background: {{ color }}22; color: {{ color }}; border: 1.5px solid {{ color }}44;">
-            <i class="fas fa-road"></i>
+      {% for cliente in clientes %}
+      <a href="/repartidor/cliente/{{ cliente.id }}" class="cliente-link">
+        <div class="cliente-info">
+          <div class="c-nombre">{{ cliente.nombre }}</div>
+          {% if cliente.direccion or cliente.telefono %}
+          <div class="c-detalle">
+            {% if cliente.direccion %}{{ cliente.direccion }}{% endif %}
+            {% if cliente.direccion and cliente.telefono %} &middot; {% endif %}
+            {% if cliente.telefono %}{{ cliente.telefono }}{% endif %}
           </div>
-          <div class="ruta-info">
-            <h3>{{ ruta }}</h3>
-            <small><i class="fas fa-map-marker-alt me-1"></i>Zona de reparto</small>
-          </div>
+          {% endif %}
         </div>
-        <div class="ruta-meta">
-          <span class="badge-clientes">
-            <strong>{{ clientes|length }}</strong>
-            cliente{{ 's' if clientes|length != 1 else '' }}
-          </span>
-          <i class="fas fa-chevron-down chevron-icon"></i>
-        </div>
-      </button>
-
-      <!-- Lista de clientes (colapsable) -->
-      <div class="collapse" id="{{ ruta_id }}">
-        <div class="clientes-body">
-          {% for cliente in clientes %}
-          <a href="{{ url_for('repartidor.cobro_cliente', cliente_id=cliente.id) }}" class="cliente-item">
-            <div class="cliente-numero">{{ loop.index }}</div>
-            <div class="cliente-data">
-              <div class="cliente-nombre">{{ cliente.nombre }}</div>
-              <div class="cliente-details">
-                {% if cliente.direccion %}
-                <span class="detail-chip">
-                  <i class="fas fa-map-marker-alt"></i>
-                  {{ cliente.direccion }}
-                </span>
-                {% endif %}
-                {% if cliente.telefono %}
-                <span class="detail-chip">
-                  <i class="fas fa-phone"></i>
-                  {{ cliente.telefono }}
-                </span>
-                {% endif %}
-                {% if not cliente.direccion and not cliente.telefono %}
-                <span class="detail-chip">
-                  <i class="fas fa-info-circle"></i>
-                  Sin datos de contacto
-                </span>
-                {% endif %}
-              </div>
-            </div>
-            <i class="fas fa-chevron-right" style="color: var(--repartidor-muted); font-size:0.75rem; flex-shrink:0;"></i>
-          </a>
-          {% endfor %}
-        </div>
-      </div>
-
-    </div>
+        <span class="cliente-chevron">&#x276F;</span>
+      </a>
+      {% endfor %}
+    </details>
     {% endfor %}
   </div>
 
-  <!-- Sin resultados de búsqueda -->
-  <div id="sinResultados" style="display:none;" class="empty-state">
-    <i class="fas fa-search-minus"></i>
-    <p>No se encontraron rutas o clientes con ese nombre.</p>
+  <div id="sinResultados" style="display:none;" class="sin-datos">
+    No se encontraron resultados.
   </div>
 
-  {% else %}
-  <!-- Sin rutas -->
-  <div class="empty-state">
-    <i class="fas fa-route"></i>
-    <h4 style="color: #fff; margin-bottom: 0.5rem;">Sin rutas disponibles</h4>
-    <p>No hay clientes cargados en el sistema todavía.</p>
-  </div>
-  {% endif %}
-
-</div>
+{% else %}
+  <div class="sin-datos">No hay clientes cargados en el sistema.</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  // Marca la card como abierta/cerrada para estilos
-  function toggleCard(btn) {
-    const card = btn.closest('.ruta-card');
-    setTimeout(() => {
-      const isOpen = btn.getAttribute('aria-expanded') === 'true';
-      card.classList.toggle('is-open', isOpen);
-    }, 10);
-  }
-
-  // ── BUSCADOR EN TIEMPO REAL ──
-  const inputBuscar = document.getElementById('buscarRuta');
-  const sinResultados = document.getElementById('sinResultados');
-
-  if (inputBuscar) {
-    inputBuscar.addEventListener('input', function () {
-      const q = this.value.trim().toLowerCase();
-      const cards = document.querySelectorAll('.ruta-card');
-      let visibles = 0;
-
-      cards.forEach(card => {
-        const ruta = card.dataset.ruta || '';
-        const clientes = card.dataset.clientes || '';
-        const match = ruta.includes(q) || clientes.includes(q);
-        card.style.display = match ? '' : 'none';
-        if (match) visibles++;
+  var input = document.getElementById('buscar');
+  var sinRes = document.getElementById('sinResultados');
+  if (input) {
+    input.addEventListener('input', function() {
+      var q = this.value.toLowerCase().trim();
+      var bloques = document.querySelectorAll('.ruta-bloque');
+      var visibles = 0;
+      bloques.forEach(function(b) {
+        var ok = b.dataset.ruta.indexOf(q) >= 0 || b.dataset.clientes.indexOf(q) >= 0;
+        b.style.display = ok ? '' : 'none';
+        if (ok) visibles++;
       });
-
-      sinResultados.style.display = visibles === 0 ? 'block' : 'none';
+      sinRes.style.display = visibles === 0 ? 'block' : 'none';
     });
   }
 </script>

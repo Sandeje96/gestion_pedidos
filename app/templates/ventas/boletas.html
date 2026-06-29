@@ -265,8 +265,14 @@
           {% endif %}
           <!-- Total a cobrar -->
           {% if r.total_a_cobrar > 0 %}
-          <span class="badge bg-success">
+          <span class="badge bg-success" title="Total a cobrar al inicio">
             ${{ "%.2f"|format(r.total_a_cobrar) }}
+          </span>
+          {% endif %}
+          <!-- Total debe -->
+          {% if r.total_debe > 0 %}
+          <span class="badge bg-danger" title="Total deuda actual (Debe)">
+            ${{ "%.2f"|format(r.total_debe) }}
           </span>
           {% endif %}
         </span>

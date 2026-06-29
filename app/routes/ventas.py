@@ -878,6 +878,7 @@ def boletas():
             'con_boleta': sum(1 for d in datos if d['boleta_hoy']),
             'sin_boleta': sum(1 for d in datos if not d['boleta_hoy']),
             'total_a_cobrar': sum(d['total_a_cobrar'] for d in datos),
+            'total_debe': sum(d['debe'] for d in datos),
             'con_cc': sum(1 for d in datos if d['saldo_cc'] > 0),
         }
 

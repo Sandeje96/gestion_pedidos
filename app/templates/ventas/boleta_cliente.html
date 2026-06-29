@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- ── ENCABEZADO ── -->
+<div class="row mb-3">
+    <div class="col">
+        <a href="{{ url_for('ventas.boletas') }}" class="btn btn-sm btn-outline-secondary mb-2">
+            <i class="fas fa-arrow-left"></i> Volver a Boletas
+        </a>
+        <h4><i class="fas fa-file-invoice-dollar"></i> {{ cliente.nombre }}</h4>
+        <p class="text-muted mb-0">
+            <i class="fas fa-route me-1"></i>{{ cliente.ruta }}
+            {% if cliente.direccion %}&nbsp;·&nbsp;<i class="fas fa-map-marker-alt me-1"></i>{{ cliente.direccion }}{% endif %}
+            &nbsp;·&nbsp;<strong>{{ hoy.strftime('%d/%m/%Y') }}</strong>
+        </p>
+    </div>
+</div>
+
+<div class="row g-3">
+
+    <!-- ══════════════════════════════════
+         COLUMNA IZQUIERDA — CARGA DE BOLETA
+         ══════════════════════════════════ -->
+    <div class="col-12 col-md-6">
+
+        <!-- BOLETA DEL DÍA -->
+        <div class="card mb-3 border-primary">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-file-invoice"></i> Boleta del Día — {{ hoy.strftime('%d/%m/%Y') }}
+            </div>
+            <div class="card-body">
+
+                {% if boleta_hoy %}
+                <!-- Boleta ya cargada: mostrar y permitir editar -->
+                <div class="text-center mb-3">
+                    <div class="display-5 fw-bold text-primary">${{ "%.2f"|format(boleta_hoy.saldo_pendiente|float) }}</div>
+                    <div class="text-muted small">
+                        {% if boleta_hoy.estado == 'parcial' %}
+                            <span class="badge bg-warning text-dark">Pago parcial registrado</span>
+                        {% else %}
+                            <span class="badge bg-primary">Pendiente de cobro</span>
+                        {% endif %}
+                    </div>
+                    {% if boleta_hoy.descripcion %}
+                        <div class="mt-2 text-muted fst-italic small">{{ boleta_hoy.descripcion }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Formulario crear/actualizar boleta -->
+                <form method="POST" action="{{ url_for('ventas.guardar_boleta', cliente_id=cliente.id) }}">
+                    <div class="mb-3">
+                        <label for="monto_boleta" class="form-label fw-bold">
+                            {% if boleta_hoy %}Actualizar monto{% else %}Monto a cobrar{% endif %}
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number"
+                                   id="monto_boleta"
+                                   name="monto_boleta"
+                                   class="form-control form-control-lg"
+                                   step="0.01"
+                                   min="0"
+                                   placeholder="0.00"
+                                   value="{{ "%.2f"|format(boleta_hoy.monto_boleta|float) if boleta_hoy else '' }}"
+                                   required>
+                        </div>
+                        <div class="form-text">Importe que el cliente debe abonar por los productos de hoy.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="descripcion" class="form-label">Detalle (opcional)</label>
+                        <textarea id="descripcion" name="descripcion" class="form-control"
+                                  rows="2"
+                                  placeholder="Ej: 50 facturas + 10kg pan integral">{{ boleta_hoy.descripcion if boleta_hoy and boleta_hoy.descripcion else '' }}</textarea>
+                        <div class="form-text">El repartidor puede ver este detalle.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save"></i>
+                        {% if boleta_hoy %}Actualizar boleta{% else %}Cargar boleta{% endif %}
+                    </button>
+                </form>
+
+                {% if boleta_hoy and boleta_hoy.pagos.count() == 0 %}
+                <!-- Anular solo si no hay pagos -->
+                <form method="POST"
+                      action="{{ url_for('ventas.anular_boleta', boleta_id=boleta_hoy.id) }}"
+                      class="mt-2"
+                      onsubmit="return confirm('¿Anular esta boleta?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">
+                        <i class="fas fa-times"></i> Anular boleta
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- CUENTA CORRIENTE -->
+        <div class="card mb-3 {% if saldo_cc > 0 %}border-warning{% else %}border-success{% endif %}">
+            <div class="card-header {% if saldo_cc > 0 %}bg-warning text-dark{% else %}bg-success text-white{% endif %}">
+                <i class="fas fa-history"></i> Cuenta Corriente
+            </div>
+            <div class="card-body">
+                {% if boletas_cc %}
+                    <div class="text-center mb-3">
+                        <div class="display-6 fw-bold text-warning">${{ "%.2f"|format(saldo_cc) }}</div>
+                        <div class="text-muted small">Deuda acumulada de días anteriores</div>
+                    </div>
+                    <table class="table table-sm">
+                        <thead><tr>
+                            <th>Fecha</th>
+                            <th>Monto original</th>
+                            <th>Saldo pendiente</th>
+                            <th>Estado</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for b in boletas_cc %}
+                        <tr>
+                            <td>{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</td>
+                            <td>${{ "%.2f"|format(b.monto_boleta|float) }}</td>
+                            <td class="fw-bold text-warning">${{ "%.2f"|format(b.saldo_pendiente|float) }}</td>
+                            <td>
+                                <span class="badge bg-warning text-dark">{{ b.estado|capitalize }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="text-center text-success py-2">
+                        <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
+                        Sin deudas anteriores
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- BOLETAS COBRADAS RECIENTES -->
+        {% if boletas_cobradas %}
+        <div class="card border-success mb-3">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-check-double"></i> Últimas boletas cobradas
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for b in boletas_cobradas %}
+                <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                    <span class="text-muted small">{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</span>
+                    <span class="fw-bold text-success">${{ "%.2f"|format(b.monto_boleta|float) }}</span>
+                    <span class="badge bg-success">Cobrada</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- ══════════════════════════════════
+         COLUMNA DERECHA — COBROS DEL REPARTIDOR
+         ══════════════════════════════════ -->
+    <div class="col-12 col-md-6">
+        <div class="card border-dark">
+            <div class="card-header bg-dark text-white">
+                <i class="fas fa-truck"></i> Cobros registrados por el Repartidor
+            </div>
+            <div class="card-body p-0">
+                {% if historial_cobros %}
+                <div class="list-group list-group-flush">
+                    {% for cobro in historial_cobros %}
+                    <div class="list-group-item px-3 py-3">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="text-muted small">
+                                <i class="fas fa-clock me-1"></i>{{ cobro.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}
+                            </span>
+                            <span class="fw-bold text-success fs-6">${{ "%.2f"|format(cobro.total_recibido|float) }}</span>
+                        </div>
+
+                        <!-- Detalle formas de pago -->
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            {% if cobro.efectivo > 0 %}
+                            <span class="badge bg-success">
+                                Efectivo: ${{ "%.2f"|format(cobro.efectivo|float) }}
+                            </span>
+                            {% endif %}
+                            {% if cobro.transferencia > 0 %}
+                            <span class="badge bg-primary">
+                                Transf: ${{ "%.2f"|format(cobro.transferencia|float) }}
+                            </span>
+                            {% endif %}
+                            {% if cobro.cheque > 0 %}
+                            <span class="badge bg-secondary">
+                                Cheque: ${{ "%.2f"|format(cobro.cheque|float) }}
+                                {% if cobro.fecha_cobro_cheque %}
+                                    (cobrar {{ cobro.fecha_cobro_cheque.strftime('%d/%m/%Y') }})
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Distribución del pago -->
+                        <div class="mt-1 small text-muted">
+                            {% if cobro.aplicado_boleta > 0 %}
+                                Aplicado a boleta: ${{ "%.2f"|format(cobro.aplicado_boleta|float) }}
+                            {% endif %}
+                            {% if cobro.aplicado_cc > 0 %}
+                                &nbsp;· A cuenta cte: ${{ "%.2f"|format(cobro.aplicado_cc|float) }}
+                            {% endif %}
+                            {% if cobro.saldo_favor > 0 %}
+                                &nbsp;· <span class="text-info">A favor: ${{ "%.2f"|format(cobro.saldo_favor|float) }}</span>
+                            {% endif %}
+                        </div>
+
+                        {% if cobro.notas %}
+                        <div class="mt-1 small fst-italic text-muted">
+                            <i class="fas fa-comment-alt me-1"></i>{{ cobro.notas }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-truck fa-3x mb-3 opacity-25 d-block"></i>
+                    El repartidor aún no registró cobros para este cliente.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

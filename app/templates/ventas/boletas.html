@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Panel
+        </a>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col">
+        <h4><i class="fas fa-file-invoice-dollar"></i> Boletas y Cobros del Día</h4>
+        <p class="text-muted mb-0">
+            <strong>{{ hoy.strftime('%d/%m/%Y') }}</strong> —
+            Esta sección es <strong>exclusiva</strong> para Ventas y Repartidor.
+        </p>
+    </div>
+</div>
+
+{% if datos_clientes %}
+<div class="card">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-list"></i> Clientes</span>
+        <small class="text-white-50">{{ datos_clientes|length }} cliente(s)</small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Cliente</th>
+                    <th>Ruta</th>
+                    <th class="text-end">Boleta hoy</th>
+                    <th class="text-end">Cuenta Cte.</th>
+                    <th class="text-end">Total a cobrar</th>
+                    <th>Estado</th>
+                    <th>Último cobro</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in datos_clientes %}
+                <tr>
+                    <td><strong>{{ d.cliente.nombre }}</strong></td>
+                    <td><span class="badge bg-secondary">{{ d.cliente.ruta }}</span></td>
+                    <td class="text-end">
+                        {% if d.boleta_hoy %}
+                            <span class="fw-bold text-primary">${{ "%.2f"|format(d.monto_hoy) }}</span>
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if d.saldo_cc > 0 %}
+                            <span class="fw-bold text-warning">${{ "%.2f"|format(d.saldo_cc) }}</span>
+                        {% else %}
+                            <span class="text-muted">$0.00</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if d.total_deuda > 0 %}
+                            <span class="fw-bold text-danger">${{ "%.2f"|format(d.total_deuda) }}</span>
+                        {% else %}
+                            <span class="text-success">Al día</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if d.boleta_hoy %}
+                            {% if d.boleta_hoy.estado == 'parcial' %}
+                                <span class="badge bg-warning text-dark">Parcial</span>
+                            {% else %}
+                                <span class="badge bg-primary">Pendiente</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-light text-dark border">Sin boleta</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if d.ultimo_cobro %}
+                            <small class="text-muted">{{ d.ultimo_cobro.fecha_cobro.strftime('%d/%m %H:%M') }}</small>
+                        {% else %}
+                            <small class="text-muted">—</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=d.cliente.id) }}"
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit"></i> Gestionar
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> No hay clientes activos cargados en el sistema.
+</div>
+{% endif %}
+
+{% endblock %}

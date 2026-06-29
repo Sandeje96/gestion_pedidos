@@ -9,9 +9,10 @@ from app import db, socketio
 from app.models.cliente import Cliente
 from app.models.pedido import Pedido
 from app.models.producto import Producto
+from app.models.boleta import Boleta, PagoBoleta
 from app.forms.cliente_forms import ClienteForm
 from app.forms.pedido_forms import PedidoForm, EditarPedidoForm
-from datetime import datetime
+from datetime import datetime, date
 from functools import wraps
 from sqlalchemy import func
 
@@ -765,4 +766,237 @@ def stock():
         title='Stock en Fábrica',
         productos=productos,
         semanales_dict=semanales_dict
-    )
+    )
+
+
+# ══════════════════════════════════════════════════════════
+# MÓDULO DE BOLETAS — Solo visible para Ventas y Repartidor
+# ══════════════════════════════════════════════════════════
+
+@ventas_bp.route('/boletas')
+@vendedor_requerido
+def boletas():
+    """
+    Lista todos los clientes activos (no sucursales) con el estado
+    de su boleta del día y el saldo de cuenta corriente.
+    Solo accesible por el usuario Vendedor.
+    """
+    hoy = date.today()
+
+    clientes = (
+        Cliente.query
+        .filter(Cliente.activo == True, Cliente.ruta != 'SUCURSALES')
+        .order_by(Cliente.ruta, Cliente.nombre)
+        .all()
+    )
+
+    # Para cada cliente, obtener boleta de hoy y saldo CC
+    datos_clientes = []
+    for cliente in clientes:
+        boleta_hoy = (
+            Boleta.query
+            .filter(
+                Boleta.cliente_id == cliente.id,
+                Boleta.fecha_entrega == hoy,
+                Boleta.estado.in_(['pendiente', 'parcial'])
+            )
+            .order_by(Boleta.fecha_creacion.desc())
+            .first()
+        )
+
+        # Saldo de cuenta corriente (boletas anteriores no cobradas)
+        saldo_cc = db.session.query(
+            func.sum(Boleta.saldo_pendiente)
+        ).filter(
+            Boleta.cliente_id == cliente.id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        ).scalar()
+        saldo_cc = float(saldo_cc) if saldo_cc else 0.0
+
+        # Último cobro registrado por el repartidor
+        ultimo_cobro = (
+            PagoBoleta.query
+            .filter_by(cliente_id=cliente.id)
+            .order_by(PagoBoleta.fecha_cobro.desc())
+            .first()
+        )
+
+        datos_clientes.append({
+            'cliente': cliente,
+            'boleta_hoy': boleta_hoy,
+            'monto_hoy': float(boleta_hoy.saldo_pendiente) if boleta_hoy else 0.0,
+            'saldo_cc': saldo_cc,
+            'total_deuda': (float(boleta_hoy.saldo_pendiente) if boleta_hoy else 0.0) + saldo_cc,
+            'ultimo_cobro': ultimo_cobro,
+        })
+
+    return render_template(
+        'ventas/boletas.html',
+        title='Boletas y Cobros',
+        datos_clientes=datos_clientes,
+        hoy=hoy
+    )
+
+
+@ventas_bp.route('/cliente/<int:cliente_id>/boleta', methods=['GET', 'POST'])
+@vendedor_requerido
+def gestionar_boleta(cliente_id):
+    """
+    Ver y gestionar la boleta del día de un cliente específico.
+    Permite crear una boleta nueva o editar la del día si ya existe.
+    También muestra el historial completo de cobros del repartidor.
+    Solo accesible por el usuario Vendedor.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    hoy = date.today()
+
+    # Boleta activa de hoy
+    boleta_hoy = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    # Cuenta corriente (boletas anteriores pendientes)
+    boletas_cc = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_entrega.asc())
+        .all()
+    )
+    saldo_cc = sum(float(b.saldo_pendiente) for b in boletas_cc)
+
+    # Historial de cobros del repartidor para este cliente
+    historial_cobros = (
+        PagoBoleta.query
+        .filter_by(cliente_id=cliente_id)
+        .order_by(PagoBoleta.fecha_cobro.desc())
+        .limit(20)
+        .all()
+    )
+
+    # Historial de boletas cobradas (para referencia)
+    boletas_cobradas = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.estado == 'cobrada'
+        )
+        .order_by(Boleta.fecha_entrega.desc())
+        .limit(10)
+        .all()
+    )
+
+    return render_template(
+        'ventas/boleta_cliente.html',
+        title=f'Boleta — {cliente.nombre}',
+        cliente=cliente,
+        boleta_hoy=boleta_hoy,
+        boletas_cc=boletas_cc,
+        saldo_cc=saldo_cc,
+        historial_cobros=historial_cobros,
+        boletas_cobradas=boletas_cobradas,
+        hoy=hoy
+    )
+
+
+@ventas_bp.route('/cliente/<int:cliente_id>/boleta/guardar', methods=['POST'])
+@vendedor_requerido
+def guardar_boleta(cliente_id):
+    """
+    Crear o actualizar la boleta del día para un cliente.
+    Si ya existe una boleta pendiente/parcial del día, la actualiza.
+    Si no existe, crea una nueva.
+    Solo accesible por el usuario Vendedor.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    hoy = date.today()
+
+    monto_str = request.form.get('monto_boleta', '0').strip().replace(',', '.')
+    descripcion = request.form.get('descripcion', '').strip() or None
+
+    try:
+        monto = float(monto_str)
+        if monto < 0:
+            raise ValueError('El monto no puede ser negativo.')
+    except (ValueError, TypeError):
+        flash('El monto ingresado no es válido.', 'danger')
+        return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+    # Buscar boleta existente del día
+    boleta = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    if boleta:
+        # Actualizar boleta existente
+        boleta.monto_boleta = monto
+        boleta.saldo_pendiente = monto
+        boleta.descripcion = descripcion
+        boleta.fecha_actualizacion = datetime.utcnow()
+        accion = 'actualizada'
+    else:
+        # Crear boleta nueva
+        boleta = Boleta(
+            cliente_id=cliente_id,
+            fecha_entrega=hoy,
+            monto_boleta=monto,
+            saldo_pendiente=monto,
+            descripcion=descripcion,
+            estado='pendiente',
+            creado_por_id=current_user.id
+        )
+        db.session.add(boleta)
+        accion = 'creada'
+
+    try:
+        db.session.commit()
+        flash(f'Boleta {accion} correctamente para {cliente.nombre}: ${monto:.2f}', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al guardar la boleta: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+@ventas_bp.route('/boleta/<int:boleta_id>/anular', methods=['POST'])
+@vendedor_requerido
+def anular_boleta(boleta_id):
+    """
+    Anula (elimina) una boleta pendiente del día.
+    Solo se puede anular si todavía no tiene pagos registrados.
+    """
+    boleta = Boleta.query.get_or_404(boleta_id)
+
+    # Solo se puede anular si es del cliente correcto y no tiene pagos
+    if boleta.pagos.count() > 0:
+        flash('No se puede anular una boleta que ya tiene pagos registrados.', 'danger')
+        return redirect(url_for('ventas.gestionar_boleta', cliente_id=boleta.cliente_id))
+
+    cliente_id = boleta.cliente_id
+    db.session.delete(boleta)
+    try:
+        db.session.commit()
+        flash('Boleta anulada correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al anular: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))

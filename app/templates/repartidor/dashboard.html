@@ -1,17 +1,482 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  :root {
+    --repartidor-primary: #1a1a2e;
+    --repartidor-accent: #e94560;
+    --repartidor-accent2: #0f3460;
+    --repartidor-card-bg: #16213e;
+    --repartidor-text: #eaeaea;
+    --repartidor-muted: #8892a4;
+    --repartidor-border: rgba(255,255,255,0.07);
+    --repartidor-success: #27c78a;
+    --repartidor-route-colors: #e94560, #4361ee, #f77f00, #27c78a, #9b5de5, #00b4d8, #e9c46a, #ff6b6b;
+  }
+
+  body {
+    background: var(--repartidor-primary) !important;
+    color: var(--repartidor-text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER STATS ── */
+  .repartidor-header {
+    background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #1a1a2e 100%);
+    border-bottom: 1px solid var(--repartidor-border);
+    padding: 2rem 0 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .repartidor-header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .repartidor-header h1 .icon-truck {
+    background: var(--repartidor-accent);
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 15px rgba(233,69,96,0.4);
+  }
+
+  .stat-pills {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .stat-pill {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 30px;
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    color: var(--repartidor-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s;
+  }
+
+  .stat-pill strong {
+    color: #fff;
+    font-size: 1rem;
+  }
+
+  /* ── RUTA CARD ── */
+  .ruta-card {
+    background: var(--repartidor-card-bg);
+    border: 1px solid var(--repartidor-border);
+    border-radius: 16px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    transition: box-shadow 0.3s, border-color 0.3s;
+  }
+
+  .ruta-card:hover {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+
+  .ruta-card.is-open {
+    border-color: rgba(255,255,255,0.15);
+  }
+
+  /* Header de la ruta (botón acordeón) */
+  .ruta-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem 1.4rem;
+    cursor: pointer;
+    user-select: none;
+    gap: 1rem;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    color: var(--repartidor-text);
+  }
+
+  .ruta-header:focus {
+    outline: none;
+  }
+
+  .ruta-left {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ruta-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .ruta-info h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ruta-info small {
+    color: var(--repartidor-muted);
+    font-size: 0.78rem;
+  }
+
+  .ruta-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .badge-clientes {
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--repartidor-muted);
+    white-space: nowrap;
+  }
+
+  .badge-clientes strong {
+    color: #fff;
+  }
+
+  .chevron-icon {
+    color: var(--repartidor-muted);
+    font-size: 0.9rem;
+    transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    flex-shrink: 0;
+  }
+
+  .ruta-header[aria-expanded="true"] .chevron-icon {
+    transform: rotate(180deg);
+    color: #fff;
+  }
+
+  /* ── LISTA DE CLIENTES (accordion body) ── */
+  .clientes-body {
+    border-top: 1px solid var(--repartidor-border);
+  }
+
+  .cliente-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.9rem 1.4rem;
+    border-bottom: 1px solid var(--repartidor-border);
+    transition: background 0.15s;
+  }
+
+  .cliente-item:last-child {
+    border-bottom: none;
+  }
+
+  .cliente-item:hover {
+    background: rgba(255,255,255,0.04);
+  }
+
+  .cliente-numero {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    color: var(--repartidor-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .cliente-data {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cliente-nombre {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.2rem;
+  }
+
+  .cliente-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .detail-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--repartidor-muted);
+  }
+
+  .detail-chip i {
+    font-size: 0.7rem;
+    opacity: 0.7;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--repartidor-muted);
+  }
+
+  .empty-state i {
+    font-size: 3.5rem;
+    opacity: 0.3;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  /* ── SEARCH BAR ── */
+  .search-wrapper {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .search-wrapper i {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--repartidor-muted);
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+
+  #buscarRuta {
+    background: var(--repartidor-card-bg);
+    border: 1px solid var(--repartidor-border);
+    border-radius: 12px;
+    color: #fff;
+    padding: 0.7rem 1rem 0.7rem 2.6rem;
+    width: 100%;
+    font-size: 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  #buscarRuta::placeholder {
+    color: var(--repartidor-muted);
+  }
+
+  #buscarRuta:focus {
+    outline: none;
+    border-color: rgba(233,69,96,0.5);
+    box-shadow: 0 0 0 3px rgba(233,69,96,0.12);
+    background: var(--repartidor-card-bg);
+    color: #fff;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 576px) {
+    .ruta-header { padding: 0.9rem 1rem; }
+    .cliente-item { padding: 0.8rem 1rem; }
+    .repartidor-header h1 { font-size: 1.4rem; }
+    .stat-pill { font-size: 0.78rem; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 text-center">
-            <div class="card shadow">
-                <div class="card-body py-5">
-                    <i class="fas fa-truck fa-4x text-primary mb-4"></i>
-                    <h2 class="card-title">Panel de Repartidor</h2>
-                    <p class="card-text text-muted">Bienvenido, {{ current_user.nombre }}. Tu panel está en construcción.</p>
-                </div>
-            </div>
-        </div>
+<!-- HEADER -->
+<div class="repartidor-header">
+  <div class="container">
+    <h1>
+      <span class="icon-truck"><i class="fas fa-truck"></i></span>
+      Panel de Repartidor
+    </h1>
+    <div class="stat-pills">
+      <div class="stat-pill">
+        <i class="fas fa-route"></i>
+        <strong>{{ total_rutas }}</strong> ruta{{ 's' if total_rutas != 1 else '' }}
+      </div>
+      <div class="stat-pill">
+        <i class="fas fa-store"></i>
+        <strong>{{ total_clientes }}</strong> cliente{{ 's' if total_clientes != 1 else '' }}
+      </div>
+      <div class="stat-pill">
+        <i class="fas fa-user"></i>
+        {{ current_user.nombre }}
+      </div>
     </div>
+  </div>
 </div>
+
+<div class="container pb-5">
+
+  {% if clientes_por_ruta %}
+
+  <!-- BUSCADOR -->
+  <div class="search-wrapper">
+    <i class="fas fa-search"></i>
+    <input type="text" id="buscarRuta" placeholder="Buscar ruta o cliente…" autocomplete="off">
+  </div>
+
+  <!-- ACORDEÓN DE RUTAS -->
+  <div id="rutasAccordion">
+    {% set route_colors = ['#e94560','#4361ee','#f77f00','#27c78a','#9b5de5','#00b4d8','#e9c46a','#ff6b6b'] %}
+
+    {% for ruta, clientes in clientes_por_ruta.items() %}
+    {% set color = route_colors[loop.index0 % route_colors|length] %}
+    {% set ruta_id = 'ruta-' ~ loop.index %}
+
+    <div class="ruta-card" data-ruta="{{ ruta|lower }}" data-clientes="{{ clientes|map(attribute='nombre')|join(' ')|lower }}">
+      <!-- Header de la ruta -->
+      <button
+        class="ruta-header"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#{{ ruta_id }}"
+        aria-expanded="false"
+        aria-controls="{{ ruta_id }}"
+        onclick="toggleCard(this)"
+      >
+        <div class="ruta-left">
+          <div class="ruta-icon" style="background: {{ color }}22; color: {{ color }}; border: 1.5px solid {{ color }}44;">
+            <i class="fas fa-road"></i>
+          </div>
+          <div class="ruta-info">
+            <h3>{{ ruta }}</h3>
+            <small><i class="fas fa-map-marker-alt me-1"></i>Zona de reparto</small>
+          </div>
+        </div>
+        <div class="ruta-meta">
+          <span class="badge-clientes">
+            <strong>{{ clientes|length }}</strong>
+            cliente{{ 's' if clientes|length != 1 else '' }}
+          </span>
+          <i class="fas fa-chevron-down chevron-icon"></i>
+        </div>
+      </button>
+
+      <!-- Lista de clientes (colapsable) -->
+      <div class="collapse" id="{{ ruta_id }}">
+        <div class="clientes-body">
+          {% for cliente in clientes %}
+          <div class="cliente-item">
+            <div class="cliente-numero">{{ loop.index }}</div>
+            <div class="cliente-data">
+              <div class="cliente-nombre">{{ cliente.nombre }}</div>
+              <div class="cliente-details">
+                {% if cliente.direccion %}
+                <span class="detail-chip">
+                  <i class="fas fa-map-marker-alt"></i>
+                  {{ cliente.direccion }}
+                </span>
+                {% endif %}
+                {% if cliente.telefono %}
+                <span class="detail-chip">
+                  <i class="fas fa-phone"></i>
+                  {{ cliente.telefono }}
+                </span>
+                {% endif %}
+                {% if not cliente.direccion and not cliente.telefono %}
+                <span class="detail-chip">
+                  <i class="fas fa-info-circle"></i>
+                  Sin datos de contacto
+                </span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Sin resultados de búsqueda -->
+  <div id="sinResultados" style="display:none;" class="empty-state">
+    <i class="fas fa-search-minus"></i>
+    <p>No se encontraron rutas o clientes con ese nombre.</p>
+  </div>
+
+  {% else %}
+  <!-- Sin rutas -->
+  <div class="empty-state">
+    <i class="fas fa-route"></i>
+    <h4 style="color: #fff; margin-bottom: 0.5rem;">Sin rutas disponibles</h4>
+    <p>No hay clientes cargados en el sistema todavía.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Marca la card como abierta/cerrada para estilos
+  function toggleCard(btn) {
+    const card = btn.closest('.ruta-card');
+    setTimeout(() => {
+      const isOpen = btn.getAttribute('aria-expanded') === 'true';
+      card.classList.toggle('is-open', isOpen);
+    }, 10);
+  }
+
+  // ── BUSCADOR EN TIEMPO REAL ──
+  const inputBuscar = document.getElementById('buscarRuta');
+  const sinResultados = document.getElementById('sinResultados');
+
+  if (inputBuscar) {
+    inputBuscar.addEventListener('input', function () {
+      const q = this.value.trim().toLowerCase();
+      const cards = document.querySelectorAll('.ruta-card');
+      let visibles = 0;
+
+      cards.forEach(card => {
+        const ruta = card.dataset.ruta || '';
+        const clientes = card.dataset.clientes || '';
+        const match = ruta.includes(q) || clientes.includes(q);
+        card.style.display = match ? '' : 'none';
+        if (match) visibles++;
+      });
+
+      sinResultados.style.display = visibles === 0 ? 'block' : 'none';
+    });
+  }
+</script>
 {% endblock %}

@@ -198,6 +198,37 @@
   </div>
 </div>
 
+<!-- ── RESUMEN DE COBROS DEL DÍA ── -->
+<div class="resumen-general mb-4 mt-2">
+  <div class="resumen-stat">
+    <div class="num text-success">
+      ${{ "%.0f"|format(total_efectivo) }}
+    </div>
+    <div class="lbl">Efectivo</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num text-info">
+      ${{ "%.0f"|format(total_transferencia) }}
+    </div>
+    <div class="lbl">Transferencias</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num text-secondary">
+      ${{ "%.0f"|format(total_cheque) }}
+    </div>
+    <div class="lbl">Cheques</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num text-primary">
+      ${{ "%.0f"|format(total_efectivo + total_transferencia + total_cheque) }}
+    </div>
+    <div class="lbl">Total Cobrado Hoy</div>
+  </div>
+</div>
+
 <!-- ── BUSCADOR CON AUTOCOMPLETADO ── -->
 <div class="search-wrapper mb-3">
   <div class="input-group">

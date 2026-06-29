@@ -885,6 +885,20 @@ def boletas():
     # Lista plana de nombres para autocompletado
     nombres_clientes = [d['cliente'].nombre for d in datos_clientes]
 
+    # Totales de cobro del día (efectivo, transferencia, cheque) en general
+    totales_cobro = db.session.query(
+        func.sum(PagoBoleta.efectivo).label('total_efectivo'),
+        func.sum(PagoBoleta.transferencia).label('total_transferencia'),
+        func.sum(PagoBoleta.cheque).label('total_cheque')
+    ).filter(
+        PagoBoleta.fecha_cobro >= inicio_hoy,
+        PagoBoleta.fecha_cobro <= fin_hoy
+    ).first()
+
+    total_efectivo = float(totales_cobro.total_efectivo) if totales_cobro and totales_cobro.total_efectivo else 0.0
+    total_transferencia = float(totales_cobro.total_transferencia) if totales_cobro and totales_cobro.total_transferencia else 0.0
+    total_cheque = float(totales_cobro.total_cheque) if totales_cobro and totales_cobro.total_cheque else 0.0
+
     return render_template(
         'ventas/boletas.html',
         title='Boletas y Cobros',
@@ -892,6 +906,9 @@ def boletas():
         resumen_rutas=resumen_rutas,
         nombres_clientes=nombres_clientes,
         total_clientes=len(datos_clientes),
+        total_efectivo=total_efectivo,
+        total_transferencia=total_transferencia,
+        total_cheque=total_cheque,
         hoy=hoy
     )
 

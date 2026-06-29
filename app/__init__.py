@@ -75,6 +75,8 @@ def create_app(config_name='development'):
                 return redirect(url_for('sucursal.dashboard'))
             elif current_user.rol == 'administracion':
                 return redirect(url_for('administracion.dashboard'))
+            elif current_user.rol == 'repartidor':
+                return redirect(url_for('repartidor.dashboard'))
         return redirect(url_for('auth.login'))
     
     # Manejador de errores 404

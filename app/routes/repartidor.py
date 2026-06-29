@@ -77,34 +77,61 @@ def cobro_cliente(cliente_id):
 
     hoy = date.today()
 
+    # ── VERIFICAR PAGOS HOY ──
+    from datetime import datetime
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    pagos_hoy = PagoBoleta.query.filter(
+        PagoBoleta.cliente_id == cliente_id,
+        PagoBoleta.fecha_cobro >= inicio_hoy,
+        PagoBoleta.fecha_cobro <= fin_hoy
+    ).count()
+
+    ya_cobro_hoy = (pagos_hoy > 0)
+
     # ── BOLETA ACTUAL ──
-    # La boleta del día de hoy con estado pendiente o parcial (si existe)
     boleta_actual = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
+            Boleta.fecha_entrega == hoy
         )
         .order_by(Boleta.fecha_creacion.desc())
         .first()
     )
 
     # ── CUENTA CORRIENTE ──
-    # Boletas anteriores a hoy con saldo pendiente (pendiente o parcial)
-    boletas_cc = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
+    if ya_cobro_hoy:
+        # Si ya cobró hoy, toda la deuda (incluso la de hoy) pasa a ser Cuenta Corriente visualmente
+        boletas_cc = (
+            Boleta.query
+            .filter(
+                Boleta.cliente_id == cliente_id,
+                Boleta.fecha_entrega <= hoy,
+                Boleta.estado.in_(['pendiente', 'parcial'])
+            )
+            .order_by(Boleta.fecha_entrega.asc())
+            .all()
         )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
-    )
+        monto_boleta_actual = 0.0
+    else:
+        # Comportamiento normal (no cobró hoy)
+        boletas_cc = (
+            Boleta.query
+            .filter(
+                Boleta.cliente_id == cliente_id,
+                Boleta.fecha_entrega < hoy,
+                Boleta.estado.in_(['pendiente', 'parcial'])
+            )
+            .order_by(Boleta.fecha_entrega.asc())
+            .all()
+        )
+        if boleta_actual and boleta_actual.estado in ['pendiente', 'parcial']:
+            monto_boleta_actual = float(boleta_actual.saldo_pendiente)
+        else:
+            monto_boleta_actual = 0.0
 
     # Totales
-    monto_boleta_actual = float(boleta_actual.saldo_pendiente) if boleta_actual else 0.0
     saldo_cc = sum(float(b.saldo_pendiente) for b in boletas_cc)
     total_deuda = monto_boleta_actual + saldo_cc
 
@@ -127,6 +154,7 @@ def cobro_cliente(cliente_id):
         saldo_cc=saldo_cc,
         total_deuda=total_deuda,
         historial_pagos=historial_pagos,
+        ya_cobro_hoy=ya_cobro_hoy,
         hoy=hoy
     )
 

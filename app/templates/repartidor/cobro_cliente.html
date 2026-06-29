@@ -220,7 +220,10 @@
 <div class="card-resumen card-boleta">
   <div class="card-etiqueta">Boleta de hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
   <div class="card-monto">${{ "%.2f"|format(monto_boleta_actual) }}</div>
-  {% if not boleta_actual %}
+  {% if ya_cobro_hoy %}
+    <div class="card-nota text-success fw-bold" style="color: #1a6b3c;"><i class="fas fa-check-circle me-1"></i>Visita del día completada.</div>
+    <div class="card-nota">El saldo restante se trasladó a Cuenta Corriente.</div>
+  {% elif not boleta_actual %}
     <div class="card-nota">Sin boleta cargada para hoy.</div>
   {% elif boleta_actual.estado == 'parcial' %}
     <div class="card-nota">Pago parcial registrado anteriormente.</div>

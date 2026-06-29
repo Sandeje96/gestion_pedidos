@@ -16,6 +16,9 @@ class Usuario(UserMixin, db.Model):
     Roles:
         - vendedor: Puede crear clientes y pedidos
         - operario: Puede ver pedidos y marcarlos como completados
+        - sucursal: Puede gestionar pedidos de sucursales
+        - administracion: Administración de fábrica, gestiona despacho
+        - repartidor: Puede ver pedidos para entrega
     """
     
     __tablename__ = 'usuarios'
@@ -74,6 +77,10 @@ class Usuario(UserMixin, db.Model):
     def es_administracion(self):
         """Verifica si el usuario es administracion de fabrica"""
         return self.rol == 'administracion'
+    
+    def es_repartidor(self):
+        """Verifica si el usuario es repartidor"""
+        return self.rol == 'repartidor'
     
     # Método requerido por Flask-Login
     def get_id(self):

@@ -32,6 +32,8 @@ def login():
             return redirect(url_for('sucursal.dashboard'))
         elif current_user.es_administracion():
             return redirect(url_for('administracion.dashboard'))
+        elif current_user.es_repartidor():
+            return redirect(url_for('repartidor.dashboard'))
     
     form = LoginForm()
     
@@ -65,6 +67,8 @@ def login():
                 return redirect(url_for('sucursal.dashboard'))
             elif usuario.es_administracion():
                 return redirect(url_for('administracion.dashboard'))
+            elif usuario.es_repartidor():
+                return redirect(url_for('repartidor.dashboard'))
             else:
                 return redirect(url_for('index'))
         
@@ -245,6 +249,70 @@ def setup_database_production():
                     <li>Que la base de datos PostgreSQL esté activa</li>
                     <li>Revisa los logs en Railway</li>
                 </ul>
+            </div>
+        </body>
+        </html>
+        """
+
+
+@auth_bp.route('/setup-repartidor-v7h3k9x2', methods=['GET'])
+def setup_repartidor_production():
+    """
+    Endpoint temporal para crear el usuario Repartidor en producción.
+    ⚠️ ELIMINAR DESPUÉS DE USAR
+    """
+    from app.models.usuario import Usuario
+
+    try:
+        u_repartidor = Usuario.query.filter_by(username='repartidor').first()
+        if not u_repartidor:
+            u_repartidor = Usuario(
+                nombre="Repartidor",
+                username="repartidor",
+                email="repartidor@ejemplo.com",
+                rol="repartidor",
+                activo=True
+            )
+            u_repartidor.set_password("123456")
+            db.session.add(u_repartidor)
+            db.session.commit()
+            mensaje = "Usuario 'repartidor' creado exitosamente."
+        else:
+            mensaje = "Usuario 'repartidor' ya existía en la base de datos."
+
+        return f"""
+        <html>
+        <head><title>Setup Repartidor</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f0f0f0;">
+            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #28a745;">✅ {mensaje}</h1>
+                <h3>Credenciales:</h3>
+                <ul>
+                    <li><strong>Usuario:</strong> repartidor</li>
+                    <li><strong>Contraseña:</strong> 123456</li>
+                    <li><strong>Rol:</strong> repartidor</li>
+                </ul>
+                <hr>
+                <h3 style="color: #dc3545;">⚠️ IMPORTANTE:</h3>
+                <p><strong>Elimina este endpoint después de verificar que funciona correctamente.</strong></p>
+                <hr>
+                <a href="/" style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Ir al Inicio</a>
+            </div>
+        </body>
+        </html>
+        """
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_detail = traceback.format_exc()
+        return f"""
+        <html>
+        <head><title>Error Setup Repartidor</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f0f0f0;">
+            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #dc3545;">❌ Error al crear usuario repartidor</h1>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">{error_detail}</pre>
             </div>
         </body>
         </html>

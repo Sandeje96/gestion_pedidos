@@ -777,8 +777,8 @@ def stock():
 @vendedor_requerido
 def boletas():
     """
-    Lista todos los clientes activos (no sucursales) con el estado
-    de su boleta del día y el saldo de cuenta corriente.
+    Lista todos los clientes activos (no sucursales) agrupados por ruta,
+    con el estado de su boleta del día y el saldo de cuenta corriente.
     Solo accesible por el usuario Vendedor.
     """
     hoy = date.today()
@@ -831,10 +831,34 @@ def boletas():
             'ultimo_cobro': ultimo_cobro,
         })
 
+    # Agrupar por ruta, ordenadas alfabéticamente
+    from collections import defaultdict
+    datos_por_ruta = defaultdict(list)
+    for d in datos_clientes:
+        datos_por_ruta[d['cliente'].ruta].append(d)
+    datos_por_ruta = dict(sorted(datos_por_ruta.items()))
+
+    # Calcular resumen por ruta
+    resumen_rutas = {}
+    for ruta, datos in datos_por_ruta.items():
+        resumen_rutas[ruta] = {
+            'total_clientes': len(datos),
+            'con_boleta': sum(1 for d in datos if d['boleta_hoy']),
+            'sin_boleta': sum(1 for d in datos if not d['boleta_hoy']),
+            'total_a_cobrar': sum(d['total_deuda'] for d in datos),
+            'con_cc': sum(1 for d in datos if d['saldo_cc'] > 0),
+        }
+
+    # Lista plana de nombres para autocompletado
+    nombres_clientes = [d['cliente'].nombre for d in datos_clientes]
+
     return render_template(
         'ventas/boletas.html',
         title='Boletas y Cobros',
-        datos_clientes=datos_clientes,
+        datos_por_ruta=datos_por_ruta,
+        resumen_rutas=resumen_rutas,
+        nombres_clientes=nombres_clientes,
+        total_clientes=len(datos_clientes),
         hoy=hoy
     )
 

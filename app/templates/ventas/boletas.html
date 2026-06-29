@@ -1,104 +1,521 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+  /* ── BUSCADOR CON AUTOCOMPLETADO ── */
+  .search-wrapper {
+    position: relative;
+  }
+  .autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    display: none;
+  }
+  .autocomplete-list.visible { display: block; }
+  .autocomplete-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover,
+  .autocomplete-item.active {
+    background: #f0f4ff;
+    color: #0d6efd;
+  }
+  .autocomplete-item .ac-ruta {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-left: auto;
+  }
+  .autocomplete-item mark {
+    background: #fff3cd;
+    padding: 0 2px;
+    border-radius: 2px;
+    color: inherit;
+    font-weight: 600;
+  }
+  .search-input-clear {
+    position: absolute;
+    right: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: #aaa;
+    cursor: pointer;
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .search-input-clear.visible { display: block; }
+
+  /* ── ACORDEÓN DE RUTAS ── */
+  .ruta-accordion .accordion-button {
+    font-weight: 600;
+    background: #f8f9fa;
+  }
+  .ruta-accordion .accordion-button:not(.collapsed) {
+    background: #e7f1ff;
+    color: #0d6efd;
+    box-shadow: none;
+  }
+  .ruta-accordion .accordion-button::after {
+    filter: none;
+  }
+
+  /* Badges en el header de la ruta */
+  .ruta-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 10px; }
+
+  /* Tabla de clientes dentro del acordeón */
+  .tabla-clientes { margin: 0; }
+  .tabla-clientes thead th {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    padding: 8px 12px;
+  }
+  .tabla-clientes tbody td {
+    padding: 10px 12px;
+    vertical-align: middle;
+    font-size: 0.92rem;
+  }
+  .tabla-clientes tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.1s;
+  }
+  .tabla-clientes tbody tr:last-child { border-bottom: none; }
+  .tabla-clientes tbody tr:hover { background: #f8f9fa; }
+
+  /* Highlight de fila al buscar */
+  .fila-cliente.highlight {
+    background: #fffde7 !important;
+    outline: 2px solid #ffc107;
+    outline-offset: -2px;
+    border-radius: 4px;
+  }
+
+  /* Totales al pie de cada ruta */
+  .ruta-footer {
+    background: #f8f9fa;
+    border-top: 2px solid #dee2e6;
+    padding: 8px 12px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: #6c757d;
+  }
+  .ruta-footer span strong { color: #212529; }
+
+  /* Pills de estado */
+  .pill-sin-boleta { color: #6c757d; font-size: 0.78rem; }
+
+  /* Card de resumen general */
+  .resumen-general {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 12px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 1.5rem;
+    color: #fff;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    align-items: center;
+  }
+  .resumen-stat { text-align: center; }
+  .resumen-stat .num { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+  .resumen-stat .lbl { font-size: 0.72rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+  .resumen-sep { width: 1px; background: rgba(255,255,255,0.15); height: 40px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-sm btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Volver al Panel
-        </a>
-    </div>
+
+<!-- ── ENCABEZADO ── -->
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">
+      <i class="fas fa-arrow-left"></i> Panel de Ventas
+    </a>
+    <h4 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Boletas y Cobros</h4>
+    <p class="text-muted small mb-0">
+      {{ hoy.strftime('%A %d de %B de %Y') }} &mdash;
+      Exclusivo para Ventas y Repartidor
+    </p>
+  </div>
 </div>
 
-<div class="row mb-3">
-    <div class="col">
-        <h4><i class="fas fa-file-invoice-dollar"></i> Boletas y Cobros del Día</h4>
-        <p class="text-muted mb-0">
-            <strong>{{ hoy.strftime('%d/%m/%Y') }}</strong> —
-            Esta sección es <strong>exclusiva</strong> para Ventas y Repartidor.
-        </p>
+{% if datos_por_ruta %}
+
+<!-- ── RESUMEN GENERAL ── -->
+<div class="resumen-general">
+  <div class="resumen-stat">
+    <div class="num">{{ datos_por_ruta|length }}</div>
+    <div class="lbl">Rutas</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num">{{ total_clientes }}</div>
+    <div class="lbl">Clientes</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num text-warning">
+      {{ resumen_rutas.values()|sum(attribute='con_boleta') }}
     </div>
+    <div class="lbl">Con boleta hoy</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num" style="color:#3fb950;">
+      ${{ "%.0f"|format(resumen_rutas.values()|sum(attribute='total_a_cobrar')) }}
+    </div>
+    <div class="lbl">Total a cobrar</div>
+  </div>
+  <div class="resumen-sep"></div>
+  <div class="resumen-stat">
+    <div class="num" style="color:#f8d56b;">
+      {{ resumen_rutas.values()|sum(attribute='con_cc') }}
+    </div>
+    <div class="lbl">Con cuenta cte.</div>
+  </div>
 </div>
 
-{% if datos_clientes %}
-<div class="card">
-    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <span><i class="fas fa-list"></i> Clientes</span>
-        <small class="text-white-50">{{ datos_clientes|length }} cliente(s)</small>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover table-sm mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Cliente</th>
-                    <th>Ruta</th>
-                    <th class="text-end">Boleta hoy</th>
-                    <th class="text-end">Cuenta Cte.</th>
-                    <th class="text-end">Total a cobrar</th>
-                    <th>Estado</th>
-                    <th>Último cobro</th>
-                    <th></th>
-                </tr>
+<!-- ── BUSCADOR CON AUTOCOMPLETADO ── -->
+<div class="search-wrapper mb-3">
+  <div class="input-group">
+    <span class="input-group-text bg-white border-end-0">
+      <i class="fas fa-search text-muted"></i>
+    </span>
+    <input
+      type="text"
+      id="buscadorCliente"
+      class="form-control border-start-0 ps-0"
+      placeholder="Buscar cliente por nombre…"
+      autocomplete="off"
+      autocorrect="off"
+      style="font-size: 1rem; padding: 0.6rem 0.4rem;"
+    >
+    <button class="search-input-clear" id="btnLimpiar" title="Limpiar">&times;</button>
+  </div>
+  <div class="autocomplete-list" id="autocompleteList"></div>
+</div>
+
+<!-- ── ACORDEÓN DE RUTAS ── -->
+<div class="accordion ruta-accordion" id="acordeonRutas">
+  {% for ruta, datos in datos_por_ruta.items() %}
+  {% set r = resumen_rutas[ruta] %}
+  {% set ruta_id = 'ruta-' ~ loop.index %}
+
+  <div class="accordion-item border mb-2 rounded overflow-hidden shadow-sm"
+       id="bloque-{{ ruta_id }}"
+       data-ruta="{{ ruta|lower }}">
+
+    <!-- HEADER DE LA RUTA -->
+    <h2 class="accordion-header" id="head-{{ ruta_id }}">
+      <button
+        class="accordion-button collapsed"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#body-{{ ruta_id }}"
+        aria-expanded="false"
+      >
+        <i class="fas fa-route me-2 text-primary"></i>
+        <strong>{{ ruta }}</strong>
+
+        <span class="ruta-badges ms-2">
+          <!-- Clientes -->
+          <span class="badge bg-secondary">
+            {{ r.total_clientes }} cliente{{ 's' if r.total_clientes != 1 else '' }}
+          </span>
+          <!-- Con boleta -->
+          {% if r.con_boleta > 0 %}
+          <span class="badge bg-primary">
+            <i class="fas fa-file-invoice me-1"></i>{{ r.con_boleta }} con boleta
+          </span>
+          {% endif %}
+          <!-- Sin boleta -->
+          {% if r.sin_boleta > 0 %}
+          <span class="badge bg-light text-dark border">
+            {{ r.sin_boleta }} sin boleta
+          </span>
+          {% endif %}
+          <!-- CC pendiente -->
+          {% if r.con_cc > 0 %}
+          <span class="badge bg-warning text-dark">
+            <i class="fas fa-exclamation-circle me-1"></i>{{ r.con_cc }} con CC
+          </span>
+          {% endif %}
+          <!-- Total a cobrar -->
+          {% if r.total_a_cobrar > 0 %}
+          <span class="badge bg-success">
+            ${{ "%.2f"|format(r.total_a_cobrar) }}
+          </span>
+          {% endif %}
+        </span>
+      </button>
+    </h2>
+
+    <!-- BODY: tabla de clientes de esa ruta -->
+    <div id="body-{{ ruta_id }}" class="accordion-collapse collapse"
+         data-bs-parent="">
+      <div class="accordion-body p-0">
+        <div class="table-responsive">
+          <table class="tabla-clientes table mb-0">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th class="text-end">Boleta hoy</th>
+                <th class="text-end">Cuenta Cte.</th>
+                <th class="text-end">Total a cobrar</th>
+                <th>Estado</th>
+                <th>Último cobro</th>
+                <th></th>
+              </tr>
             </thead>
             <tbody>
-                {% for d in datos_clientes %}
-                <tr>
-                    <td><strong>{{ d.cliente.nombre }}</strong></td>
-                    <td><span class="badge bg-secondary">{{ d.cliente.ruta }}</span></td>
-                    <td class="text-end">
-                        {% if d.boleta_hoy %}
-                            <span class="fw-bold text-primary">${{ "%.2f"|format(d.monto_hoy) }}</span>
-                        {% else %}
-                            <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-end">
-                        {% if d.saldo_cc > 0 %}
-                            <span class="fw-bold text-warning">${{ "%.2f"|format(d.saldo_cc) }}</span>
-                        {% else %}
-                            <span class="text-muted">$0.00</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-end">
-                        {% if d.total_deuda > 0 %}
-                            <span class="fw-bold text-danger">${{ "%.2f"|format(d.total_deuda) }}</span>
-                        {% else %}
-                            <span class="text-success">Al día</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if d.boleta_hoy %}
-                            {% if d.boleta_hoy.estado == 'parcial' %}
-                                <span class="badge bg-warning text-dark">Parcial</span>
-                            {% else %}
-                                <span class="badge bg-primary">Pendiente</span>
-                            {% endif %}
-                        {% else %}
-                            <span class="badge bg-light text-dark border">Sin boleta</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if d.ultimo_cobro %}
-                            <small class="text-muted">{{ d.ultimo_cobro.fecha_cobro.strftime('%d/%m %H:%M') }}</small>
-                        {% else %}
-                            <small class="text-muted">—</small>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=d.cliente.id) }}"
-                           class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-edit"></i> Gestionar
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
+              {% for d in datos %}
+              <tr class="fila-cliente"
+                  data-nombre="{{ d.cliente.nombre|lower }}"
+                  data-ruta="{{ ruta|lower }}"
+                  id="fila-{{ d.cliente.id }}">
+                <td>
+                  <strong>{{ d.cliente.nombre }}</strong>
+                  {% if d.cliente.telefono %}
+                    <br><small class="text-muted">
+                      <i class="fas fa-phone fa-xs me-1"></i>{{ d.cliente.telefono }}
+                    </small>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% if d.boleta_hoy %}
+                    <span class="fw-bold text-primary">${{ "%.2f"|format(d.monto_hoy) }}</span>
+                  {% else %}
+                    <span class="text-muted pill-sin-boleta">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% if d.saldo_cc > 0 %}
+                    <span class="fw-bold text-warning">${{ "%.2f"|format(d.saldo_cc) }}</span>
+                  {% else %}
+                    <span class="text-muted small">$0.00</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% if d.total_deuda > 0 %}
+                    <span class="fw-bold text-danger">${{ "%.2f"|format(d.total_deuda) }}</span>
+                  {% else %}
+                    <span class="text-success small"><i class="fas fa-check me-1"></i>Al día</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.boleta_hoy %}
+                    {% if d.boleta_hoy.estado == 'parcial' %}
+                      <span class="badge bg-warning text-dark">Parcial</span>
+                    {% else %}
+                      <span class="badge bg-primary">Pendiente</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge bg-light text-dark border">Sin boleta</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if d.ultimo_cobro %}
+                    <small class="text-muted">
+                      <i class="fas fa-truck fa-xs me-1"></i>
+                      {{ d.ultimo_cobro.fecha_cobro.strftime('%d/%m %H:%M') }}
+                    </small>
+                  {% else %}
+                    <small class="text-muted">—</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=d.cliente.id) }}"
+                     class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-edit"></i> Gestionar
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
             </tbody>
-        </table>
+          </table>
+        </div>
+        <!-- TOTALES DE LA RUTA -->
+        <div class="ruta-footer">
+          <span><strong>{{ r.con_boleta }}</strong> con boleta hoy</span>
+          <span><strong>{{ r.sin_boleta }}</strong> sin boleta</span>
+          {% if r.total_a_cobrar > 0 %}
+          <span class="ms-auto">Total ruta: <strong>${{ "%.2f"|format(r.total_a_cobrar) }}</strong></span>
+          {% endif %}
+        </div>
+      </div>
     </div>
+
+  </div>
+  {% endfor %}
 </div>
+
 {% else %}
-<div class="alert alert-info">
-    <i class="fas fa-info-circle"></i> No hay clientes activos cargados en el sistema.
+<div class="alert alert-info mt-3">
+  <i class="fas fa-info-circle me-1"></i>
+  No hay clientes activos cargados en el sistema.
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // ── Datos para autocompletado ──
+  const clientes = [
+    {% for ruta, datos in datos_por_ruta.items() %}
+    {% for d in datos %}
+    { nombre: {{ d.cliente.nombre|tojson }}, ruta: {{ ruta|tojson }}, id: {{ d.cliente.id }}, rutaAccordion: "body-ruta-{{ loop.index0 + 1 }}", rutaBloque: "bloque-ruta-{{ loop.index0 + 1 }}", filaId: "fila-{{ d.cliente.id }}" },
+    {% endfor %}
+    {% endfor %}
+  ];
+
+  // Re-generar índice correcto (loop.index0 es dentro del for de ruta, no global)
+  // Construimos un mapa clienteId → { rutaAccordionId, filaId } directamente desde el DOM
+  const filaMap = {};
+  document.querySelectorAll('.fila-cliente').forEach(function(fila) {
+    const nombre = fila.dataset.nombre;
+    const accordionBody = fila.closest('.accordion-collapse');
+    const accordionBloque = fila.closest('.accordion-item');
+    filaMap[nombre] = {
+      filaEl: fila,
+      bodyEl: accordionBody,
+      bloqueEl: accordionBloque
+    };
+  });
+
+  const input = document.getElementById('buscadorCliente');
+  const lista = document.getElementById('autocompleteList');
+  const btnLimpiar = document.getElementById('btnLimpiar');
+  let activeIdx = -1;
+  let filteredItems = [];
+
+  function highlight(text, query) {
+    if (!query) return escapeHtml(text);
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escapeHtml(text);
+    return escapeHtml(text.slice(0, idx))
+      + '<mark>' + escapeHtml(text.slice(idx, idx + query.length)) + '</mark>'
+      + escapeHtml(text.slice(idx + query.length));
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderLista(query) {
+    lista.innerHTML = '';
+    activeIdx = -1;
+    if (!query || query.length < 1) {
+      lista.classList.remove('visible');
+      return;
+    }
+    filteredItems = clientes.filter(function(c) {
+      return c.nombre.toLowerCase().includes(query.toLowerCase());
+    }).slice(0, 10);
+
+    if (filteredItems.length === 0) {
+      lista.innerHTML = '<div class="autocomplete-item text-muted"><i class="fas fa-search-minus me-2"></i>Sin resultados</div>';
+      lista.classList.add('visible');
+      return;
+    }
+
+    filteredItems.forEach(function(c, i) {
+      const item = document.createElement('div');
+      item.className = 'autocomplete-item';
+      item.innerHTML =
+        '<i class="fas fa-user fa-xs text-muted"></i> ' +
+        highlight(c.nombre, query) +
+        '<span class="ac-ruta"><i class="fas fa-route fa-xs me-1"></i>' + escapeHtml(c.ruta) + '</span>';
+      item.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        seleccionar(c.nombre, i);
+      });
+      lista.appendChild(item);
+    });
+    lista.classList.add('visible');
+  }
+
+  function seleccionar(nombre, idx) {
+    input.value = nombre;
+    lista.classList.remove('visible');
+    btnLimpiar.classList.add('visible');
+    // Abrir acordeón y hacer scroll
+    const key = nombre.toLowerCase();
+    if (filaMap[key]) {
+      const { filaEl, bodyEl, bloqueEl } = filaMap[key];
+      // Abrir el acordeón con Bootstrap
+      const bsCollapse = bootstrap.Collapse.getOrCreateInstance(bodyEl, { toggle: false });
+      bsCollapse.show();
+      setTimeout(function () {
+        filaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        filaEl.classList.add('highlight');
+        setTimeout(function () { filaEl.classList.remove('highlight'); }, 2500);
+      }, 320);
+    }
+  }
+
+  input.addEventListener('input', function () {
+    const q = this.value.trim();
+    renderLista(q);
+    btnLimpiar.classList.toggle('visible', q.length > 0);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    const items = lista.querySelectorAll('.autocomplete-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+    } else if (e.key === 'Enter' && activeIdx >= 0 && filteredItems[activeIdx]) {
+      e.preventDefault();
+      seleccionar(filteredItems[activeIdx].nombre, activeIdx);
+      return;
+    } else if (e.key === 'Escape') {
+      lista.classList.remove('visible');
+      return;
+    } else {
+      return;
+    }
+    items.forEach(function (it, i) { it.classList.toggle('active', i === activeIdx); });
+  });
+
+  input.addEventListener('blur', function () {
+    setTimeout(function () { lista.classList.remove('visible'); }, 150);
+  });
+
+  btnLimpiar.addEventListener('click', function () {
+    input.value = '';
+    lista.classList.remove('visible');
+    btnLimpiar.classList.remove('visible');
+    input.focus();
+  });
+
+})();
+</script>
 {% endblock %}

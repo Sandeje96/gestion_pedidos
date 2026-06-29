@@ -1120,4 +1120,86 @@ def anular_boleta(boleta_id):
         db.session.rollback()
         flash(f'Error al anular: {str(e)}', 'danger')
 
-    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+@ventas_bp.route('/cliente/<int:cliente_id>/resetear_dia', methods=['POST'])
+@vendedor_requerido
+def resetear_cliente_dia(cliente_id):
+    """
+    Resetea la actividad del día para el cliente.
+    Mueve la boleta de hoy (y sus pagos de hoy) a 'ayer',
+    haciendo que el saldo pase a Cuenta Corriente y se limpie la boleta del día.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
+
+    # 1. Mover boletas de hoy a ayer
+    boletas_hoy = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.fecha_entrega == hoy
+    ).all()
+    for b in boletas_hoy:
+        b.fecha_entrega = ayer
+
+    # 2. Mover pagos de hoy a ayer
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    pagos_hoy = PagoBoleta.query.filter(
+        PagoBoleta.cliente_id == cliente_id,
+        PagoBoleta.fecha_cobro >= inicio_hoy,
+        PagoBoleta.fecha_cobro <= fin_hoy
+    ).all()
+    for p in pagos_hoy:
+        p.fecha_cobro = datetime.combine(ayer, p.fecha_cobro.time())
+
+    db.session.commit()
+    flash(f'Día reseteado para el cliente {cliente.nombre}.', 'success')
+    return redirect(url_for('ventas.boletas'))
+
+
+@ventas_bp.route('/ruta/<ruta_nombre>/resetear_dia', methods=['POST'])
+@vendedor_requerido
+def resetear_ruta_dia(ruta_nombre):
+    """
+    Resetea la actividad del día para todos los clientes de una ruta específica.
+    """
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
+    
+    # 1. Obtener todos los clientes activos de esta ruta
+    clientes_ruta = Cliente.query.filter(
+        Cliente.ruta == ruta_nombre,
+        Cliente.activo == True
+    ).all()
+    
+    if not clientes_ruta:
+        flash(f'No se encontraron clientes activos en la ruta {ruta_nombre}.', 'warning')
+        return redirect(url_for('ventas.boletas'))
+        
+    clientes_ids = [c.id for c in clientes_ruta]
+
+    # 2. Mover boletas de hoy a ayer para esta ruta
+    boletas_hoy = Boleta.query.filter(
+        Boleta.cliente_id.in_(clientes_ids),
+        Boleta.fecha_entrega == hoy
+    ).all()
+    for b in boletas_hoy:
+        b.fecha_entrega = ayer
+
+    # 3. Mover pagos de hoy a ayer para esta ruta
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    pagos_hoy = PagoBoleta.query.filter(
+        PagoBoleta.cliente_id.in_(clientes_ids),
+        PagoBoleta.fecha_cobro >= inicio_hoy,
+        PagoBoleta.fecha_cobro <= fin_hoy
+    ).all()
+    for p in pagos_hoy:
+        p.fecha_cobro = datetime.combine(ayer, p.fecha_cobro.time())
+
+    db.session.commit()
+    flash(f'Día reseteado para todos los clientes de la {ruta_nombre}.', 'success')
+    return redirect(url_for('ventas.boletas'))
+

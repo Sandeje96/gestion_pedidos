@@ -402,10 +402,20 @@
                   {% endif %}
                 </td>
                 <td>
-                  <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=d.cliente.id) }}"
-                     class="btn btn-sm btn-outline-primary">
-                    <i class="fas fa-edit"></i> Gestionar
-                  </a>
+                  <div class="d-flex gap-1">
+                    <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=d.cliente.id) }}"
+                       class="btn btn-sm btn-outline-primary" title="Gestionar">
+                      <i class="fas fa-edit"></i>
+                    </a>
+                    {% if d.boleta_hoy or d.cobrado_hoy > 0 %}
+                    <form action="{{ url_for('ventas.resetear_cliente_dia', cliente_id=d.cliente.id) }}" method="POST" class="m-0">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Cerrar el día y pasar a CC"
+                              onclick="return confirm('¿Seguro que querés dar por cerrado el día para {{ d.cliente.nombre }}? El saldo pendiente pasará a Cuenta Corriente.')">
+                        <i class="fas fa-broom"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                  </div>
                 </td>
               </tr>
               {% endfor %}
@@ -413,9 +423,19 @@
           </table>
         </div>
         <!-- TOTALES DE LA RUTA -->
-        <div class="ruta-footer">
+        <div class="ruta-footer d-flex align-items-center flex-wrap gap-3">
           <span><strong>{{ r.con_boleta }}</strong> con boleta hoy</span>
           <span><strong>{{ r.sin_boleta }}</strong> sin boleta</span>
+          
+          {% if r.con_boleta > 0 or r.total_a_cobrar > 0 %}
+          <form action="{{ url_for('ventas.resetear_ruta_dia', ruta_nombre=ruta) }}" method="POST" class="m-0 ms-3">
+            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                    onclick="return confirm('¿Estás seguro de cerrar el día para TODOS los clientes de la ruta {{ ruta }}? Todos los saldos pendientes se pasarán a Cuenta Corriente.')">
+              <i class="fas fa-broom me-1"></i> Cerrar día para esta ruta
+            </button>
+          </form>
+          {% endif %}
+
           {% if r.total_a_cobrar > 0 %}
           <span class="ms-auto">Total ruta: <strong>${{ "%.2f"|format(r.total_a_cobrar) }}</strong></span>
           {% endif %}

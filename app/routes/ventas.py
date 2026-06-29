@@ -12,7 +12,7 @@ from app.models.producto import Producto
 from app.models.boleta import Boleta, PagoBoleta
 from app.forms.cliente_forms import ClienteForm
 from app.forms.pedido_forms import PedidoForm, EditarPedidoForm
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
 from sqlalchemy import func
 
@@ -998,6 +998,53 @@ def guardar_boleta(cliente_id):
         flash(f'Error al guardar la boleta: {str(e)}', 'danger')
 
     return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+@ventas_bp.route('/cliente/<int:cliente_id>/boleta/saldo_inicial', methods=['POST'])
+@vendedor_requerido
+def cargar_saldo_inicial(cliente_id):
+    """
+    Carga una boleta con fecha de ayer para que figure directamente 
+    en la cuenta corriente del cliente como saldo inicial / deuda anterior.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    
+    monto_str = request.form.get('monto_inicial', '0').strip().replace(',', '.')
+    descripcion = request.form.get('descripcion', 'Saldo inicial / Deuda anterior').strip()
+    if not descripcion:
+        descripcion = 'Saldo inicial / Deuda anterior'
+        
+    try:
+        monto = float(monto_str)
+        if monto <= 0:
+            raise ValueError('El monto debe ser mayor a cero.')
+    except (ValueError, TypeError):
+        flash('El monto ingresado no es válido.', 'danger')
+        return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+        
+    # Creamos la boleta con fecha de ayer para que entre en Cuenta Corriente (fecha < hoy)
+    ayer = date.today() - timedelta(days=1)
+    
+    boleta = Boleta(
+        cliente_id=cliente_id,
+        fecha_entrega=ayer,
+        monto_boleta=monto,
+        saldo_pendiente=monto,
+        descripcion=descripcion,
+        estado='pendiente',
+        creado_por_id=current_user.id
+    )
+    db.session.add(boleta)
+    
+    try:
+        db.session.commit()
+        flash(f'Saldo inicial de ${monto:.2f} cargado correctamente a la cuenta corriente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al cargar el saldo inicial: {str(e)}', 'danger')
+        
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
 
 
 @ventas_bp.route('/boleta/<int:boleta_id>/anular', methods=['POST'])

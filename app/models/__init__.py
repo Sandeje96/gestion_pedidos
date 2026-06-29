@@ -11,5 +11,6 @@ from app.models.producto import Producto
 from app.models.mensaje_pedido import MensajePedido
 from app.models.produccion import ProduccionDiaria
 from app.models.boleta import Boleta, PagoBoleta
+from app.models.gasto_repartidor import GastoRepartidor
 
-__all__ = ['Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido', 'ProduccionDiaria', 'Boleta', 'PagoBoleta']
+__all__ = ['Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido', 'ProduccionDiaria', 'Boleta', 'PagoBoleta', 'GastoRepartidor']

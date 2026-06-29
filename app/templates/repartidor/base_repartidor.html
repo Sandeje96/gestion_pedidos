@@ -60,6 +60,31 @@
       margin: 0 auto;
     }
 
+    /* ── NAVEGACIÓN ── */
+    .repartidor-nav {
+      display: flex;
+      background: #145530;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+    .repartidor-nav a {
+      flex: 1;
+      text-align: center;
+      padding: 12px 0;
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: bold;
+      border-bottom: 3px solid transparent;
+    }
+    .repartidor-nav a.active {
+      color: #fff;
+      border-bottom: 3px solid #f8d56b;
+      background: rgba(0,0,0,0.1);
+    }
+    .repartidor-nav a:active { background: rgba(0,0,0,0.2); }
+
     {% block extra_css %}{% endblock %}
   </style>
 </head>
@@ -68,6 +93,16 @@
   <div class="topbar">
     <span class="topbar-title">&#x1F69A; Repartidor — {{ current_user.nombre }}</span>
     <a href="/auth/logout" class="btn-salir">Salir</a>
+  </div>
+
+  <!-- NAVEGACION -->
+  <div class="repartidor-nav">
+    <a href="{{ url_for('repartidor.dashboard') }}" class="{% if request.endpoint == 'repartidor.dashboard' or request.endpoint == 'repartidor.cobro_cliente' %}active{% endif %}">
+      Rutas / Cobros
+    </a>
+    <a href="{{ url_for('repartidor.gastos') }}" class="{% if request.endpoint == 'repartidor.gastos' %}active{% endif %}">
+      Mis Gastos
+    </a>
   </div>
 
   <!-- Mensajes flash -->

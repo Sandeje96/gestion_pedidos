@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.cliente import Cliente
 from app.models.boleta import Boleta, PagoBoleta
+from app.models.gasto_repartidor import GastoRepartidor
 from functools import wraps
 from collections import defaultdict
 from datetime import date, datetime
@@ -293,3 +294,76 @@ def registrar_pago(cliente_id):
         flash(f'Error al registrar el pago: {str(e)}', 'danger')
 
     return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+
+@repartidor_bp.route('/gastos', methods=['GET', 'POST'])
+@repartidor_requerido
+def gastos():
+    """
+    Panel para cargar y visualizar los gastos diarios del repartidor.
+    """
+    hoy = date.today()
+    
+    if request.method == 'POST':
+        tipo = request.form.get('tipo', '').strip()
+        monto_str = request.form.get('monto', '0').strip().replace(',', '.')
+        notas = request.form.get('notas', '').strip()
+        
+        try:
+            monto = Decimal(monto_str)
+            if monto <= 0:
+                raise ValueError
+        except (ValueError, InvalidOperation):
+            flash('El monto debe ser un número válido mayor a 0.', 'danger')
+            return redirect(url_for('repartidor.gastos'))
+            
+        if tipo == 'Otros' and not notas:
+            flash('Debes especificar en las notas de qué trata este gasto.', 'warning')
+            return redirect(url_for('repartidor.gastos'))
+            
+        nuevo_gasto = GastoRepartidor(
+            repartidor_id=current_user.id,
+            fecha=hoy,
+            tipo=tipo,
+            monto=monto,
+            notas=notas if notas else None
+        )
+        
+        db.session.add(nuevo_gasto)
+        db.session.commit()
+        flash('Gasto registrado correctamente.', 'success')
+        return redirect(url_for('repartidor.gastos'))
+        
+    # Obtener gastos de hoy
+    gastos_hoy = GastoRepartidor.query.filter_by(
+        repartidor_id=current_user.id,
+        fecha=hoy
+    ).order_by(GastoRepartidor.fecha_creacion.desc()).all()
+    
+    total_gastos = sum(g.monto for g in gastos_hoy)
+    
+    return render_template(
+        'repartidor/gastos.html',
+        title='Mis Gastos',
+        gastos_hoy=gastos_hoy,
+        total_gastos=total_gastos,
+        hoy=hoy
+    )
+
+
+@repartidor_bp.route('/gastos/<int:gasto_id>/eliminar', methods=['POST'])
+@repartidor_requerido
+def eliminar_gasto(gasto_id):
+    """
+    Elimina un gasto registrado por error.
+    """
+    gasto = GastoRepartidor.query.get_or_404(gasto_id)
+    
+    if gasto.repartidor_id != current_user.id:
+        flash('No tienes permiso para eliminar este gasto.', 'danger')
+        return redirect(url_for('repartidor.gastos'))
+        
+    db.session.delete(gasto)
+    db.session.commit()
+    flash('Gasto eliminado correctamente.', 'success')
+    return redirect(url_for('repartidor.gastos'))

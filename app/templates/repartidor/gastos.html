@@ -1,0 +1,190 @@
+{% extends "repartidor/base_repartidor.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .gastos-header {
+    background: #fff;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .gastos-header .total-lbl {
+    font-size: 1rem;
+    color: #555;
+    margin-bottom: 4px;
+    font-weight: bold;
+  }
+  .gastos-header .total-num {
+    font-size: 2.2rem;
+    color: #d32f2f;
+    font-weight: bold;
+  }
+  
+  .card-form {
+    background: #fff;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  
+  .seccion-titulo {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #333;
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 6px;
+    margin-bottom: 14px;
+  }
+  
+  .campo { margin-bottom: 16px; }
+  .campo label { display: block; font-weight: bold; margin-bottom: 6px; color: #333; }
+  .campo select, .campo input, .campo textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 1.1rem;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+  }
+  .campo select:focus, .campo input:focus, .campo textarea:focus {
+    border-color: #1a6b3c;
+    outline: none;
+  }
+  .campo-notas { display: none; }
+  .campo-notas.visible { display: block; }
+  
+  .btn-submit {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    background: #1a6b3c;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .btn-submit:active { background: #145530; }
+  
+  .lista-gastos {
+    margin-top: 10px;
+  }
+  .gasto-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .gasto-info .tipo { font-weight: bold; font-size: 1.05rem; }
+  .gasto-info .notas { font-size: 0.85rem; color: #666; margin-top: 4px; }
+  .gasto-monto {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #d32f2f;
+    text-align: right;
+  }
+  
+  .btn-eliminar {
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 1.2rem;
+    padding: 5px 10px;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  .btn-eliminar:active { color: #d32f2f; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ENCABEZADO: TOTAL DEL DÍA -->
+<div class="gastos-header shadow-sm">
+  <div class="total-lbl">Total Gastos Hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
+  <div class="total-num">${{ "%.2f"|format(total_gastos) }}</div>
+</div>
+
+<!-- FORMULARIO CARGAR GASTO -->
+<div class="card-form shadow-sm">
+  <div class="seccion-titulo">Registrar Nuevo Gasto</div>
+  <form action="{{ url_for('repartidor.gastos') }}" method="POST">
+    
+    <div class="campo">
+      <label for="tipo">Tipo de Gasto</label>
+      <select name="tipo" id="tipo" required onchange="toggleNotas()">
+        <option value="" disabled selected>Seleccione...</option>
+        <option value="Combustible">⛽ Combustible</option>
+        <option value="Hospedaje">🏨 Hospedaje</option>
+        <option value="Viatico">🍔 Viático (Comida)</option>
+        <option value="Otros">📦 Otros (Especificar)</option>
+      </select>
+    </div>
+    
+    <div class="campo">
+      <label for="monto">Monto ($)</label>
+      <input type="number" step="0.01" name="monto" id="monto" placeholder="0.00" required>
+    </div>
+    
+    <div class="campo campo-notas" id="campoNotas">
+      <label for="notas">¿En qué consistió este gasto?</label>
+      <textarea name="notas" id="notas" rows="2" placeholder="Escriba aquí los detalles..."></textarea>
+    </div>
+    
+    <button type="submit" class="btn-submit">Guardar Gasto</button>
+  </form>
+</div>
+
+<!-- LISTA DE GASTOS CARGADOS -->
+{% if gastos_hoy %}
+<div class="seccion-titulo" style="margin-top:30px;">Detalle de Hoy</div>
+<div class="lista-gastos">
+  {% for g in gastos_hoy %}
+  <div class="gasto-item shadow-sm">
+    <div class="gasto-info">
+      <div class="tipo">{{ g.tipo }}</div>
+      {% if g.notas %}
+      <div class="notas">{{ g.notas }}</div>
+      {% endif %}
+      <div class="notas" style="font-size: 0.75rem; color: #999;">Cargado a las {{ g.fecha_creacion.strftime('%H:%M') }}</div>
+    </div>
+    <div style="display:flex; align-items:center;">
+      <div class="gasto-monto">${{ "%.2f"|format(g.monto) }}</div>
+      <form action="{{ url_for('repartidor.eliminar_gasto', gasto_id=g.id) }}" method="POST" style="margin:0; padding:0;">
+        <button type="submit" class="btn-eliminar" onclick="return confirm('¿Seguro que deseas eliminar este gasto?');" title="Eliminar gasto">&#10005;</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function toggleNotas() {
+    var tipo = document.getElementById("tipo").value;
+    var notasDiv = document.getElementById("campoNotas");
+    var notasInput = document.getElementById("notas");
+    
+    if (tipo === "Otros") {
+      notasDiv.classList.add("visible");
+      notasInput.required = true;
+    } else {
+      notasDiv.classList.remove("visible");
+      notasInput.required = false;
+      notasInput.value = ""; // Limpiar si cambian a otro
+    }
+  }
+</script>
+{% endblock %}

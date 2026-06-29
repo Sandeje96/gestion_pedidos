@@ -591,6 +591,51 @@
     input.focus();
   });
 
+  // ── Restaurar estado del acordeón y scroll tras recarga ──
+  document.addEventListener('submit', function() {
+    // Guardar scroll
+    sessionStorage.setItem('boletasScrollY', window.scrollY);
+    
+    // Guardar IDs de acordeones abiertos
+    const abiertos = [];
+    document.querySelectorAll('.accordion-collapse.show').forEach(function(el) {
+      if (el.id) abiertos.push(el.id);
+    });
+    sessionStorage.setItem('boletasAccordions', JSON.stringify(abiertos));
+  });
+
+  window.addEventListener('DOMContentLoaded', function() {
+    // Restaurar acordeones
+    const savedAcc = sessionStorage.getItem('boletasAccordions');
+    if (savedAcc) {
+      try {
+        const abiertos = JSON.parse(savedAcc);
+        abiertos.forEach(function(id) {
+          const el = document.getElementById(id);
+          if (el) {
+            // Usamos Bootstrap para mostrarlo sin animación si es posible, o le agregamos la clase
+            el.classList.add('show');
+            const btn = document.querySelector(`[data-bs-target="#${id}"]`);
+            if (btn) {
+              btn.classList.remove('collapsed');
+              btn.setAttribute('aria-expanded', 'true');
+            }
+          }
+        });
+      } catch (e) {}
+      sessionStorage.removeItem('boletasAccordions');
+    }
+
+    // Restaurar scroll
+    const savedScroll = sessionStorage.getItem('boletasScrollY');
+    if (savedScroll !== null) {
+      setTimeout(function() {
+        window.scrollTo(0, parseInt(savedScroll, 10));
+        sessionStorage.removeItem('boletasScrollY');
+      }, 100);
+    }
+  });
+
 })();
 </script>
 {% endblock %}

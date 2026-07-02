@@ -346,7 +346,7 @@
 
 </form>
 
-{% if not ya_cobro_hoy and boleta_actual and boleta_actual.estado in ['pendiente', 'parcial'] %}
+{% if not ya_cobro_hoy and total_deuda > 0 %}
 <form method="POST" action="/repartidor/cliente/{{ cliente.id }}/todo-a-cuenta-corriente" id="formTodoCC">
   <button type="button" class="btn-todo-cc" onclick="confirmarCC()">
     📋 TODO A CUENTA CORRIENTE

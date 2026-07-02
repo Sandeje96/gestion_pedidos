@@ -300,32 +300,17 @@ def registrar_pago(cliente_id):
 @repartidor_requerido
 def todo_a_cuenta_corriente(cliente_id):
     """
-    Registra que toda la boleta del día queda pendiente en cuenta corriente.
+    Registra que toda la deuda del cliente queda pendiente en cuenta corriente.
+    Funciona en dos casos:
+      1. Hay boleta del día → esa boleta queda como CC (se acumula a las anteriores).
+      2. Solo hay deudas anteriores (CC puras) → se asienta la visita sin cobro.
     No se cobra nada: se asienta un PagoBoleta con total_recibido=0 como
-    constancia de la visita y la nota correspondiente.
-    La boleta de hoy ya quedará como deuda anterior automáticamente al día siguiente.
-    Si ya había saldo en CC, ese saldo sigue acumulado sin modificarse.
+    constancia de la visita.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
     hoy = date.today()
 
-    # Verificar que existe boleta del día con saldo pendiente
-    boleta_actual = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
-        )
-        .order_by(Boleta.fecha_creacion.desc())
-        .first()
-    )
-
-    if not boleta_actual:
-        flash('No hay boleta pendiente del día para enviar a cuenta corriente.', 'warning')
-        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
-
-    # Verificar que no se haya cobrado ya hoy
+    # Verificar que no se haya operado ya hoy
     inicio_hoy = datetime.combine(hoy, datetime.min.time())
     fin_hoy = datetime.combine(hoy, datetime.max.time())
     pagos_hoy = PagoBoleta.query.filter(
@@ -338,9 +323,46 @@ def todo_a_cuenta_corriente(cliente_id):
         flash('Ya se registró una operación para este cliente hoy.', 'warning')
         return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
 
+    # Boleta del día (puede no existir)
+    boleta_actual = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    # Boletas de CC anteriores
+    boletas_cc = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_entrega.asc())
+        .all()
+    )
+
+    # Necesitamos al menos alguna deuda para registrar
+    if not boleta_actual and not boletas_cc:
+        flash('Este cliente no tiene deudas pendientes.', 'warning')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+    # Referencia: usar boleta del día si existe, sino la más antigua de CC
+    boleta_ref = boleta_actual if boleta_actual else boletas_cc[0]
+
+    # Calcular monto total pendiente para el mensaje
+    monto_hoy = float(boleta_actual.saldo_pendiente) if boleta_actual else 0.0
+    monto_cc = sum(float(b.saldo_pendiente) for b in boletas_cc)
+    total_pendiente = monto_hoy + monto_cc
+
     # Registrar constancia de visita con pago $0 → "Todo a cuenta corriente"
     pago = PagoBoleta(
-        boleta_id=boleta_actual.id,
+        boleta_id=boleta_ref.id,
         cliente_id=cliente_id,
         efectivo=Decimal('0'),
         transferencia=Decimal('0'),
@@ -358,8 +380,8 @@ def todo_a_cuenta_corriente(cliente_id):
     try:
         db.session.commit()
         flash(
-            f'✅ Boleta de {cliente.nombre} registrada en cuenta corriente. '
-            f'Monto pendiente: ${float(boleta_actual.saldo_pendiente):,.2f}',
+            f'✅ Deuda de {cliente.nombre} dejada en cuenta corriente. '
+            f'Total pendiente: ${total_pendiente:,.2f}',
             'success'
         )
     except Exception as e:
@@ -367,6 +389,7 @@ def todo_a_cuenta_corriente(cliente_id):
         flash(f'Error al registrar: {str(e)}', 'danger')
 
     return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
 
 
 @repartidor_bp.route('/gastos', methods=['GET', 'POST'])

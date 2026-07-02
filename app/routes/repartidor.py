@@ -296,6 +296,79 @@ def registrar_pago(cliente_id):
     return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
 
 
+@repartidor_bp.route('/cliente/<int:cliente_id>/todo-a-cuenta-corriente', methods=['POST'])
+@repartidor_requerido
+def todo_a_cuenta_corriente(cliente_id):
+    """
+    Registra que toda la boleta del día queda pendiente en cuenta corriente.
+    No se cobra nada: se asienta un PagoBoleta con total_recibido=0 como
+    constancia de la visita y la nota correspondiente.
+    La boleta de hoy ya quedará como deuda anterior automáticamente al día siguiente.
+    Si ya había saldo en CC, ese saldo sigue acumulado sin modificarse.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    hoy = date.today()
+
+    # Verificar que existe boleta del día con saldo pendiente
+    boleta_actual = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    if not boleta_actual:
+        flash('No hay boleta pendiente del día para enviar a cuenta corriente.', 'warning')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+    # Verificar que no se haya cobrado ya hoy
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    pagos_hoy = PagoBoleta.query.filter(
+        PagoBoleta.cliente_id == cliente_id,
+        PagoBoleta.fecha_cobro >= inicio_hoy,
+        PagoBoleta.fecha_cobro <= fin_hoy
+    ).count()
+
+    if pagos_hoy > 0:
+        flash('Ya se registró una operación para este cliente hoy.', 'warning')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+    # Registrar constancia de visita con pago $0 → "Todo a cuenta corriente"
+    pago = PagoBoleta(
+        boleta_id=boleta_actual.id,
+        cliente_id=cliente_id,
+        efectivo=Decimal('0'),
+        transferencia=Decimal('0'),
+        cheque=Decimal('0'),
+        fecha_cobro_cheque=None,
+        total_recibido=Decimal('0'),
+        aplicado_boleta=Decimal('0'),
+        aplicado_cc=Decimal('0'),
+        saldo_favor=Decimal('0'),
+        cobrado_por_id=current_user.id,
+        notas='Todo a cuenta corriente'
+    )
+    db.session.add(pago)
+
+    try:
+        db.session.commit()
+        flash(
+            f'✅ Boleta de {cliente.nombre} registrada en cuenta corriente. '
+            f'Monto pendiente: ${float(boleta_actual.saldo_pendiente):,.2f}',
+            'success'
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al registrar: {str(e)}', 'danger')
+
+    return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+
 @repartidor_bp.route('/gastos', methods=['GET', 'POST'])
 @repartidor_requerido
 def gastos():

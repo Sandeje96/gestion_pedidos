@@ -182,6 +182,25 @@
 .btn-registrar:active { background: #145530; }
 .btn-registrar:disabled { background: #aaa; cursor: not-allowed; }
 
+/* ── BOTON TODO A CUENTA CORRIENTE ── */
+.btn-todo-cc {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  background: #fff;
+  color: #c8860a;
+  border: 2px solid #c8860a;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 12px;
+  text-align: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+}
+.btn-todo-cc:active { background: #fff8ec; }
+
 /* ── HISTORIAL ── */
 .historial-titulo {
   font-size: 1rem;
@@ -327,6 +346,14 @@
 
 </form>
 
+{% if not ya_cobro_hoy and boleta_actual and boleta_actual.estado in ['pendiente', 'parcial'] %}
+<form method="POST" action="/repartidor/cliente/{{ cliente.id }}/todo-a-cuenta-corriente" id="formTodoCC">
+  <button type="button" class="btn-todo-cc" onclick="confirmarCC()">
+    📋 TODO A CUENTA CORRIENTE
+  </button>
+</form>
+{% endif %}
+
 <!-- ══════════════════════
      HISTORIAL RECIENTE
      ══════════════════════ -->
@@ -420,5 +447,21 @@
       alert('Ingresa la fecha de cobro del cheque antes de continuar.');
     }
   });
+
+  function confirmarCC() {
+    var monto = {{ monto_boleta_actual }};
+    var saldoCC = {{ saldo_cc }};
+    var totalNuevoCC = monto + saldoCC;
+    var msg = '¿Confirmar que TODA la boleta de hoy queda en cuenta corriente?\n\n' +
+              'Boleta de hoy: $' + monto.toFixed(2) + '\n';
+    if (saldoCC > 0) {
+      msg += 'CC anterior: $' + saldoCC.toFixed(2) + '\n';
+      msg += 'Nuevo total CC: $' + totalNuevoCC.toFixed(2) + '\n';
+    }
+    msg += '\nNo se registrará ningún cobro.';
+    if (confirm(msg)) {
+      document.getElementById('formTodoCC').submit();
+    }
+  }
 </script>
 {% endblock %}

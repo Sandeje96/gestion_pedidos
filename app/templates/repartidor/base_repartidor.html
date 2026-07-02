@@ -100,8 +100,11 @@
     <a href="{{ url_for('repartidor.dashboard') }}" class="{% if request.endpoint == 'repartidor.dashboard' or request.endpoint == 'repartidor.cobro_cliente' %}active{% endif %}">
       Rutas / Cobros
     </a>
-    <a href="{{ url_for('repartidor.gastos') }}" class="{% if request.endpoint == 'repartidor.gastos' %}active{% endif %}">
+    <a href="{{ url_for('repartidor.gastos') }}" class="{% if request.endpoint == 'repartidor.gastos' or request.endpoint == 'repartidor.eliminar_gasto' or request.endpoint == 'repartidor.limpiar_gastos' %}active{% endif %}">
       Mis Gastos
+    </a>
+    <a href="{{ url_for('repartidor.resumen') }}" class="{% if request.endpoint == 'repartidor.resumen' %}active{% endif %}">
+      Resumen
     </a>
   </div>
 

@@ -391,6 +391,80 @@ def todo_a_cuenta_corriente(cliente_id):
     return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
 
 
+@repartidor_bp.route('/resumen')
+@repartidor_requerido
+def resumen():
+    """
+    Resumen del día para el repartidor:
+    - Totales generales: efectivo, transferencia, cheque, gastos, neto.
+    - Detalle por ruta: efectivo, transferencia, cheque, subtotal.
+    Solo incluye los cobros realizados por el repartidor logueado hoy.
+    Los cobros 'todo a cuenta corriente' (total_recibido=0) no suman dinero
+    pero se contabilizan como visitas.
+    """
+    hoy = date.today()
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    fin_hoy = datetime.combine(hoy, datetime.max.time())
+
+    # Todos los pagos del repartidor hoy
+    pagos_hoy = (
+        PagoBoleta.query
+        .filter(
+            PagoBoleta.cobrado_por_id == current_user.id,
+            PagoBoleta.fecha_cobro >= inicio_hoy,
+            PagoBoleta.fecha_cobro <= fin_hoy
+        )
+        .all()
+    )
+
+    # Totales generales
+    total_efectivo     = sum(float(p.efectivo)      for p in pagos_hoy)
+    total_transferencia = sum(float(p.transferencia) for p in pagos_hoy)
+    total_cheque       = sum(float(p.cheque)         for p in pagos_hoy)
+    total_cobrado      = total_efectivo + total_transferencia + total_cheque
+
+    # Gastos del día
+    gastos_hoy = GastoRepartidor.query.filter_by(
+        repartidor_id=current_user.id,
+        fecha=hoy
+    ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
+    total_gastos = sum(float(g.monto) for g in gastos_hoy)
+
+    neto = total_cobrado - total_gastos
+
+    # Agrupado por ruta del cliente
+    rutas_dict = defaultdict(lambda: {
+        'efectivo': 0.0, 'transferencia': 0.0, 'cheque': 0.0,
+        'subtotal': 0.0, 'visitas': 0
+    })
+    for p in pagos_hoy:
+        ruta = p.cliente.ruta if p.cliente and p.cliente.ruta else 'Sin ruta'
+        rutas_dict[ruta]['efectivo']      += float(p.efectivo)
+        rutas_dict[ruta]['transferencia'] += float(p.transferencia)
+        rutas_dict[ruta]['cheque']        += float(p.cheque)
+        rutas_dict[ruta]['subtotal']      += float(p.total_recibido)
+        rutas_dict[ruta]['visitas']       += 1
+
+    resumen_rutas = [
+        {'ruta': ruta, **datos}
+        for ruta, datos in sorted(rutas_dict.items())
+    ]
+
+    return render_template(
+        'repartidor/resumen.html',
+        title='Resumen del día',
+        hoy=hoy,
+        total_efectivo=total_efectivo,
+        total_transferencia=total_transferencia,
+        total_cheque=total_cheque,
+        total_cobrado=total_cobrado,
+        total_gastos=total_gastos,
+        neto=neto,
+        gastos_hoy=gastos_hoy,
+        resumen_rutas=resumen_rutas,
+        total_visitas=len(pagos_hoy)
+    )
+
 
 @repartidor_bp.route('/gastos', methods=['GET', 'POST'])
 @repartidor_requerido

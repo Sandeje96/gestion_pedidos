@@ -1,0 +1,220 @@
+﻿{% extends 'repartidor/base_repartidor.html' %}
+
+{% block extra_css %}
+.res-fecha {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 14px;
+}
+.sub-tabs {
+  display: flex;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.sub-tab {
+  flex: 1;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  background: #f0f0f0;
+  color: #555;
+  border: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+}
+.sub-tab.activo {
+  background: #1a6b3c;
+  color: #fff;
+}
+.sub-tab:first-child { border-right: 2px solid #ccc; }
+.res-card {
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.res-card .rc-label { font-size: 0.95rem; color: #555; }
+.res-card .rc-valor { font-size: 1.2rem; font-weight: bold; color: #111; }
+.res-card.verde   { border-left: 5px solid #1a6b3c; }
+.res-card.verde   .rc-valor { color: #1a6b3c; }
+.res-card.naranja { border-left: 5px solid #c8860a; }
+.res-card.naranja .rc-valor { color: #c8860a; }
+.res-card.gris    { border-left: 5px solid #444; background: #f5f5f5; }
+.res-card.gris    .rc-valor { color: #222; }
+.res-seccion {
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+  margin: 18px 0 10px;
+}
+.ruta-card {
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.ruta-card .ruta-titulo {
+  background: #f0f0f0;
+  border-bottom: 2px solid #ddd;
+  padding: 10px 14px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #1a6b3c;
+}
+.ruta-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid #eee;
+  font-size: 0.95rem;
+}
+.ruta-fila:last-child { border-bottom: none; }
+.ruta-fila .rf-label { color: #666; }
+.ruta-fila .rf-valor { font-weight: bold; color: #111; }
+.ruta-fila.subtotal { background: #f9f9f9; }
+.ruta-fila.subtotal .rf-label { color: #333; font-weight: bold; }
+.ruta-fila.subtotal .rf-valor { color: #1a6b3c; font-size: 1.05rem; }
+.gasto-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+.gasto-fila:last-child { border-bottom: none; }
+.gasto-fila .gf-tipo  { color: #555; }
+.gasto-fila .gf-monto { font-weight: bold; color: #c8860a; }
+.sin-datos {
+  text-align: center;
+  padding: 28px 16px;
+  color: #999;
+  font-size: 1rem;
+}
+{% endblock %}
+
+{% block content %}
+
+<p class="res-fecha">{{ hoy.strftime('%d/%m/%Y') }}</p>
+
+<div class="sub-tabs">
+  <button class="sub-tab activo" id="tabGeneral" onclick="mostrar('general')">General</button>
+  <button class="sub-tab" id="tabRutas" onclick="mostrar('rutas')">Por ruta</button>
+</div>
+
+<!-- VISTA GENERAL -->
+<div id="vistaGeneral">
+
+  <div class="res-seccion">Cobros del dia</div>
+
+  <div class="res-card verde">
+    <span class="rc-label">Efectivo</span>
+    <span class="rc-valor">${{ "%.2f"|format(total_efectivo) }}</span>
+  </div>
+  <div class="res-card verde">
+    <span class="rc-label">Transferencia</span>
+    <span class="rc-valor">${{ "%.2f"|format(total_transferencia) }}</span>
+  </div>
+  <div class="res-card verde">
+    <span class="rc-label">Cheque</span>
+    <span class="rc-valor">${{ "%.2f"|format(total_cheque) }}</span>
+  </div>
+  <div class="res-card gris">
+    <span class="rc-label">Total cobrado</span>
+    <span class="rc-valor">${{ "%.2f"|format(total_cobrado) }}</span>
+  </div>
+
+  <div class="res-seccion">Gastos del dia</div>
+
+  {% if gastos_hoy %}
+    <div style="background:#fff; border:2px solid #ddd; border-radius:8px; padding:10px 14px; margin-bottom:10px;">
+      {% for g in gastos_hoy %}
+      <div class="gasto-fila">
+        <span class="gf-tipo">{{ g.tipo }}{% if g.notas and g.tipo == 'Otros' %}: {{ g.notas }}{% endif %}</span>
+        <span class="gf-monto">${{ "%.2f"|format(g.monto|float) }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <div class="res-card naranja">
+    <span class="rc-label">Total gastos</span>
+    <span class="rc-valor">${{ "%.2f"|format(total_gastos) }}</span>
+  </div>
+
+  <div class="res-seccion">Resultado</div>
+
+  <div class="res-card gris">
+    <span class="rc-label">Neto (cobrado - gastos)</span>
+    <span class="rc-valor" style="color:{% if neto >= 0 %}#1a6b3c{% else %}#c0392b{% endif %};">
+      ${{ "%.2f"|format(neto) }}
+    </span>
+  </div>
+
+  {% if total_visitas > 0 %}
+  <div style="text-align:center; font-size:0.85rem; color:#999; margin-top:10px;">
+    {{ total_visitas }} visita{{ 's' if total_visitas != 1 else '' }} registrada{{ 's' if total_visitas != 1 else '' }} hoy
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- VISTA POR RUTA -->
+<div id="vistaRutas" style="display:none;">
+
+  {% if resumen_rutas %}
+    {% for r in resumen_rutas %}
+    <div class="ruta-card">
+      <div class="ruta-titulo">{{ r.ruta }}</div>
+      {% if r.efectivo > 0 %}
+      <div class="ruta-fila">
+        <span class="rf-label">Efectivo</span>
+        <span class="rf-valor">${{ "%.2f"|format(r.efectivo) }}</span>
+      </div>
+      {% endif %}
+      {% if r.transferencia > 0 %}
+      <div class="ruta-fila">
+        <span class="rf-label">Transferencia</span>
+        <span class="rf-valor">${{ "%.2f"|format(r.transferencia) }}</span>
+      </div>
+      {% endif %}
+      {% if r.cheque > 0 %}
+      <div class="ruta-fila">
+        <span class="rf-label">Cheque</span>
+        <span class="rf-valor">${{ "%.2f"|format(r.cheque) }}</span>
+      </div>
+      {% endif %}
+      <div class="ruta-fila subtotal">
+        <span class="rf-label">Subtotal</span>
+        <span class="rf-valor">${{ "%.2f"|format(r.subtotal) }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="sin-datos">Sin cobros registrados hoy.</div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function mostrar(vista) {
+    document.getElementById('vistaGeneral').style.display = vista === 'general' ? '' : 'none';
+    document.getElementById('vistaRutas').style.display   = vista === 'rutas'   ? '' : 'none';
+    document.getElementById('tabGeneral').className = 'sub-tab' + (vista === 'general' ? ' activo' : '');
+    document.getElementById('tabRutas').className   = 'sub-tab' + (vista === 'rutas'   ? ' activo' : '');
+  }
+</script>
+{% endblock %}

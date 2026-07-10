@@ -76,16 +76,18 @@ def cobro_cliente(cliente_id):
     """
     cliente = Cliente.query.get_or_404(cliente_id)
 
-    hoy = date.today()
-
-    # ── VERIFICAR PAGOS HOY ──
+    # ── VERIFICAR PAGOS HOY (en hora argentina UTC-3) ──
     from datetime import datetime
-    inicio_hoy = datetime.combine(hoy, datetime.min.time())
-    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    OFFSET_ARG = timedelta(hours=3)
+    ahora_utc = datetime.utcnow()
+    ahora_arg = ahora_utc - OFFSET_ARG
+    inicio_dia_arg = ahora_arg.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
+    hoy = ahora_arg.date()  # Fecha argentina local
+
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
-        PagoBoleta.fecha_cobro >= inicio_hoy,
-        PagoBoleta.fecha_cobro <= fin_hoy
+        PagoBoleta.fecha_cobro >= inicio_hoy_utc
     ).count()
 
     ya_cobro_hoy = (pagos_hoy > 0)
@@ -308,15 +310,18 @@ def todo_a_cuenta_corriente(cliente_id):
     constancia de la visita.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
-    hoy = date.today()
+    # Calcular fecha argentina local (UTC-3)
+    OFFSET_ARG = timedelta(hours=3)
+    ahora_utc = datetime.utcnow()
+    ahora_arg = ahora_utc - OFFSET_ARG
+    inicio_dia_arg = ahora_arg.replace(hour=0, minute=0, second=0, microsecond=0)
+    inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
+    hoy = ahora_arg.date()
 
-    # Verificar que no se haya operado ya hoy
-    inicio_hoy = datetime.combine(hoy, datetime.min.time())
-    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    # Verificar que no se haya operado ya hoy (en hora argentina)
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
-        PagoBoleta.fecha_cobro >= inicio_hoy,
-        PagoBoleta.fecha_cobro <= fin_hoy
+        PagoBoleta.fecha_cobro >= inicio_hoy_utc
     ).count()
 
     if pagos_hoy > 0:
@@ -395,24 +400,32 @@ def todo_a_cuenta_corriente(cliente_id):
 @repartidor_requerido
 def resumen():
     """
-    Resumen del día para el repartidor:
+    Resumen del viaje activo del repartidor:
     - Totales generales: efectivo, transferencia, cheque, gastos, neto.
     - Detalle por ruta: efectivo, transferencia, cheque, subtotal.
-    Solo incluye los cobros realizados por el repartidor logueado hoy.
+    Incluye TODOS los cobros realizados por el repartidor desde el inicio
+    del día en hora argentina (UTC-3), sin importar si pasó la medianoche UTC.
+    Los valores solo se reinician cuando el usuario Ventas cierra la ruta.
     Los cobros 'todo a cuenta corriente' (total_recibido=0) no suman dinero
     pero se contabilizan como visitas.
     """
-    hoy = date.today()
-    inicio_hoy = datetime.combine(hoy, datetime.min.time())
-    fin_hoy = datetime.combine(hoy, datetime.max.time())
+    # Argentina es UTC-3. Calculamos el inicio del día local en UTC
+    # para no perder cobros registrados entre las 21hs y las 00hs (Argentina).
+    OFFSET_ARG = timedelta(hours=3)  # UTC-3
+    ahora_utc = datetime.utcnow()
+    ahora_arg = ahora_utc - OFFSET_ARG
+    inicio_dia_arg = ahora_arg.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Convertir de vuelta a UTC para comparar con fecha_cobro (almacenada en UTC)
+    inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
 
-    # Todos los pagos del repartidor hoy
+    hoy = ahora_arg.date()  # Fecha local argentina (para mostrar en template)
+
+    # Todos los pagos del repartidor desde el inicio del día argentino
     pagos_hoy = (
         PagoBoleta.query
         .filter(
             PagoBoleta.cobrado_por_id == current_user.id,
-            PagoBoleta.fecha_cobro >= inicio_hoy,
-            PagoBoleta.fecha_cobro <= fin_hoy
+            PagoBoleta.fecha_cobro >= inicio_hoy_utc
         )
         .all()
     )
@@ -423,10 +436,12 @@ def resumen():
     total_cheque       = sum(float(p.cheque)         for p in pagos_hoy)
     total_cobrado      = total_efectivo + total_transferencia + total_cheque
 
-    # Gastos del día
-    gastos_hoy = GastoRepartidor.query.filter_by(
-        repartidor_id=current_user.id,
-        fecha=hoy
+    # Gastos del viaje activo: incluir tanto los de hoy como los de ayer
+    # (por si el repartidor cargó gastos antes de las 00hs Argentina = 03hs UTC)
+    ayer_arg = hoy - timedelta(days=1)
+    gastos_hoy = GastoRepartidor.query.filter(
+        GastoRepartidor.repartidor_id == current_user.id,
+        GastoRepartidor.fecha.in_([hoy, ayer_arg])
     ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
     total_gastos = sum(float(g.monto) for g in gastos_hoy)
 

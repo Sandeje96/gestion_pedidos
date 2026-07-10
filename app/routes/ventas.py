@@ -790,13 +790,10 @@ def boletas():
         .all()
     )
 
-    # Rango de fechas para los cobros de hoy
-    inicio_hoy = datetime.combine(hoy, datetime.min.time())
-    fin_hoy = datetime.combine(hoy, datetime.max.time())
-
-    # Para cada cliente, obtener boleta de hoy y saldo CC
+    # Para cada cliente, obtener boleta activa y saldo CC
     datos_clientes = []
     for cliente in clientes:
+        # Buscar boleta de hoy primero; si no existe, la más reciente activa (pendiente/parcial)
         boleta_hoy = (
             Boleta.query
             .filter(
@@ -806,35 +803,42 @@ def boletas():
             .order_by(Boleta.fecha_creacion.desc())
             .first()
         )
+        # Si no hay boleta de hoy, buscar la más reciente en cualquier fecha
+        # (para mostrar info de boletas cobradas antes del cierre)
+        boleta_reciente = boleta_hoy or (
+            Boleta.query
+            .filter(
+                Boleta.cliente_id == cliente.id,
+                Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
+            )
+            .order_by(Boleta.fecha_entrega.desc(), Boleta.fecha_creacion.desc())
+            .first()
+        )
 
-        # Deuda pendiente (incluye hoy y anteriores que aún tengan saldo pendiente)
+        # Deuda pendiente (incluye todas las fechas que aún tengan saldo pendiente)
         deuda_actual_agregada = db.session.query(
             func.sum(Boleta.saldo_pendiente)
         ).filter(
             Boleta.cliente_id == cliente.id,
-            Boleta.fecha_entrega <= hoy,
             Boleta.estado.in_(['pendiente', 'parcial'])
         ).scalar()
         deuda_actual = float(deuda_actual_agregada) if deuda_actual_agregada else 0.0
 
-        # Pagos aplicados hoy por este cliente a deuda
-        pagos_hoy = db.session.query(
+        # Total cobrado en la sesión activa (sin filtro de fecha, hasta que Ventas haga cierre)
+        pagos_sesion = db.session.query(
             func.sum(PagoBoleta.aplicado_boleta + PagoBoleta.aplicado_cc)
         ).filter(
-            PagoBoleta.cliente_id == cliente.id,
-            PagoBoleta.fecha_cobro >= inicio_hoy,
-            PagoBoleta.fecha_cobro <= fin_hoy
+            PagoBoleta.cliente_id == cliente.id
         ).scalar()
-        cobrado_hoy = float(pagos_hoy) if pagos_hoy else 0.0
+        cobrado_hoy = float(pagos_sesion) if pagos_sesion else 0.0
 
-        # El monto de la boleta de hoy SIEMPRE muestra lo que se cargó, sin importar si ya se cobró
-        monto_hoy = float(boleta_hoy.monto_boleta) if boleta_hoy else 0.0
-        
-        # Total a cobrar = Lo que debe AHORA + Lo que ya pagó HOY 
-        # (Esto reconstruye el saldo inicial del día antes de que el repartidor cobre)
+        # El monto de la boleta activa
+        monto_hoy = float(boleta_reciente.monto_boleta) if boleta_reciente else 0.0
+
+        # Total a cobrar = lo que debe AHORA + lo que ya pagó
         total_a_cobrar = deuda_actual + cobrado_hoy
-        
-        # La cuenta corriente = Total a cobrar (inicio del día) - boleta de hoy
+
+        # La cuenta corriente = total a cobrar - boleta activa
         saldo_cc = total_a_cobrar - monto_hoy
         if saldo_cc < 0:
             saldo_cc = 0.0
@@ -853,7 +857,7 @@ def boletas():
 
         datos_clientes.append({
             'cliente': cliente,
-            'boleta_hoy': boleta_hoy,
+            'boleta_hoy': boleta_reciente,   # boleta activa (hoy o más reciente)
             'monto_hoy': monto_hoy,
             'saldo_cc': saldo_cc,
             'total_a_cobrar': total_a_cobrar,
@@ -885,14 +889,11 @@ def boletas():
     # Lista plana de nombres para autocompletado
     nombres_clientes = [d['cliente'].nombre for d in datos_clientes]
 
-    # Totales de cobro del día (efectivo, transferencia, cheque) en general
+    # Totales globales de cobro de la sesión activa (sin filtro de fecha)
     totales_cobro = db.session.query(
         func.sum(PagoBoleta.efectivo).label('total_efectivo'),
         func.sum(PagoBoleta.transferencia).label('total_transferencia'),
         func.sum(PagoBoleta.cheque).label('total_cheque')
-    ).filter(
-        PagoBoleta.fecha_cobro >= inicio_hoy,
-        PagoBoleta.fecha_cobro <= fin_hoy
     ).first()
 
     total_efectivo = float(totales_cobro.total_efectivo) if totales_cobro and totales_cobro.total_efectivo else 0.0

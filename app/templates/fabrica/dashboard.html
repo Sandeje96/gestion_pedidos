@@ -310,7 +310,16 @@
                                                                     </td>
                                                                     
                                                                     <td>
-                                                                        <strong>{{ pedido.cantidad }}</strong> {{ pedido.unidad or '' }}
+                                                                        {% if pedido.presentacion and pedido.cantidad_envases %}
+                                                                            <span class="fw-bold text-dark">{{ pedido.cantidad_envases|int }} env. × {{ pedido.presentacion }}</span>
+                                                                            <br>
+                                                                            <small class="text-primary fw-semibold">
+                                                                                <i class="fas fa-tint"></i>
+                                                                                {{ "%.2f"|format(pedido.cantidad|float) }} litros
+                                                                            </small>
+                                                                        {% else %}
+                                                                            <strong>{{ "%.2f"|format(pedido.cantidad|float) }}</strong> {{ pedido.unidad or '' }}
+                                                                        {% endif %}
                                                                     </td>
                                                                     
                                                                     <td>

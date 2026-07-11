@@ -22,86 +22,37 @@
         border-color: rgba(13, 110, 253, 0.2);
     }
     .badge-step {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+        width: 28px; height: 28px; border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
         font-weight: 700;
     }
-
-    /* ── Autocomplete Producto ── */
-    .autocomplete-wrapper {
-        position: relative;
+    .sugerencias-productos {
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+        background: white;
     }
-    .autocomplete-input {
-        border-radius: 6px;
+    .product-suggestion-item {
+        transition: all 0.2s ease;
+        border-bottom: 1px solid rgba(0,0,0,0.03) !important;
     }
-    .autocomplete-input.is-selected {
-        border-color: #0d6efd !important;
-        background-color: #f0f6ff;
+    .product-suggestion-item:last-child { border-bottom: none !important; }
+    .product-suggestion-item:hover {
+        background-color: rgba(13,110,253,0.05);
+        padding-left: 1.25rem !important;
     }
-    .autocomplete-dropdown {
-        display: none;
-        position: absolute;
-        top: calc(100% + 4px);
-        left: 0;
-        right: 0;
-        z-index: 1050;
-        background: #fff;
-        border: 1px solid rgba(13, 110, 253, 0.25);
-        border-radius: 10px;
-        box-shadow: 0 8px 28px rgba(0,0,0,0.12);
-        max-height: 260px;
-        overflow-y: auto;
-    }
-    .autocomplete-dropdown.show {
-        display: block;
-        animation: fadeInDown 0.15s ease;
-    }
-    @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-6px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-    .autocomplete-item {
-        padding: 10px 14px;
-        cursor: pointer;
-        font-size: 0.92rem;
-        border-bottom: 1px solid rgba(0,0,0,0.04);
-        transition: background 0.15s;
-    }
-    .autocomplete-item:last-child { border-bottom: none; }
-    .autocomplete-item:hover,
-    .autocomplete-item.active {
-        background: #e8f0fe;
-        color: #0d47a1;
-    }
-    .autocomplete-item .match-highlight {
-        font-weight: 800;
-        color: #0d6efd;
-    }
-    .autocomplete-empty {
-        padding: 12px 14px;
-        color: #6c757d;
+    .litros-badge {
+        background: linear-gradient(135deg, #1a73e8, #0d47a1);
+        color: white;
+        border-radius: 8px;
+        padding: 6px 12px;
         font-size: 0.88rem;
-        text-align: center;
+        font-weight: 600;
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
-    .autocomplete-clear {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        color: #adb5bd;
-        cursor: pointer;
-        padding: 2px 4px;
-        font-size: 0.8rem;
-        line-height: 1;
-        display: none;
-    }
-    .autocomplete-clear:hover { color: #dc3545; }
 </style>
 {% endblock %}
 
@@ -113,7 +64,7 @@
             <h1 class="display-6 fw-bold text-dark mb-1">
                 <i class="fas fa-cart-plus text-primary"></i> Cargar Pedidos Sucursal
             </h1>
-            <p class="text-muted">Ingresa los pedidos y asígnales el destinatario correspondiente.</p>
+            <p class="text-muted">Elegí la sucursal, el producto, la presentación y cuántos envases necesita.</p>
         </div>
         <div class="col-auto">
             <a href="{{ url_for('sucursal.dashboard') }}" class="btn btn-outline-secondary rounded-pill px-4">
@@ -122,7 +73,6 @@
         </div>
     </div>
 
-    <!-- Formulario Principal -->
     <div class="row justify-content-center">
         <div class="col-lg-10 col-xl-9">
             <div class="card order-container border-0 overflow-hidden">
@@ -131,8 +81,8 @@
                 </div>
                 <div class="card-body p-4">
                     <form method="POST" id="form-pedidos-sucursal">
-                        
-                        <!-- SECCIÓN 1: Identificación de la Sucursal -->
+
+                        <!-- SECCIÓN 1: Sucursal -->
                         <div class="mb-4 p-4 bg-light rounded-4 border border-light-subtle">
                             <h5 class="fw-bold text-dark mb-3">
                                 <span class="badge bg-primary badge-step text-white me-2">1</span> Seleccionar Sucursal / Franquicia
@@ -148,9 +98,7 @@
                                     {% endfor %}
                                 </select>
                             </div>
-
-                            <!-- Bloque Informativo de Sucursal -->
-                            <div id="info-sucursal" style="display: none;" class="p-3 bg-white border border-light-subtle rounded-3 mt-3 fade-in">
+                            <div id="info-sucursal" style="display: none;" class="p-3 bg-white border border-light-subtle rounded-3 mt-3">
                                 <h6 class="text-primary fw-bold mb-2"><i class="fas fa-store"></i> Información del Punto de Venta</h6>
                                 <div class="row text-dark">
                                     <div class="col-md-6 mb-2 mb-md-0">
@@ -173,82 +121,92 @@
                                 <h5 class="fw-bold text-dark mb-0">
                                     <span class="badge bg-primary badge-step text-white me-2">2</span> Detalle del Pedido
                                 </h5>
-                                <div class="d-flex gap-2">
-                                    <button type="button" class="btn btn-outline-success btn-sm rounded-pill px-3 py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
-                                        <i class="fas fa-plus-circle me-1"></i> Crear Producto
-                                    </button>
-                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-2 fw-semibold" onclick="agregarFilaPedido()">
-                                        <i class="fas fa-plus me-1"></i> Agregar Item
-                                    </button>
-                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 py-2 fw-semibold" onclick="agregarFilaPedido()">
+                                    <i class="fas fa-plus me-1"></i> Agregar Item
+                                </button>
                             </div>
 
                             <!-- Contenedor de Items Dinámicos -->
                             <div id="lista-pedidos" class="d-flex flex-column gap-3">
-                                <!-- Plantilla Inicial (Fila #1) -->
+                                <!-- Fila inicial #1 -->
                                 <div class="pedido-item p-3 mb-1" data-pedido-num="1">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <span class="badge bg-secondary text-white font-monospace">Item #1</span>
+                                        <span class="badge bg-secondary text-white font-monospace">Item #<span class="num-item">1</span></span>
                                         <button type="button" class="btn btn-sm text-danger btn-eliminar-pedido" onclick="eliminarFilaPedido(1)" style="display: none;">
                                             <i class="fas fa-trash me-1"></i> Eliminar
                                         </button>
                                     </div>
-                                    
+
                                     <div class="row g-3">
-                                        <!-- Buscador de Producto (autocomplete) -->
-                                        <div class="col-md-4">
-                                            <label class="form-label small fw-semibold">Producto *</label>
-                                            <div class="autocomplete-wrapper">
-                                                <input type="text"
-                                                       class="form-control border-secondary-subtle autocomplete-input"
-                                                       placeholder="Buscar producto..."
-                                                       autocomplete="off"
-                                                       required>
-                                                <button type="button" class="autocomplete-clear" tabindex="-1" title="Limpiar">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                                <div class="autocomplete-dropdown"></div>
+                                        <!-- Producto -->
+                                        <div class="col-12">
+                                            <label class="form-label small fw-semibold"><i class="fas fa-box text-primary"></i> Producto *</label>
+                                            <div class="position-relative">
+                                                <input type="text" class="form-control input-producto-buscar border-secondary-subtle" placeholder="🔍 Buscar producto..." autocomplete="off" required>
+                                                <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto;"></div>
+                                                <select name="producto_ids[]" class="input-producto" style="display: none;" required>
+                                                    <option value="">— Seleccionar —</option>
+                                                    {% for p in productos_disponibles %}
+                                                    <option value="{{ p.id }}">{{ p.nombre }}</option>
+                                                    {% endfor %}
+                                                </select>
                                             </div>
-                                            <!-- Campos ocultos que el backend lee -->
-                                            <input type="hidden" name="producto_ids[]" class="hidden-producto-id">
-                                            <input type="hidden" name="productos[]" class="hidden-producto-nombre">
                                         </div>
 
-                                        <!-- Cantidad -->
-                                        <div class="col-md-2 col-6">
-                                            <label class="form-label small fw-semibold">Cantidad *</label>
-                                            <input type="number" name="cantidades[]" class="form-control border-secondary-subtle" min="0.01" step="0.01" placeholder="0.00" required>
+                                        <!-- Presentación -->
+                                        <div class="col-md-3 col-6">
+                                            <label class="form-label small fw-semibold"><i class="fas fa-flask text-primary"></i> Presentación *</label>
+                                            <select name="presentaciones[]" class="form-select border-secondary-subtle input-presentacion" required onchange="calcularLitros(this)">
+                                                <option value="300ml">300 ml</option>
+                                                <option value="500ml">500 ml</option>
+                                                <option value="1litro" selected>1 litro</option>
+                                                <option value="5litros">5 litros</option>
+                                                <option value="20litros">20 litros</option>
+                                            </select>
                                         </div>
 
-                                        <!-- Unidad -->
-                                        <div class="col-md-2 col-6">
-                                            <label class="form-label small fw-semibold">Unidad</label>
-                                            <input type="text" name="unidades[]" class="form-control border-secondary-subtle text-muted" placeholder="Unidades" readonly>
+                                        <!-- Cantidad Envases -->
+                                        <div class="col-md-3 col-6">
+                                            <label class="form-label small fw-semibold"><i class="fas fa-sort-numeric-up text-primary"></i> Envases *</label>
+                                            <input type="number" name="cantidades_envases[]" class="form-control border-secondary-subtle input-envases"
+                                                   min="1" step="1" value="1" required oninput="calcularLitros(this)">
                                         </div>
 
-                                        <!-- Destinatario (Fábrica vs Admin) -->
-                                        <div class="col-md-4">
-                                            <label class="form-label small fw-semibold">Enviar A *</label>
+                                        <!-- Litros calculados -->
+                                        <div class="col-md-3 col-6">
+                                            <label class="form-label small fw-semibold"><i class="fas fa-tint text-primary"></i> Total litros</label>
+                                            <div class="litros-badge">
+                                                <i class="fas fa-calculator"></i>
+                                                <span class="litros-resultado">1.00 L</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Destinatario -->
+                                        <div class="col-md-3 col-6">
+                                            <label class="form-label small fw-semibold"><i class="fas fa-paper-plane text-primary"></i> Enviar A *</label>
                                             <select name="destinatarios[]" class="form-select border-secondary-subtle fw-semibold text-primary" required>
                                                 <option value="fabrica">Fábrica (Elaboración)</option>
-                                                <option value="admin_minorista">Admin Fábrica - Minorista</option>
-                                                <option value="admin_mayorista">Admin Fábrica - Mayorista</option>
+                                                <option value="admin_minorista">Admin - Minorista</option>
+                                                <option value="admin_mayorista">Admin - Mayorista</option>
                                             </select>
                                         </div>
 
                                         <!-- Notas -->
-                                        <div class="col-12 mt-2">
-                                            <input type="text" name="notes[]" class="form-control form-control-sm border-secondary-subtle" placeholder="Notas opcionales para este ítem (Ej: entrega urgente, especificaciones)...">
-                                            <!-- Mapeo para notas[] en backend -->
-                                            <input type="hidden" name="notas[]" class="input-notas">
+                                        <div class="col-12">
+                                            <input type="text" name="notas[]" class="form-control form-control-sm border-secondary-subtle"
+                                                   placeholder="Notas opcionales (Ej: entrega urgente)...">
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Botón de Envío -->
-                        <div class="mt-4 pt-3 text-end">
+                        <!-- Envío -->
+                        <div class="mt-4 pt-3 d-flex justify-content-between align-items-center">
+                            <div class="text-muted small">
+                                <i class="fas fa-tint text-primary"></i>
+                                Total estimado: <strong id="total-litros-label">0.00 L</strong>
+                            </div>
                             <button type="submit" class="btn btn-primary btn-lg shadow-sm px-5 py-3 rounded-pill fw-bold" id="btn-submit-pedidos">
                                 <i class="fas fa-paper-plane me-2"></i> ENVIAR PEDIDOS A DESTINO
                             </button>
@@ -262,334 +220,212 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Catálogo de productos disponible para el autocomplete -->
 <script>
-const PRODUCTOS_CATALOGO = [
+const LITROS_MAP = {
+    '300ml':    0.30,
+    '500ml':    0.50,
+    '1litro':   1.00,
+    '5litros':  5.00,
+    '20litros': 20.00,
+};
+
+const catalogoProductos = [
     {% for p in productos_disponibles %}
-    { id: {{ p.id }}, nombre: {{ p.nombre | tojson }}, unidad: {{ (p.unidad or 'unidades') | tojson }} }{% if not loop.last %},{% endif %}
+    { id: "{{ p.id }}", nombre: "{{ p.nombre }}" },
     {% endfor %}
 ];
 
-// ──────────────────────────────────────────────
-//  AUTOCOMPLETE ENGINE
-// ──────────────────────────────────────────────
+const productosOptions = `{% for p in productos_disponibles %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}`;
 
-/**
- * Verifica si la query coincide con la primera o segunda palabra del nombre.
- * También acepta coincidencia en cualquier posición como fallback.
- */
-function filtrarProductos(query) {
-    if (!query || query.trim().length < 1) return [];
-    const q = query.trim().toLowerCase();
-    const palabras = q.split(/\s+/);
-
-    // Clasificar por prioridad
-    const exactFirst  = [];  // coincide desde la 1ª palabra
-    const exactSecond = [];  // coincide desde la 2ª palabra
-    const anywhere    = [];  // coincide en cualquier parte
-
-    PRODUCTOS_CATALOGO.forEach(function(p) {
-        const nombre = p.nombre.toLowerCase();
-        const partes = nombre.split(/\s+/);
-
-        // ¿La 1ª palabra del producto empieza con el 1er token?
-        if (partes[0] && partes[0].startsWith(palabras[0])) {
-            exactFirst.push(p);
-        }
-        // ¿La 2ª palabra del producto empieza con el 1er token?
-        else if (partes[1] && partes[1].startsWith(palabras[0])) {
-            exactSecond.push(p);
-        }
-        // ¿Aparece en cualquier parte?
-        else if (nombre.includes(q)) {
-            anywhere.push(p);
-        }
-    });
-
-    return exactFirst.concat(exactSecond).concat(anywhere).slice(0, 12);
+function mostrarInfoSucursal(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    const div = document.getElementById('info-sucursal');
+    if (opt && opt.value) {
+        document.getElementById('sucursal-direccion').textContent = opt.getAttribute('data-direccion') || '—';
+        document.getElementById('sucursal-telefono').textContent = opt.getAttribute('data-telefono') || '—';
+        div.style.display = 'block';
+    } else {
+        div.style.display = 'none';
+    }
+    actualizarTotalLitros();
 }
 
-/**
- * Resalta la parte del texto que coincide con la query.
- */
-function resaltarCoincidencia(texto, query) {
-    if (!query) return texto;
-    const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
-    return texto.replace(re, '<span class="match-highlight">$1</span>');
+function calcularLitros(el) {
+    const item = el.closest('.pedido-item');
+    if (!item) return;
+    const selectPres = item.querySelector('.input-presentacion');
+    const inputEnv = item.querySelector('.input-envases');
+    const spanLit = item.querySelector('.litros-resultado');
+    if (!selectPres || !inputEnv || !spanLit) return;
+    const factor = LITROS_MAP[selectPres.value] || 1.0;
+    const envases = parseFloat(inputEnv.value) || 0;
+    spanLit.textContent = (envases * factor).toFixed(2) + ' L';
+    actualizarTotalLitros();
 }
 
-/**
- * Inicializa el autocomplete en un elemento .autocomplete-wrapper.
- */
-function initAutocomplete(wrapper) {
-    const input      = wrapper.querySelector('.autocomplete-input');
-    const dropdown   = wrapper.querySelector('.autocomplete-dropdown');
-    const clearBtn   = wrapper.querySelector('.autocomplete-clear');
-    const hiddenId   = wrapper.closest('.pedido-item').querySelector('.hidden-producto-id');
-    const hiddenNom  = wrapper.closest('.pedido-item').querySelector('.hidden-producto-nombre');
-    const unidadInp  = wrapper.closest('.pedido-item').querySelector('input[name="unidades[]"]');
-
-    let activeIndex = -1;
-
-    function mostrarDropdown(resultados) {
-        dropdown.innerHTML = '';
-        activeIndex = -1;
-
-        if (resultados.length === 0) {
-            dropdown.innerHTML = '<div class="autocomplete-empty"><i class="fas fa-search me-1"></i> Sin coincidencias</div>';
-            dropdown.classList.add('show');
-            return;
-        }
-
-        resultados.forEach(function(prod, i) {
-            const item = document.createElement('div');
-            item.className = 'autocomplete-item';
-            item.setAttribute('data-index', i);
-            item.innerHTML = resaltarCoincidencia(prod.nombre, input.value.trim());
-            item.addEventListener('mousedown', function(e) {
-                e.preventDefault(); // evita que el input pierda foco antes de seleccionar
-                seleccionar(prod);
-            });
-            dropdown.appendChild(item);
-        });
-
-        dropdown.classList.add('show');
-    }
-
-    function ocultarDropdown() {
-        dropdown.classList.remove('show');
-        activeIndex = -1;
-    }
-
-    function seleccionar(prod) {
-        input.value = prod.nombre;
-        hiddenId.value = prod.id;
-        hiddenNom.value = prod.nombre;
-        if (unidadInp) unidadInp.value = prod.unidad;
-        input.classList.add('is-selected');
-        clearBtn.style.display = 'block';
-        ocultarDropdown();
-    }
-
-    function limpiar() {
-        input.value = '';
-        hiddenId.value = '';
-        hiddenNom.value = '';
-        if (unidadInp) unidadInp.value = '';
-        input.classList.remove('is-selected');
-        clearBtn.style.display = 'none';
-        ocultarDropdown();
-        input.focus();
-    }
-
-    input.addEventListener('input', function() {
-        const q = input.value.trim();
-        // Si el usuario edita el texto manualmente, limpiar selección
-        if (hiddenId.value && input.classList.contains('is-selected')) {
-            input.classList.remove('is-selected');
-            hiddenId.value = '';
-            hiddenNom.value = '';
-            clearBtn.style.display = 'none';
-        }
-        clearBtn.style.display = q.length > 0 ? 'block' : 'none';
-
-        if (q.length === 0) { ocultarDropdown(); return; }
-        mostrarDropdown(filtrarProductos(q));
+function actualizarTotalLitros() {
+    let total = 0;
+    document.querySelectorAll('.litros-resultado').forEach(span => {
+        total += parseFloat(span.textContent) || 0;
     });
+    const label = document.getElementById('total-litros-label');
+    if (label) label.textContent = total.toFixed(2) + ' L';
+}
 
-    input.addEventListener('keydown', function(e) {
-        const items = dropdown.querySelectorAll('.autocomplete-item');
-        if (!items.length) return;
-
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            activeIndex = Math.min(activeIndex + 1, items.length - 1);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            activeIndex = Math.max(activeIndex - 1, 0);
-        } else if (e.key === 'Enter') {
-            if (activeIndex >= 0 && items[activeIndex]) {
-                e.preventDefault();
-                const idx = parseInt(items[activeIndex].getAttribute('data-index'));
-                seleccionar(filtrarProductos(input.value)[idx]);
+// Autocompletar
+document.addEventListener('input', function(e) {
+    const input = e.target.closest('.input-producto-buscar');
+    if (!input) return;
+    const container = input.closest('.position-relative');
+    if (!container) return;
+    const listSug = container.querySelector('.sugerencias-productos');
+    const selectProducto = container.querySelector('.input-producto');
+    if (!listSug || !selectProducto) return;
+    const termino = input.value.toLowerCase().trim();
+    if (termino === '') {
+        selectProducto.value = '';
+        listSug.style.display = 'none';
+        return;
+    }
+    const sugs = catalogoProductos.filter(p => p.nombre.toLowerCase().includes(termino)).slice(0, 6);
+    if (sugs.length > 0) {
+        let html = '';
+        sugs.forEach(p => {
+            const idx = p.nombre.toLowerCase().indexOf(termino);
+            let nombre = p.nombre;
+            if (idx >= 0) {
+                const match = p.nombre.substr(idx, termino.length);
+                nombre = p.nombre.replace(match, `<strong class="text-primary">${match}</strong>`);
             }
-            return;
-        } else if (e.key === 'Escape') {
-            ocultarDropdown(); return;
-        } else { return; }
-
-        items.forEach(function(it) { it.classList.remove('active'); });
-        if (items[activeIndex]) {
-            items[activeIndex].classList.add('active');
-            items[activeIndex].scrollIntoView({ block: 'nearest' });
-        }
-    });
-
-    input.addEventListener('focus', function() {
-        const q = input.value.trim();
-        if (q.length > 0 && !input.classList.contains('is-selected')) {
-            mostrarDropdown(filtrarProductos(q));
-        }
-    });
-
-    input.addEventListener('blur', function() {
-        // Pequeño delay para que el click en un item se registre antes de cerrar
-        setTimeout(ocultarDropdown, 150);
-    });
-
-    clearBtn.addEventListener('mousedown', function(e) { e.preventDefault(); limpiar(); });
-
-    // Validación: el input de texto no envía datos; los hidden sí.
-    // Aseguramos que el texto visible corresponda a un producto seleccionado al enviar.
-    input.closest('form') && input.closest('form').addEventListener('submit', function() {
-        if (!hiddenId.value && input.value.trim()) {
-            // Intento de selección automática del primer resultado
-            const res = filtrarProductos(input.value);
-            if (res.length > 0) seleccionar(res[0]);
-        }
-    }, { capture: true });
-}
-
-// Inicializar todos los wrappers existentes al cargar la página
-document.querySelectorAll('.autocomplete-wrapper').forEach(initAutocomplete);
-
-
-// ──────────────────────────────────────────────
-//  FORMULARIO DINÁMICO
-// ──────────────────────────────────────────────
-
-function mostrarInfoSucursal(select) {
-    const option = select.options[select.selectedIndex];
-    document.getElementById('sucursal-direccion').textContent = option.getAttribute('data-direccion');
-    document.getElementById('sucursal-telefono').textContent  = option.getAttribute('data-telefono');
-    document.getElementById('info-sucursal').style.display = 'block';
-}
-
-let pedidoCount = 1;
-function agregarFilaPedido() {
-    pedidoCount++;
-
-    // Clonar la primera fila
-    const original = document.querySelector('.pedido-item[data-pedido-num="1"]');
-    const clone = original.cloneNode(true);
-
-    clone.setAttribute('data-pedido-num', pedidoCount);
-    clone.querySelector('.badge').textContent = 'Item #' + pedidoCount;
-
-    const btnEliminar = clone.querySelector('.btn-eliminar-pedido');
-    btnEliminar.setAttribute('onclick', 'eliminarFilaPedido(' + pedidoCount + ')');
-    btnEliminar.style.display = 'inline-block';
-
-    // Limpiar valores clonados
-    clone.querySelectorAll('input').forEach(function(inp) { inp.value = ''; });
-    clone.querySelectorAll('select').forEach(function(sel) { sel.selectedIndex = 0; });
-
-    // Limpiar estado visual del autocomplete
-    const acInput = clone.querySelector('.autocomplete-input');
-    if (acInput) {
-        acInput.classList.remove('is-selected');
-        acInput.value = '';
+            html += `<button type="button" class="list-group-item list-group-item-action py-2 px-3 border-0 small text-start product-suggestion-item" data-id="${p.id}" data-nombre="${p.nombre}">
+                <i class="fas fa-box text-muted me-2 small"></i> ${nombre}
+            </button>`;
+        });
+        listSug.innerHTML = html;
+        listSug.style.display = 'block';
+    } else {
+        listSug.innerHTML = `<div class="py-2 px-3 text-muted small"><i class="fas fa-info-circle me-1"></i> Sin resultados</div>`;
+        listSug.style.display = 'block';
     }
-    const acDropdown = clone.querySelector('.autocomplete-dropdown');
-    if (acDropdown) { acDropdown.classList.remove('show'); acDropdown.innerHTML = ''; }
-    const acClear = clone.querySelector('.autocomplete-clear');
-    if (acClear) { acClear.style.display = 'none'; }
+});
 
-    document.getElementById('lista-pedidos').appendChild(clone);
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.product-suggestion-item');
+    if (btn) {
+        const id = btn.getAttribute('data-id');
+        const nombre = btn.getAttribute('data-nombre');
+        const container = btn.closest('.position-relative');
+        if (container) {
+            const input = container.querySelector('.input-producto-buscar');
+            const selectProducto = container.querySelector('.input-producto');
+            const listSug = container.querySelector('.sugerencias-productos');
+            if (input) input.value = nombre;
+            if (selectProducto) selectProducto.value = id;
+            if (listSug) listSug.style.display = 'none';
+        }
+        return;
+    }
+    if (!e.target.closest('.input-producto-buscar') && !e.target.closest('.sugerencias-productos')) {
+        document.querySelectorAll('.sugerencias-productos').forEach(l => l.style.display = 'none');
+    }
+});
 
-    // Inicializar autocomplete en el nuevo wrapper
-    const nuevoWrapper = clone.querySelector('.autocomplete-wrapper');
-    if (nuevoWrapper) initAutocomplete(nuevoWrapper);
+document.addEventListener('focusin', function(e) {
+    const input = e.target.closest('.input-producto-buscar');
+    if (input && input.value.trim().length >= 1) {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+});
 
-    actualizarBotonesEliminación();
+// Agregar / eliminar filas
+let contadorItems = 1;
+
+function agregarFilaPedido() {
+    contadorItems++;
+    const plantilla = `
+        <div class="pedido-item p-3" data-pedido-num="${contadorItems}">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="badge bg-secondary text-white font-monospace">Item #<span class="num-item">${contadorItems}</span></span>
+                <button type="button" class="btn btn-sm text-danger btn-eliminar-pedido" onclick="eliminarFilaPedido(${contadorItems})">
+                    <i class="fas fa-trash me-1"></i> Eliminar
+                </button>
+            </div>
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label small fw-semibold"><i class="fas fa-box text-primary"></i> Producto *</label>
+                    <div class="position-relative">
+                        <input type="text" class="form-control input-producto-buscar border-secondary-subtle" placeholder="🔍 Buscar producto..." autocomplete="off" required>
+                        <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" style="z-index: 1050; display: none; max-height: 200px; overflow-y: auto; background: white;"></div>
+                        <select name="producto_ids[]" class="input-producto" style="display:none;" required>
+                            <option value="">— Seleccionar —</option>
+                            ${productosOptions}
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <label class="form-label small fw-semibold"><i class="fas fa-flask text-primary"></i> Presentación *</label>
+                    <select name="presentaciones[]" class="form-select border-secondary-subtle input-presentacion" required onchange="calcularLitros(this)">
+                        <option value="300ml">300 ml</option>
+                        <option value="500ml">500 ml</option>
+                        <option value="1litro" selected>1 litro</option>
+                        <option value="5litros">5 litros</option>
+                        <option value="20litros">20 litros</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-6">
+                    <label class="form-label small fw-semibold"><i class="fas fa-sort-numeric-up text-primary"></i> Envases *</label>
+                    <input type="number" name="cantidades_envases[]" class="form-control border-secondary-subtle input-envases"
+                           min="1" step="1" value="1" required oninput="calcularLitros(this)">
+                </div>
+                <div class="col-md-3 col-6">
+                    <label class="form-label small fw-semibold"><i class="fas fa-tint text-primary"></i> Total litros</label>
+                    <div class="litros-badge">
+                        <i class="fas fa-calculator"></i>
+                        <span class="litros-resultado">1.00 L</span>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <label class="form-label small fw-semibold"><i class="fas fa-paper-plane text-primary"></i> Enviar A *</label>
+                    <select name="destinatarios[]" class="form-select border-secondary-subtle fw-semibold text-primary" required>
+                        <option value="fabrica">Fábrica (Elaboración)</option>
+                        <option value="admin_minorista">Admin - Minorista</option>
+                        <option value="admin_mayorista">Admin - Mayorista</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <input type="text" name="notas[]" class="form-control form-control-sm border-secondary-subtle" placeholder="Notas opcionales...">
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('lista-pedidos').insertAdjacentHTML('beforeend', plantilla);
+    if (contadorItems > 1) {
+        document.querySelector('[data-pedido-num="1"] .btn-eliminar-pedido').style.display = 'inline-block';
+    }
+    actualizarTotalLitros();
 }
 
 function eliminarFilaPedido(num) {
-    const item = document.querySelector('.pedido-item[data-pedido-num="' + num + '"]');
-    if (item) {
-        item.remove();
-        renumerarFilas();
-        actualizarBotonesEliminación();
+    const el = document.querySelector(`[data-pedido-num="${num}"]`);
+    if (el) {
+        el.remove();
+        const items = document.querySelectorAll('.pedido-item');
+        items.forEach((item, idx) => {
+            item.setAttribute('data-pedido-num', idx + 1);
+            const numSpan = item.querySelector('.num-item');
+            if (numSpan) numSpan.textContent = idx + 1;
+            const btnEl = item.querySelector('.btn-eliminar-pedido');
+            if (btnEl) {
+                btnEl.setAttribute('onclick', `eliminarFilaPedido(${idx + 1})`);
+                if (idx === 0 && items.length === 1) btnEl.style.display = 'none';
+            }
+        });
+        contadorItems = items.length;
+        actualizarTotalLitros();
     }
 }
 
-function renumerarFilas() {
-    const filas = document.querySelectorAll('.pedido-item');
-    pedidoCount = 0;
-    filas.forEach(function(fila, index) {
-        pedidoCount = index + 1;
-        fila.setAttribute('data-pedido-num', pedidoCount);
-        fila.querySelector('.badge').textContent = 'Item #' + pedidoCount;
-        const btn = fila.querySelector('.btn-eliminar-pedido');
-        if (btn) btn.setAttribute('onclick', 'eliminarFilaPedido(' + pedidoCount + ')');
-    });
-}
-
-function actualizarBotonesEliminación() {
-    const filas = document.querySelectorAll('.pedido-item');
-    const btnFila1 = document.querySelector('.pedido-item[data-pedido-num="1"] .btn-eliminar-pedido');
-    if (filas.length > 1) {
-        if (btnFila1) btnFila1.style.display = 'inline-block';
-    } else {
-        if (btnFila1) btnFila1.style.display = 'none';
-    }
-}
-
-// Sincronizar notas antes del submit
-document.getElementById('form-pedidos-sucursal').addEventListener('submit', function() {
-    document.querySelectorAll('.pedido-item').forEach(function(fila) {
-        const noteVal = fila.querySelector('input[name="notes[]"]').value;
-        fila.querySelector('.input-notas').value = noteVal;
-    });
-});
+// Init
+actualizarTotalLitros();
 </script>
-
-<!-- Modal Nuevo Producto -->
-<div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-labelledby="modalNuevoProductoLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow-lg">
-            <div class="modal-header bg-success text-white py-3 px-4">
-                <h5 class="modal-title fw-bold" id="modalNuevoProductoLabel">
-                    <i class="fas fa-plus-circle me-2"></i> Crear Nuevo Producto en Catálogo
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ url_for('sucursal.nuevo_producto') }}" method="POST">
-                <div class="modal-body p-4 text-dark">
-                    <p class="text-secondary small mb-3">
-                        El producto se agregará de forma permanente al catálogo y quedará disponible para ser seleccionado inmediatamente por cualquier sucursal.
-                    </p>
-                    <!-- Nombre -->
-                    <div class="mb-3">
-                        <label for="modal-prod-nombre" class="form-label fw-semibold">Nombre del Producto *</label>
-                        <input type="text" name="nombre" id="modal-prod-nombre" class="form-control border-secondary-subtle" placeholder="Ej: Bolsa de Residuos 60x90" required>
-                    </div>
-                    <!-- Unidad -->
-                    <div class="mb-3">
-                        <label for="modal-prod-unidad" class="form-label fw-semibold">Unidad de Medida</label>
-                        <select name="unidad" id="modal-prod-unidad" class="form-select border-secondary-subtle">
-                            <option value="unidades" selected>Unidades</option>
-                            <option value="kg">Kilogramos (kg)</option>
-                            <option value="docena">Docena</option>
-                            <option value="paquete">Paquete</option>
-                            <option value="bolsa">Bolsa</option>
-                            <option value="litros">Litros</option>
-                        </select>
-                    </div>
-                    <!-- Descripción -->
-                    <div class="mb-0">
-                        <label for="modal-prod-desc" class="form-label fw-semibold">Descripción (Opcional)</label>
-                        <textarea name="descripcion" id="modal-prod-desc" class="form-control border-secondary-subtle" rows="2" placeholder="Ej: Bolsa reforzada consorcio color negro."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer p-3 bg-light border-top-0 d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
-                        <i class="fas fa-save me-1"></i> Guardar en Catálogo
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 {% endblock %}

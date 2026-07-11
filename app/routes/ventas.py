@@ -189,61 +189,68 @@ def nuevo_pedido():
             flash('Debes seleccionar un cliente', 'danger')
             return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
         
-        # Obtener arrays de datos
-        # producto_ids[] viene como ID del producto del catálogo
+        # NUEVO SISTEMA: producto_id + presentacion + cantidad_envases
         producto_ids = request.form.getlist('producto_ids[]')
-        # productos[] se mantiene como fallback para texto libre (retrocompatibilidad)
-        productos_texto = request.form.getlist('productos[]')
-        cantidades = request.form.getlist('cantidades[]')
-        unidades = request.form.getlist('unidades[]')
+        presentaciones = request.form.getlist('presentaciones[]')
+        cantidades_envases = request.form.getlist('cantidades_envases[]')
         notas = request.form.getlist('notas[]')
-        
+
+        # Tabla de conversión presentacion -> litros
+        LITROS_POR_PRESENTACION = {
+            '300ml': 0.30,
+            '500ml': 0.50,
+            '1litro': 1.00,
+            '5litros': 5.00,
+            '20litros': 20.00,
+        }
+
         # Validar que haya al menos un producto
-        tiene_producto = any(p for p in producto_ids if p and p.strip()) or \
-                         any(p for p in productos_texto if p and p.strip())
-        
+        tiene_producto = any(p for p in producto_ids if p and p.strip())
         if not tiene_producto:
             flash('Debes agregar al menos un pedido con producto', 'warning')
-            return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear')
-        
+            productos_disponibles = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
+            return render_template('ventas/pedido_form.html', form=form, title='Nuevo Pedido', accion='Crear', productos_disponibles=productos_disponibles)
+
         # Crear múltiples pedidos
         pedidos_creados = []
-        total_items = max(len(producto_ids), len(productos_texto))
-        
+        total_items = len(producto_ids)
+
         for i in range(total_items):
             pid_str = producto_ids[i] if i < len(producto_ids) else ''
-            ptxt = productos_texto[i] if i < len(productos_texto) else ''
-            
-            nombre_final = None
-            id_final = None
-
-            if pid_str and pid_str.strip():
-                # Buscar el producto en el catálogo
-                try:
-                    producto_obj = Producto.query.get(int(pid_str))
-                    if producto_obj:
-                        nombre_final = producto_obj.nombre
-                        id_final = producto_obj.id
-                except (ValueError, TypeError):
-                    pass
-
-            if not nombre_final and ptxt and ptxt.strip():
-                nombre_final = ptxt.strip()
-
-            if not nombre_final:
-                continue  # Saltear filas vacías
+            if not pid_str or not pid_str.strip():
+                continue
 
             try:
-                cantidad = float(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1.0
-                unidad = unidades[i] if i < len(unidades) else 'unidades'
-                nota = notas[i] if i < len(notas) and notas[i] else None
-                
+                producto_obj = Producto.query.get(int(pid_str))
+            except (ValueError, TypeError):
+                continue
+            if not producto_obj:
+                continue
+
+            presentacion = presentaciones[i] if i < len(presentaciones) else '1litro'
+            if presentacion not in LITROS_POR_PRESENTACION:
+                presentacion = '1litro'
+
+            factor = LITROS_POR_PRESENTACION[presentacion]
+
+            try:
+                envases = float(cantidades_envases[i]) if i < len(cantidades_envases) and cantidades_envases[i] else 1.0
+            except (ValueError, TypeError):
+                envases = 1.0
+
+            litros_totales = round(envases * factor, 4)
+            nota = notas[i] if i < len(notas) and notas[i] else None
+
+            try:
                 pedido = Pedido(
                     cliente_id=cliente_id,
-                    producto_nombre=nombre_final,
-                    producto_id=id_final,
-                    cantidad=cantidad,
-                    unidad=unidad,
+                    producto_nombre=producto_obj.nombre,
+                    producto_id=producto_obj.id,
+                    cantidad=litros_totales,
+                    unidad='litros',
+                    presentacion=presentacion,
+                    cantidad_envases=envases,
+                    litros_por_presentacion=factor,
                     estado='pendiente',
                     notas_vendedor=nota,
                     modificado=False,
@@ -689,41 +696,8 @@ def api_productos():
     })
 
 
-@ventas_bp.route('/productos/nuevo', methods=['POST'])
-@vendedor_requerido
-def nuevo_producto():
-    """
-    Agregar un nuevo producto al catálogo desde el panel de ventas.
-    Redirige de vuelta al formulario de nuevo pedido.
-    """
-    nombre = request.form.get('nombre', '').strip()
-    unidad = request.form.get('unidad', '').strip()
-    descripcion = request.form.get('descripcion', '').strip() or None
-
-    if not nombre:
-        flash('El nombre del producto es obligatorio.', 'danger')
-        return redirect(url_for('ventas.nuevo_pedido'))
-
-    # Verificar que no exista ya
-    existente = Producto.query.filter(
-        func.lower(Producto.nombre) == nombre.lower()
-    ).first()
-    if existente:
-        flash(f'Ya existe un producto con el nombre "{existente.nombre}".', 'warning')
-        return redirect(url_for('ventas.nuevo_pedido'))
-
-    nuevo = Producto(
-        nombre=nombre,
-        unidad=unidad if unidad else None,
-        descripcion=descripcion,
-        disponible=True,
-        stock_actual=0
-    )
-    db.session.add(nuevo)
-    db.session.commit()
-
-    flash(f'✅ Producto "{nombre}" agregado al catálogo. Ya podés seleccionarlo en el pedido.', 'success')
-    return redirect(url_for('ventas.nuevo_pedido'))
+# La ruta /productos/nuevo fue eliminada de ventas.
+# Los productos solo pueden ser creados por Administración.
 
 
 @ventas_bp.route('/stock')

@@ -110,63 +110,70 @@ def nuevo_pedido():
             flash('Cliente no válido para esta sección', 'danger')
             return redirect(url_for('sucursal.nuevo_pedido'))
             
-        # Obtener arreglos de productos, cantidades, destinatarios y notas
+        # NUEVO SISTEMA: producto_id + presentacion + cantidad_envases
         producto_ids = request.form.getlist('producto_ids[]')
-        productos_texto = request.form.getlist('productos[]')
-        cantidades = request.form.getlist('cantidades[]')
-        unidades = request.form.getlist('unidades[]')
+        presentaciones = request.form.getlist('presentaciones[]')
+        cantidades_envases = request.form.getlist('cantidades_envases[]')
         destinatarios = request.form.getlist('destinatarios[]')
         notas = request.form.getlist('notas[]')
-        
+
+        # Tabla de conversión presentacion -> litros
+        LITROS_POR_PRESENTACION = {
+            '300ml': 0.30,
+            '500ml': 0.50,
+            '1litro': 1.00,
+            '5litros': 5.00,
+            '20litros': 20.00,
+        }
+
         # Validar que haya al menos un producto
-        tiene_producto = any(p for p in producto_ids if p and p.strip()) or \
-                         any(p for p in productos_texto if p and p.strip())
-                         
+        tiene_producto = any(p for p in producto_ids if p and p.strip())
         if not tiene_producto:
             flash('Debes agregar al menos un pedido con producto', 'warning')
             return redirect(url_for('sucursal.nuevo_pedido'))
-            
+
         pedidos_creados = []
-        total_items = max(len(producto_ids), len(productos_texto))
-        
+        total_items = len(producto_ids)
+
         for i in range(total_items):
             pid_str = producto_ids[i] if i < len(producto_ids) else ''
-            ptxt = productos_texto[i] if i < len(productos_texto) else ''
-            
-            nombre_final = None
-            id_final = None
-
-            if pid_str and pid_str.strip():
-                try:
-                    producto_obj = Producto.query.get(int(pid_str))
-                    if producto_obj:
-                        nombre_final = producto_obj.nombre
-                        id_final = producto_obj.id
-                except (ValueError, TypeError):
-                    pass
-
-            if not nombre_final and ptxt and ptxt.strip():
-                nombre_final = ptxt.strip()
-
-            if not nombre_final:
-                continue  # Saltar filas vacías
+            if not pid_str or not pid_str.strip():
+                continue
 
             try:
-                cantidad = float(cantidades[i]) if i < len(cantidades) and cantidades[i] else 1.0
-                unidad = unidades[i] if i < len(unidades) else 'unidades'
-                dest = destinatarios[i] if i < len(destinatarios) else 'fabrica'
-                nota = notas[i] if i < len(notas) and notas[i] else None
-                
-                # Validar destinatario
-                if dest not in ['fabrica', 'admin_minorista', 'admin_mayorista']:
-                    dest = 'fabrica'
-                
+                producto_obj = Producto.query.get(int(pid_str))
+            except (ValueError, TypeError):
+                continue
+            if not producto_obj:
+                continue
+
+            presentacion = presentaciones[i] if i < len(presentaciones) else '1litro'
+            if presentacion not in LITROS_POR_PRESENTACION:
+                presentacion = '1litro'
+
+            factor = LITROS_POR_PRESENTACION[presentacion]
+
+            try:
+                envases = float(cantidades_envases[i]) if i < len(cantidades_envases) and cantidades_envases[i] else 1.0
+            except (ValueError, TypeError):
+                envases = 1.0
+
+            litros_totales = round(envases * factor, 4)
+            dest = destinatarios[i] if i < len(destinatarios) else 'fabrica'
+            if dest not in ['fabrica', 'admin_minorista', 'admin_mayorista']:
+                dest = 'fabrica'
+            nota = notas[i] if i < len(notas) and notas[i] else None
+
+            try:
                 pedido = Pedido(
                     cliente_id=cliente_id,
-                    producto_nombre=nombre_final,
-                    producto_id=id_final,
-                    cantidad=cantidad,
-                    unidad=unidad,
+                    producto_nombre=producto_obj.nombre,
+                    producto_id=producto_obj.id,
+                    cantidad=litros_totales,
+                    unidad='litros',
+                    presentacion=presentacion,
+                    cantidad_envases=envases,
+                    litros_por_presentacion=factor,
                     destinatario=dest,
                     despachado=False,
                     estado='pendiente',
@@ -177,6 +184,7 @@ def nuevo_pedido():
                 )
                 db.session.add(pedido)
                 pedidos_creados.append(pedido)
+
                 
             except Exception as e:
                 db.session.rollback()

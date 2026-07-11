@@ -529,3 +529,36 @@ def nuevo_producto():
 
     flash(f'✅ Producto "{nombre}" agregado al catálogo.', 'success')
     return redirect(url_for('administracion.produccion'))
+
+
+@administracion_bp.route('/productos/<int:prod_id>/editar', methods=['POST'])
+@administracion_requerido
+def editar_producto(prod_id):
+    """
+    Editar el nombre o descripción de un producto existente.
+    """
+    producto = Producto.query.get_or_404(prod_id)
+    
+    nuevo_nombre = request.form.get('nombre', '').strip()
+    nueva_descripcion = request.form.get('descripcion', '').strip() or None
+    
+    if not nuevo_nombre:
+        flash('El nombre del producto no puede estar vacío.', 'danger')
+        return redirect(url_for('administracion.stock'))
+        
+    # Verificar si el nuevo nombre ya existe en OTRO producto
+    existente = Producto.query.filter(
+        func.lower(Producto.nombre) == nuevo_nombre.lower(),
+        Producto.id != prod_id
+    ).first()
+    
+    if existente:
+        flash(f'Ya existe otro producto con el nombre "{existente.nombre}".', 'warning')
+        return redirect(url_for('administracion.stock'))
+        
+    producto.nombre = nuevo_nombre
+    producto.descripcion = nueva_descripcion
+    
+    db.session.commit()
+    flash(f'✅ Producto actualizado a "{nuevo_nombre}".', 'success')
+    return redirect(url_for('administracion.stock'))

@@ -132,7 +132,17 @@
                         {% set stock = producto.stock_actual|float %}
                         <tr class="producto-row {% if stock == 0 %}table-secondary{% endif %}" data-nombre="{{ producto.nombre|lower }}">
                             <td class="px-4 py-3">
-                                <div class="fw-bold text-dark">{{ producto.nombre }}</div>
+                                <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                    {{ producto.nombre }}
+                                    {% if current_user.es_administracion() %}
+                                    <button class="btn btn-sm btn-link text-primary p-0 border-0 ms-1" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#modalEditarProducto{{ producto.id }}"
+                                            title="Editar Producto">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
                                 {% if producto.descripcion %}
                                 <div class="text-muted small text-truncate" style="max-width: 350px;">{{ producto.descripcion }}</div>
                                 {% endif %}
@@ -154,6 +164,37 @@
                                 {% endif %}
                             </td>
                         </tr>
+                        
+                        {% if current_user.es_administracion() %}
+                        <!-- Modal Editar Producto -->
+                        <div class="modal fade" id="modalEditarProducto{{ producto.id }}" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow">
+                                    <div class="modal-header text-white" style="background: linear-gradient(135deg, #0d6efd, #0b5ed7);">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-edit"></i> Editar Producto
+                                        </h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body text-start">
+                                        <form method="POST" action="{{ url_for('administracion.editar_producto', prod_id=producto.id) }}">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Nombre del Producto *</label>
+                                                <input type="text" name="nombre" class="form-control" value="{{ producto.nombre }}" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold">Descripción (Opcional)</label>
+                                                <input type="text" name="descripcion" class="form-control" value="{{ producto.descripcion or '' }}">
+                                            </div>
+                                            <button type="submit" class="btn btn-primary w-100">
+                                                <i class="fas fa-save me-1"></i> Guardar Cambios
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>

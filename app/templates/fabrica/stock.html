@@ -141,6 +141,11 @@
                                             title="Editar Producto">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <form method="POST" action="{{ url_for('administracion.eliminar_producto_catalogo', prod_id=producto.id) }}" class="d-inline ms-2" onsubmit="return confirm('¿Seguro que deseas eliminar este producto del catálogo?');">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0 border-0" title="Eliminar Producto">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
                                     {% endif %}
                                 </div>
                                 {% if producto.descripcion %}

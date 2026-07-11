@@ -376,8 +376,8 @@ def stock():
 
     semanales_dict = {r.producto_id: float(r.total_semanal) for r in producciones_semanales}
 
-    # Mostrar solo productos que tienen al menos un registro de producción
-    productos = Producto.query.filter(Producto.id.in_(totales_dict.keys())).order_by(Producto.nombre).all()
+    # Mostrar todo el catálogo disponible para que puedan editarlo o eliminarlo
+    productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
 
     return render_template(
         'fabrica/stock.html',
@@ -561,4 +561,17 @@ def editar_producto(prod_id):
     
     db.session.commit()
     flash(f'✅ Producto actualizado a "{nuevo_nombre}".', 'success')
+    return redirect(url_for('administracion.stock'))
+
+
+@administracion_bp.route('/productos/<int:prod_id>/eliminar_catalogo', methods=['POST'])
+@administracion_requerido
+def eliminar_producto_catalogo(prod_id):
+    """
+    Eliminar un producto del catálogo (baja lógica).
+    """
+    producto = Producto.query.get_or_404(prod_id)
+    producto.disponible = False
+    db.session.commit()
+    flash(f'⚠️ Producto "{producto.nombre}" eliminado del catálogo.', 'warning')
     return redirect(url_for('administracion.stock'))

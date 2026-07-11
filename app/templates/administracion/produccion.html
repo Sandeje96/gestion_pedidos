@@ -35,7 +35,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form method="POST" action="{{ url_for('fabrica.nuevo_producto') }}" id="form-nuevo-producto">
+                <form method="POST" action="{{ url_for('administracion.nuevo_producto') }}" id="form-nuevo-producto">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">
                             <i class="fas fa-tag"></i> Nombre del Producto *
@@ -84,10 +84,10 @@
                 data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
             <i class="fas fa-plus-circle"></i> Nuevo Producto
         </button>
-        <a href="{{ url_for('fabrica.stock') }}" class="btn btn-outline-info">
+        <a href="{{ url_for('administracion.stock') }}" class="btn btn-outline-info">
             <i class="fas fa-boxes"></i> Ver Stock
         </a>
-        <a href="{{ url_for('fabrica.dashboard') }}" class="btn btn-outline-secondary">
+        <a href="{{ url_for('administracion.dashboard') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left"></i> Panel
         </a>
     </div>
@@ -131,7 +131,7 @@
                     </button>
                 </div>
                 {% else %}
-                <form method="POST" action="{{ url_for('fabrica.produccion') }}">
+                <form method="POST" action="{{ url_for('administracion.produccion') }}">
                     <!-- Producto -->
                     <div class="mb-3">
                         <label for="producto_id" class="form-label fw-semibold">
@@ -220,7 +220,7 @@
         <!-- FILTRO DE FECHA -->
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body py-3">
-                <form method="GET" action="{{ url_for('fabrica.produccion') }}" class="row g-2 align-items-end">
+                <form method="GET" action="{{ url_for('administracion.produccion') }}" class="row g-2 align-items-end">
                     <div class="col-md-5">
                         <label class="form-label fw-semibold mb-1">
                             <i class="fas fa-filter"></i> Ver producción del día:
@@ -234,7 +234,7 @@
                         </button>
                     </div>
                     <div class="col-auto">
-                        <a href="{{ url_for('fabrica.produccion') }}" class="btn btn-outline-secondary">
+                        <a href="{{ url_for('administracion.produccion') }}" class="btn btn-outline-secondary">
                             <i class="fas fa-calendar-day"></i> Hoy
                         </a>
                     </div>
@@ -307,7 +307,7 @@
                                 <td><small class="text-muted">{{ p.observaciones or '—' }}</small></td>
                                 <td>
                                     <form method="POST"
-                                          action="{{ url_for('fabrica.eliminar_produccion', prod_id=p.id) }}"
+                                          action="{{ url_for('administracion.eliminar_produccion', prod_id=p.id) }}"
                                           onsubmit="return confirm('¿Eliminar este registro? El stock se ajustará.')">
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
                                             <i class="fas fa-trash"></i>

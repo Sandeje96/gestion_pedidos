@@ -76,7 +76,7 @@ def cobro_cliente(cliente_id):
     """
     cliente = Cliente.query.get_or_404(cliente_id)
 
-    # ── VERIFICAR PAGOS HOY (en hora argentina UTC-3) ──
+    # ── VERIFICAR PAGOS HOY (sesión activa, procesado=False) ──
     from datetime import datetime
     OFFSET_ARG = timedelta(hours=3)
     ahora_utc = datetime.utcnow()
@@ -87,7 +87,8 @@ def cobro_cliente(cliente_id):
 
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
-        PagoBoleta.fecha_cobro >= inicio_hoy_utc
+        PagoBoleta.fecha_cobro >= inicio_hoy_utc,
+        PagoBoleta.procesado == False
     ).count()
 
     ya_cobro_hoy = (pagos_hoy > 0)
@@ -318,10 +319,11 @@ def todo_a_cuenta_corriente(cliente_id):
     inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
     hoy = ahora_arg.date()
 
-    # Verificar que no se haya operado ya hoy (en hora argentina)
+    # Verificar que no se haya operado ya hoy en esta sesión activa
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
-        PagoBoleta.fecha_cobro >= inicio_hoy_utc
+        PagoBoleta.fecha_cobro >= inicio_hoy_utc,
+        PagoBoleta.procesado == False
     ).count()
 
     if pagos_hoy > 0:
@@ -413,11 +415,12 @@ def resumen():
     OFFSET_ARG = timedelta(hours=3)
     hoy = (datetime.utcnow() - OFFSET_ARG).date()
 
-    # Todos los cobros del repartidor en la sesión activa (sin filtro de fecha)
+    # Todos los cobros de la sesión activa (procesado=False)
     pagos_hoy = (
         PagoBoleta.query
         .filter(
-            PagoBoleta.cobrado_por_id == current_user.id
+            PagoBoleta.cobrado_por_id == current_user.id,
+            PagoBoleta.procesado == False
         )
         .all()
     )
@@ -428,7 +431,9 @@ def resumen():
     total_cheque       = sum(float(p.cheque)         for p in pagos_hoy)
     total_cobrado      = total_efectivo + total_transferencia + total_cheque
 
-    # Gastos de la sesión activa (todos, sin filtro de fecha)
+    # Gastos de la sesión activa (procesado equivalente: todos los del repartidor no cerrados)
+    # Los gastos se limpian con limpiar_gastos(), que los mueve a ayer.
+    # Mostramos todos los gastos hasta que el repartidor los limpie manualmente.
     gastos_hoy = GastoRepartidor.query.filter(
         GastoRepartidor.repartidor_id == current_user.id
     ).order_by(GastoRepartidor.fecha_creacion.asc()).all()

@@ -110,6 +110,9 @@ class PagoBoleta(db.Model):
     )
     notas = db.Column(db.Text, nullable=True)
     fecha_cobro = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    # Indica si este pago fue cerrado por Ventas (cierre de ruta).
+    # False = sesión activa (se muestra en resumen). True = sesión cerrada (archivado).
+    procesado = db.Column(db.Boolean, nullable=False, default=False, index=True)
 
     # Relaciones
     cliente = db.relationship('Cliente', backref=db.backref('pagos', lazy='dynamic'))

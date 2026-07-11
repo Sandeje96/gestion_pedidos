@@ -541,6 +541,7 @@ def editar_producto(prod_id):
     
     nuevo_nombre = request.form.get('nombre', '').strip()
     nueva_descripcion = request.form.get('descripcion', '').strip() or None
+    nuevo_stock = request.form.get('stock_actual')
     
     if not nuevo_nombre:
         flash('El nombre del producto no puede estar vacío.', 'danger')
@@ -558,6 +559,12 @@ def editar_producto(prod_id):
         
     producto.nombre = nuevo_nombre
     producto.descripcion = nueva_descripcion
+    
+    if nuevo_stock is not None:
+        try:
+            producto.stock_actual = float(nuevo_stock)
+        except ValueError:
+            flash('Valor de stock inválido.', 'danger')
     
     db.session.commit()
     flash(f'✅ Producto actualizado a "{nuevo_nombre}".', 'success')

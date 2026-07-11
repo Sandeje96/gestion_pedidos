@@ -793,7 +793,8 @@ def boletas():
     # Para cada cliente, obtener boleta activa y saldo CC
     datos_clientes = []
     for cliente in clientes:
-        # Buscar boleta de hoy primero; si no existe, la más reciente activa (pendiente/parcial)
+        # Boleta de HOY solamente (fecha_entrega == hoy)
+        # Si no hay boleta hoy, no se muestra en la columna Boleta hoy
         boleta_hoy = (
             Boleta.query
             .filter(
@@ -803,19 +804,8 @@ def boletas():
             .order_by(Boleta.fecha_creacion.desc())
             .first()
         )
-        # Si no hay boleta de hoy, buscar la más reciente en cualquier fecha
-        # (para mostrar info de boletas cobradas antes del cierre)
-        boleta_reciente = boleta_hoy or (
-            Boleta.query
-            .filter(
-                Boleta.cliente_id == cliente.id,
-                Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
-            )
-            .order_by(Boleta.fecha_entrega.desc(), Boleta.fecha_creacion.desc())
-            .first()
-        )
 
-        # Deuda pendiente (incluye todas las fechas que aún tengan saldo pendiente)
+        # Deuda pendiente (boletas de cualquier fecha con saldo sin cobrar)
         deuda_actual_agregada = db.session.query(
             func.sum(Boleta.saldo_pendiente)
         ).filter(
@@ -833,13 +823,13 @@ def boletas():
         ).scalar()
         cobrado_hoy = float(pagos_sesion) if pagos_sesion else 0.0
 
-        # El monto de la boleta activa
-        monto_hoy = float(boleta_reciente.monto_boleta) if boleta_reciente else 0.0
+        # Monto de la boleta de hoy (0 si no hay boleta de hoy)
+        monto_hoy = float(boleta_hoy.monto_boleta) if boleta_hoy else 0.0
 
-        # Total a cobrar = lo que debe AHORA + lo que ya pagó
+        # Total a cobrar = lo que debe AHORA + lo que ya pagó en la sesión
         total_a_cobrar = deuda_actual + cobrado_hoy
 
-        # La cuenta corriente = total a cobrar - boleta activa
+        # Cuenta Corriente = todo lo que se debe que NO es la boleta de hoy
         saldo_cc = total_a_cobrar - monto_hoy
         if saldo_cc < 0:
             saldo_cc = 0.0
@@ -858,7 +848,7 @@ def boletas():
 
         datos_clientes.append({
             'cliente': cliente,
-            'boleta_hoy': boleta_reciente,   # boleta activa (hoy o más reciente)
+            'boleta_hoy': boleta_hoy,
             'monto_hoy': monto_hoy,
             'saldo_cc': saldo_cc,
             'total_a_cobrar': total_a_cobrar,
@@ -1132,20 +1122,33 @@ def anular_boleta(boleta_id):
 def resetear_cliente_dia(cliente_id):
     """
     Cierra la sesión activa del cliente.
-    Marca todos sus pagos como procesado=True (archivados), para que
-    desaparezcan del resumen activo del repartidor.
-    Las boletas con saldo pendiente permanecen intactas como Cuenta Corriente.
+    1. Mueve la boleta de hoy a 'ayer' → deja de aparecer como 'Boleta hoy'.
+       El saldo pendiente queda como Cuenta Corriente automáticamente.
+    2. Marca todos sus pagos activos como procesado=True (archivados) →
+       el resumen del repartidor se resetea a $0.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
 
-    # Marcar todos los pagos del cliente como procesados (archivados)
+    # 1. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
+    Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.fecha_entrega == hoy
+    ).update({'fecha_entrega': ayer}, synchronize_session=False)
+
+    # 2. Archivar todos los pagos activos del cliente
     PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
         PagoBoleta.procesado == False
     ).update({'procesado': True}, synchronize_session=False)
 
     db.session.commit()
-    flash(f'Sesión cerrada para el cliente {cliente.nombre}. Los saldos pendientes quedaron en Cuenta Corriente.', 'success')
+    flash(
+        f'Sesión cerrada para {cliente.nombre}. '
+        f'El saldo pendiente quedó en Cuenta Corriente.',
+        'success'
+    )
     return redirect(url_for('ventas.boletas'))
 
 
@@ -1154,10 +1157,14 @@ def resetear_cliente_dia(cliente_id):
 def resetear_ruta_dia(ruta_nombre):
     """
     Cierra la sesión activa para todos los clientes de una ruta.
-    Marca todos sus pagos no procesados como procesado=True (archivados),
-    para que desaparezcan del resumen activo del repartidor.
-    Las boletas con saldo pendiente permanecen intactas como Cuenta Corriente.
+    1. Mueve todas las boletas de hoy a 'ayer' → dejan de aparecer como 'Boleta hoy'.
+       El saldo pendiente queda automáticamente en Cuenta Corriente.
+    2. Marca todos los pagos activos como procesado=True →
+       el resumen del repartidor se resetea a $0.
     """
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
+
     # 1. Obtener todos los clientes activos de esta ruta
     clientes_ruta = Cliente.query.filter(
         Cliente.ruta == ruta_nombre,
@@ -1170,7 +1177,13 @@ def resetear_ruta_dia(ruta_nombre):
 
     clientes_ids = [c.id for c in clientes_ruta]
 
-    # 2. Marcar todos los pagos de la ruta como procesados (archivados)
+    # 2. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
+    boletas_movidas = Boleta.query.filter(
+        Boleta.cliente_id.in_(clientes_ids),
+        Boleta.fecha_entrega == hoy
+    ).update({'fecha_entrega': ayer}, synchronize_session=False)
+
+    # 3. Archivar todos los pagos activos de la ruta
     total_procesados = PagoBoleta.query.filter(
         PagoBoleta.cliente_id.in_(clientes_ids),
         PagoBoleta.procesado == False
@@ -1178,9 +1191,9 @@ def resetear_ruta_dia(ruta_nombre):
 
     db.session.commit()
     flash(
-        f'Ruta {ruta_nombre} cerrada. '
-        f'{total_procesados} cobro(s) archivado(s). '
-        f'Los saldos pendientes quedaron en Cuenta Corriente.',
+        f'Ruta {ruta_nombre} cerrada correctamente. '
+        f'{boletas_movidas} boleta(s) pasaron a Cuenta Corriente. '
+        f'{total_procesados} cobro(s) archivado(s).',
         'success'
     )
     return redirect(url_for('ventas.boletas'))

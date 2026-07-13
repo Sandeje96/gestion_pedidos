@@ -552,6 +552,58 @@ def cerrar_semana():
     return redirect(url_for('ventas.dashboard'))
 
 
+@ventas_bp.route('/cerrar-semana-ruta/<path:ruta_nombre>', methods=['POST'])
+@vendedor_requerido
+def cerrar_semana_ruta(ruta_nombre):
+    """
+    Cierra la semana actual para una ruta específica,
+    archivando únicamente los pedidos activos de esa ruta.
+    """
+    from datetime import datetime
+
+    # Generar nombre de semana (misma lógica que cerrar_semana)
+    fecha_actual = datetime.utcnow()
+    mes_numero = fecha_actual.month
+    meses_letras = {
+        1: 'E', 2: 'F', 3: 'M', 4: 'A', 5: 'MY',
+        6: 'JN', 7: 'JL', 8: 'AG', 9: 'S',
+        10: 'O', 11: 'N', 12: 'D'
+    }
+    mes_letra = meses_letras[mes_numero]
+    dia_del_mes = fecha_actual.day
+    numero_semana_mes = ((dia_del_mes - 1) // 7) + 1
+    nombre_semana = f"Semana {fecha_actual.year}-{numero_semana_mes}{mes_letra}"
+
+    # Obtener pedidos activos SOLO de la ruta indicada (excluyendo SUCURSALES)
+    pedidos_activos = Pedido.query.join(Cliente).filter(
+        Pedido.archivado == False,
+        Cliente.ruta == ruta_nombre,
+        Cliente.ruta != 'SUCURSALES'
+    ).all()
+
+    if not pedidos_activos:
+        flash(f'No hay pedidos activos para archivar en la ruta "{ruta_nombre}"', 'warning')
+        return redirect(url_for('ventas.dashboard'))
+
+    total_archivados = 0
+    for pedido in pedidos_activos:
+        pedido.archivar(nombre_semana)
+        total_archivados += 1
+
+    db.session.commit()
+
+    # Notificar via WebSocket
+    socketio.emit('semana_cerrada', {
+        'semana': nombre_semana,
+        'ruta': ruta_nombre,
+        'total_archivados': total_archivados,
+        'mensaje': f'Ruta "{ruta_nombre}": {total_archivados} pedidos archivados en {nombre_semana}'
+    }, namespace='/')
+
+    flash(f'✅ Ruta "{ruta_nombre}" cerrada: {total_archivados} pedido(s) archivado(s) en "{nombre_semana}"', 'success')
+    return redirect(url_for('ventas.dashboard'))
+
+
 @ventas_bp.route('/historial-semanas')
 @vendedor_requerido
 def historial_semanas():

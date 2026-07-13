@@ -433,9 +433,9 @@ def resumen():
 
     # Gastos de la sesión activa (procesado equivalente: todos los del repartidor no cerrados)
     # Los gastos se limpian con limpiar_gastos(), que los mueve a ayer.
-    # Mostramos todos los gastos hasta que el repartidor los limpie manualmente.
     gastos_hoy = GastoRepartidor.query.filter(
-        GastoRepartidor.repartidor_id == current_user.id
+        GastoRepartidor.repartidor_id == current_user.id,
+        GastoRepartidor.fecha == date.today()
     ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
     total_gastos = sum(float(g.monto) for g in gastos_hoy)
 

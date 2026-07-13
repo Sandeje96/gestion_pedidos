@@ -438,7 +438,7 @@ def resumen():
     ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
     total_gastos = sum(float(g.monto) for g in gastos_hoy)
 
-    neto = total_cobrado - total_gastos
+    neto_efectivo = total_efectivo - total_gastos
 
     # Agrupado por ruta del cliente
     rutas_dict = defaultdict(lambda: {
@@ -467,7 +467,7 @@ def resumen():
         total_cheque=total_cheque,
         total_cobrado=total_cobrado,
         total_gastos=total_gastos,
-        neto=neto,
+        neto_efectivo=neto_efectivo,
         gastos_hoy=gastos_hoy,
         resumen_rutas=resumen_rutas,
         total_visitas=len(pagos_hoy)

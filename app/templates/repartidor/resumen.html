@@ -1,4 +1,4 @@
-﻿{% extends 'repartidor/base_repartidor.html' %}
+{% extends 'repartidor/base_repartidor.html' %}
 
 {% block extra_css %}
 .res-fecha {
@@ -155,9 +155,9 @@
   <div class="res-seccion">Resultado</div>
 
   <div class="res-card gris">
-    <span class="rc-label">Neto (cobrado - gastos)</span>
-    <span class="rc-valor" style="color:{% if neto >= 0 %}#1a6b3c{% else %}#c0392b{% endif %};">
-      ${{ "%.2f"|format(neto) }}
+    <span class="rc-label">Efectivo a rendir (Efectivo - Gastos)</span>
+    <span class="rc-valor" style="color:{% if neto_efectivo >= 0 %}#1a6b3c{% else %}#c0392b{% endif %};">
+      ${{ "%.2f"|format(neto_efectivo) }}
     </span>
   </div>
 

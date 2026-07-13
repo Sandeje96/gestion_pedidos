@@ -202,6 +202,9 @@ def nuevo_pedido():
             '1litro': 1.00,
             '5litros': 5.00,
             '20litros': 20.00,
+            '200litros': 200.00,
+            '500litros': 500.00,
+            '1000litros': 1000.00,
         }
 
         # Validar que haya al menos un producto

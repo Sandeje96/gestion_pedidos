@@ -135,6 +135,9 @@
                                         <option value="1litro" selected>1 litro</option>
                                         <option value="5litros">5 litros</option>
                                         <option value="20litros">20 litros</option>
+                                        <option value="200litros">200 litros</option>
+                                        <option value="500litros">500 litros</option>
+                                        <option value="1000litros">1000 litros</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -220,6 +223,9 @@ const LITROS_MAP = {
     '1litro':   1.00,
     '5litros':  5.00,
     '20litros': 20.00,
+    '200litros': 200.00,
+    '500litros': 500.00,
+    '1000litros': 1000.00,
 };
 
 const LABEL_MAP = {
@@ -228,6 +234,9 @@ const LABEL_MAP = {
     '1litro':   '1 litro',
     '5litros':  '5 litros',
     '20litros': '20 litros',
+    '200litros': '200 litros',
+    '500litros': '500 litros',
+    '1000litros': '1000 litros',
 };
 
 const catalogoProductos = [
@@ -348,6 +357,9 @@ const opcionesPresentacion = `
     <option value="1litro" selected>1 litro</option>
     <option value="5litros">5 litros</option>
     <option value="20litros">20 litros</option>
+    <option value="200litros">200 litros</option>
+    <option value="500litros">500 litros</option>
+    <option value="1000litros">1000 litros</option>
 `;
 
 const productosOptions = `{% for p in productos_disponibles %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}`;

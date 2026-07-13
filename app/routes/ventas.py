@@ -560,13 +560,14 @@ def historial_semanas():
     """
     from datetime import datetime
     
-    # Obtener semanas únicas de pedidos archivados
+    # Obtener semanas únicas de pedidos archivados (solo los que tienen semana definida)
     semanas = db.session.query(
         Pedido.semana_archivado,
         db.func.count(Pedido.id).label('total_pedidos'),
         db.func.min(Pedido.fecha_archivado).label('fecha')
     ).filter(
-        Pedido.archivado == True
+        Pedido.archivado == True,
+        Pedido.semana_archivado.isnot(None)
     ).group_by(
         Pedido.semana_archivado
     ).order_by(

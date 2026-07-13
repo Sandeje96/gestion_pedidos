@@ -1,0 +1,101 @@
+{% extends 'repartidor/base_repartidor.html' %}
+
+{% block title %}Historial de Gastos{% endblock %}
+
+{% block extra_css %}
+<style>
+  .fecha-header {
+    background-color: #fff;
+    border-left: 4px solid #1a6b3c;
+    padding: 10px 15px;
+    margin-top: 20px;
+    margin-bottom: 15px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .gasto-card {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .gasto-info {
+    display: flex;
+    flex-direction: column;
+  }
+  .gasto-tipo {
+    font-weight: bold;
+    color: #333;
+    font-size: 1rem;
+  }
+  .gasto-notas {
+    font-size: 0.85rem;
+    color: #6c757d;
+  }
+  .gasto-monto {
+    font-weight: bold;
+    color: #c8860a;
+    font-size: 1.1rem;
+  }
+  .gasto-fecha {
+    font-size: 0.8rem;
+    color: #adb5bd;
+  }
+  .total-dia {
+    background: #e9ecef;
+    padding: 10px 15px;
+    border-radius: 6px;
+    text-align: right;
+    font-weight: bold;
+    margin-bottom: 20px;
+    font-size: 1.05rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="contenido">
+    <div style="margin-bottom: 20px;">
+        <h2>&#x1F4DC; Historial de Gastos</h2>
+    </div>
+
+    {% if not gastos_agrupados %}
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle fa-2x mb-3 d-block"></i>
+        No hay gastos archivados en el historial.
+    </div>
+    {% else %}
+        {% for fecha, gastos in gastos_agrupados.items() %}
+        <div class="fecha-header">
+            <i class="far fa-calendar-alt me-2"></i> {{ fecha.strftime('%d/%m/%Y') }}
+        </div>
+        
+        {% set total_dia = 0 %}
+        {% for g in gastos %}
+            {% set total_dia = total_dia + g.monto|float %}
+            <div class="gasto-card">
+                <div class="gasto-info">
+                    <span class="gasto-tipo">{{ g.tipo }}</span>
+                    {% if g.notas %}
+                    <span class="gasto-notas">{{ g.notas }}</span>
+                    {% endif %}
+                    <span class="gasto-fecha">Repartidor ID: {{ g.repartidor_id }} - {{ g.fecha_creacion.strftime('%H:%M') }}</span>
+                </div>
+                <div class="gasto-monto">
+                    ${{ "%.2f"|format(g.monto|float) }}
+                </div>
+            </div>
+        {% endfor %}
+        <div class="total-dia text-danger">
+            Total del día: ${{ "%.2f"|format(total_dia) }}
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

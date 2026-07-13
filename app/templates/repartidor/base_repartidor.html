@@ -106,6 +106,9 @@
     <a href="{{ url_for('repartidor.resumen') }}" class="{% if request.endpoint == 'repartidor.resumen' %}active{% endif %}">
       Resumen
     </a>
+    <a href="{{ url_for('repartidor.historial_gastos') }}" class="{% if request.endpoint == 'repartidor.historial_gastos' %}active{% endif %}" title="Historial">
+      &#x1F4DC; Historial
+    </a>
   </div>
 
   <!-- Mensajes flash -->

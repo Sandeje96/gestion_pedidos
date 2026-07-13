@@ -568,3 +568,27 @@ def limpiar_gastos():
     db.session.commit()
     flash('Viaje limpiado con éxito. Los gastos volvieron a cero.', 'success')
     return redirect(url_for('repartidor.gastos'))
+
+@repartidor_bp.route('/historial_gastos')
+@repartidor_requerido
+def historial_gastos():
+    """
+    Muestra el historial de gastos archivados/procesados del repartidor actual.
+    Agrupados por fecha.
+    """
+    from collections import defaultdict
+    
+    gastos_procesados = GastoRepartidor.query.filter_by(
+        repartidor_id=current_user.id,
+        procesado=True
+    ).order_by(GastoRepartidor.fecha.desc(), GastoRepartidor.fecha_creacion.desc()).all()
+    
+    gastos_agrupados = defaultdict(list)
+    for g in gastos_procesados:
+        gastos_agrupados[g.fecha].append(g)
+        
+    return render_template(
+        'repartidor/historial_gastos.html',
+        gastos_agrupados=gastos_agrupados,
+        title='Historial de Gastos'
+    )

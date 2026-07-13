@@ -431,11 +431,10 @@ def resumen():
     total_cheque       = sum(float(p.cheque)         for p in pagos_hoy)
     total_cobrado      = total_efectivo + total_transferencia + total_cheque
 
-    # Gastos de la sesión activa (procesado equivalente: todos los del repartidor no cerrados)
-    # Los gastos se limpian con limpiar_gastos(), que los mueve a ayer.
+    # Gastos de la sesión activa (procesado=False)
     gastos_hoy = GastoRepartidor.query.filter(
         GastoRepartidor.repartidor_id == current_user.id,
-        GastoRepartidor.fecha == date.today()
+        GastoRepartidor.procesado == False
     ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
     total_gastos = sum(float(g.monto) for g in gastos_hoy)
 
@@ -513,10 +512,10 @@ def gastos():
         flash('Gasto registrado correctamente.', 'success')
         return redirect(url_for('repartidor.gastos'))
         
-    # Obtener gastos de hoy
+    # Obtener gastos activos (no procesados)
     gastos_hoy = GastoRepartidor.query.filter_by(
         repartidor_id=current_user.id,
-        fecha=hoy
+        procesado=False
     ).order_by(GastoRepartidor.fecha_creacion.desc()).all()
     
     total_gastos = sum(g.monto for g in gastos_hoy)
@@ -552,24 +551,19 @@ def eliminar_gasto(gasto_id):
 @repartidor_requerido
 def limpiar_gastos():
     """
-    Limpia los gastos del viaje actual (del día de hoy).
-    Los mueve al día de ayer para que desaparezcan de la vista actual,
-    permitiendo cargar un nuevo viaje en el mismo día.
+    Limpia los gastos activos del repartidor actual, marcándolos como procesados.
     """
-    hoy = date.today()
-    ayer = hoy - timedelta(days=1)
-    
-    gastos_hoy = GastoRepartidor.query.filter_by(
+    gastos_activos = GastoRepartidor.query.filter_by(
         repartidor_id=current_user.id,
-        fecha=hoy
+        procesado=False
     ).all()
     
-    if not gastos_hoy:
+    if not gastos_activos:
         flash('No hay gastos para limpiar en este viaje.', 'warning')
         return redirect(url_for('repartidor.gastos'))
         
-    for gasto in gastos_hoy:
-        gasto.fecha = ayer
+    for gasto in gastos_activos:
+        gasto.procesado = True
         
     db.session.commit()
     flash('Viaje limpiado con éxito. Los gastos volvieron a cero.', 'success')

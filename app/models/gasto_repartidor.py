@@ -21,6 +21,7 @@ class GastoRepartidor(db.Model):
     tipo = db.Column(db.String(50), nullable=False)
     monto = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     notas = db.Column(db.Text, nullable=True)
+    procesado = db.Column(db.Boolean, default=False, nullable=False)
     
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     

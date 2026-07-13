@@ -1125,12 +1125,10 @@ def resetear_cliente_dia(cliente_id):
     # 4. Si ya no quedan pagos sin procesar en todo el sistema, limpiamos los gastos del repartidor
     pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
     if pagos_pendientes == 0:
-        hoy = date.today()
-        ayer = hoy - timedelta(days=1)
         from app.models.gasto_repartidor import GastoRepartidor
-        gastos_activos = GastoRepartidor.query.filter_by(fecha=hoy).all()
+        gastos_activos = GastoRepartidor.query.filter_by(procesado=False).all()
         for g in gastos_activos:
-            g.fecha = ayer
+            g.procesado = True
         if gastos_activos:
             db.session.commit()
 
@@ -1181,9 +1179,9 @@ def resetear_ruta_dia(ruta_nombre):
     pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
     if pagos_pendientes == 0:
         from app.models.gasto_repartidor import GastoRepartidor
-        gastos_activos = GastoRepartidor.query.filter_by(fecha=hoy).all()
+        gastos_activos = GastoRepartidor.query.filter_by(procesado=False).all()
         for g in gastos_activos:
-            g.fecha = ayer
+            g.procesado = True
         if gastos_activos:
             db.session.commit()
 

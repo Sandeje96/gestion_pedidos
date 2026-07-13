@@ -65,11 +65,30 @@
 
                     <!-- Selección de Cliente -->
                     <div class="mb-4 p-3 bg-light rounded">
-                        <div class="mb-3">
-                            {{ form.cliente_id.label(class="form-label fw-bold") }}
-                            {{ form.cliente_id(class="form-select" + (" is-invalid" if form.cliente_id.errors else ""), id="select-cliente") }}
+                        <div class="mb-3 position-relative">
+                            <label class="form-label fw-bold"><i class="fas fa-user text-primary"></i> Cliente *</label>
+                            
+                            <!-- Buscador Autocomplete -->
+                            <div class="input-group shadow-sm" style="border-radius: 8px; overflow: hidden;">
+                                <span class="input-group-text bg-white border-end-0 border-secondary-subtle">
+                                    <i class="fas fa-search text-muted"></i>
+                                </span>
+                                <input type="text" id="buscador-cliente-nuevo" class="form-control border-start-0 border-secondary-subtle ps-0 form-control-lg fs-6" placeholder="🔍 Buscar cliente por nombre..." autocomplete="off" required>
+                                <button type="button" class="btn btn-link text-muted position-absolute end-0 top-50 translate-middle-y text-decoration-none me-2 p-0" id="btn-limpiar-cliente" style="display: none; z-index: 5;">
+                                    <i class="fas fa-times-circle fs-5"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Lista de sugerencias -->
+                            <div class="list-group sugerencias-productos position-absolute w-100 shadow mt-1" id="sugerencias-cliente" style="z-index: 1050; display: none; max-height: 250px; overflow-y: auto;"></div>
+                            
+                            <!-- Select Original Oculto -->
+                            <div style="display: none;">
+                                {{ form.cliente_id(class="form-select", id="select-cliente") }}
+                            </div>
+
                             {% if form.cliente_id.errors %}
-                                <div class="invalid-feedback">
+                                <div class="text-danger small mt-1 fw-bold">
                                     {% for error in form.cliente_id.errors %}{{ error }}{% endfor %}
                                 </div>
                             {% endif %}
@@ -244,6 +263,91 @@ const catalogoProductos = [
     { id: "{{ p.id }}", nombre: "{{ p.nombre }}" },
     {% endfor %}
 ];
+
+// ─────────────────────────────────────────────────────────────────
+// LÓGICA DEL BUSCADOR DE CLIENTES PREDICTIVO
+// ─────────────────────────────────────────────────────────────────
+const selectClienteOriginal = document.getElementById('select-cliente');
+const inputBuscadorCliente = document.getElementById('buscador-cliente-nuevo');
+const sugerenciasCliente = document.getElementById('sugerencias-cliente');
+const btnLimpiarCliente = document.getElementById('btn-limpiar-cliente');
+
+const catalogoClientes = [];
+Array.from(selectClienteOriginal.options).forEach(opt => {
+    if (opt.value && opt.value !== '0' && opt.text && !opt.disabled) {
+        catalogoClientes.push({
+            id: opt.value,
+            nombre: opt.text
+        });
+    }
+});
+
+inputBuscadorCliente.addEventListener('input', function() {
+    const termino = this.value.toLowerCase().trim();
+    if (termino === '') {
+        sugerenciasCliente.style.display = 'none';
+        btnLimpiarCliente.style.display = 'none';
+        selectClienteOriginal.value = '';
+        selectClienteOriginal.dispatchEvent(new Event('change'));
+        return;
+    }
+    
+    btnLimpiarCliente.style.display = 'block';
+    // Buscar cualquier parte del nombre, hasta 10 resultados
+    const sugs = catalogoClientes.filter(c => c.nombre.toLowerCase().includes(termino)).slice(0, 10);
+    
+    if (sugs.length > 0) {
+        let html = '';
+        sugs.forEach(c => {
+            // Escapar y resaltar coincidencia con <mark>
+            const escapedName = c.nombre.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const regex = new RegExp(`(${termino})`, 'gi');
+            const nombreHtml = escapedName.replace(regex, '<mark>$1</mark>');
+            
+            html += `<button type="button" class="list-group-item list-group-item-action py-2 px-3 border-0 small text-start btn-seleccionar-cliente" data-id="${c.id}" data-nombre="${escapedName}">
+                <i class="fas fa-user text-muted me-2 small"></i> ${nombreHtml}
+            </button>`;
+        });
+        sugerenciasCliente.innerHTML = html;
+        sugerenciasCliente.style.display = 'block';
+    } else {
+        sugerenciasCliente.innerHTML = `<div class="py-2 px-3 text-muted small"><i class="fas fa-info-circle me-1"></i> Sin resultados</div>`;
+        sugerenciasCliente.style.display = 'block';
+    }
+});
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-seleccionar-cliente');
+    if (btn) {
+        const id = btn.getAttribute('data-id');
+        const nombre = btn.getAttribute('data-nombre');
+        
+        inputBuscadorCliente.value = nombre;
+        selectClienteOriginal.value = id;
+        sugerenciasCliente.style.display = 'none';
+        
+        // Disparar change para cargar los datos en la UI (resumen)
+        selectClienteOriginal.dispatchEvent(new Event('change'));
+        
+        // Quitar foco del input para evitar que el teclado siga abierto en celulares
+        inputBuscadorCliente.blur();
+        return;
+    }
+    
+    // Si hace click afuera, cerrar el desplegable
+    if (!e.target.closest('#buscador-cliente-nuevo') && !e.target.closest('#sugerencias-cliente')) {
+        sugerenciasCliente.style.display = 'none';
+    }
+});
+
+btnLimpiarCliente.addEventListener('click', function() {
+    inputBuscadorCliente.value = '';
+    this.style.display = 'none';
+    sugerenciasCliente.style.display = 'none';
+    selectClienteOriginal.value = '';
+    selectClienteOriginal.dispatchEvent(new Event('change'));
+    inputBuscadorCliente.focus();
+});
 
 // Calcular litros al cambiar presentación o cantidad
 function calcularLitros(el) {

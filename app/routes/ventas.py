@@ -1119,13 +1119,22 @@ def resetear_cliente_dia(cliente_id):
         PagoBoleta.cliente_id == cliente_id,
         PagoBoleta.procesado == False
     ).update({'procesado': True}, synchronize_session=False)
-
+    
     db.session.commit()
-    flash(
-        f'Sesión cerrada para {cliente.nombre}. '
-        f'El saldo pendiente quedó en Cuenta Corriente.',
-        'success'
-    )
+    
+    # 4. Si ya no quedan pagos sin procesar en todo el sistema, limpiamos los gastos del repartidor
+    pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
+    if pagos_pendientes == 0:
+        hoy = date.today()
+        ayer = hoy - timedelta(days=1)
+        from app.models.gasto_repartidor import GastoRepartidor
+        gastos_activos = GastoRepartidor.query.filter_by(fecha=hoy).all()
+        for g in gastos_activos:
+            g.fecha = ayer
+        if gastos_activos:
+            db.session.commit()
+
+    flash(f'El día para {cliente.nombre} ha sido cerrado. Saldo pendiente pasado a Cuenta Corriente.', 'success')
     return redirect(url_for('ventas.boletas'))
 
 
@@ -1167,6 +1176,17 @@ def resetear_ruta_dia(ruta_nombre):
     ).update({'procesado': True}, synchronize_session=False)
 
     db.session.commit()
+    
+    # 4. Si ya no quedan pagos sin procesar en todo el sistema, limpiamos los gastos del repartidor
+    pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
+    if pagos_pendientes == 0:
+        from app.models.gasto_repartidor import GastoRepartidor
+        gastos_activos = GastoRepartidor.query.filter_by(fecha=hoy).all()
+        for g in gastos_activos:
+            g.fecha = ayer
+        if gastos_activos:
+            db.session.commit()
+
     flash(
         f'Ruta {ruta_nombre} cerrada correctamente. '
         f'{boletas_movidas} boleta(s) pasaron a Cuenta Corriente. '

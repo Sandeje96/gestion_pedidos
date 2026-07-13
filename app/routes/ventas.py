@@ -1193,4 +1193,27 @@ def resetear_ruta_dia(ruta_nombre):
     )
     return redirect(url_for('ventas.boletas'))
 
+@ventas_bp.route('/historial_gastos')
+@vendedor_requerido
+def historial_gastos():
+    """
+    Muestra el historial de gastos archivados/procesados de todos los repartidores.
+    Agrupados por fecha.
+    """
+    from collections import defaultdict
+    from app.models.gasto_repartidor import GastoRepartidor
+    
+    gastos_procesados = GastoRepartidor.query.filter_by(
+        procesado=True
+    ).order_by(GastoRepartidor.fecha.desc(), GastoRepartidor.fecha_creacion.desc()).all()
+    
+    gastos_agrupados = defaultdict(list)
+    for g in gastos_procesados:
+        gastos_agrupados[g.fecha].append(g)
+        
+    return render_template(
+        'ventas/historial_gastos.html',
+        gastos_agrupados=gastos_agrupados,
+        title='Historial de Gastos'
+    )
 

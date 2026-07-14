@@ -143,6 +143,16 @@
       <input type="number" step="0.01" name="monto" id="monto" placeholder="0.00" required>
     </div>
     
+    <div class="campo">
+      <label for="ruta">Ruta Correspondiente</label>
+      <select name="ruta" id="ruta" required>
+        <option value="" disabled selected>Seleccione una ruta...</option>
+        {% for r in rutas %}
+        <option value="{{ r }}">{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    
     <div class="campo campo-notas" id="campoNotas">
       <label for="notas">¿En qué consistió este gasto?</label>
       <textarea name="notas" id="notas" rows="2" placeholder="Escriba aquí los detalles..."></textarea>
@@ -163,6 +173,7 @@
       {% if g.notas %}
       <div class="notas">{{ g.notas }}</div>
       {% endif %}
+      <div class="notas" style="font-weight: bold; color: #1a6b3c; margin-top: 6px;">&#x1F4CD; Ruta: {{ g.ruta }}</div>
       <div class="notas" style="font-size: 0.75rem; color: #999;">Cargado a las {{ g.fecha_creacion.strftime('%H:%M') }}</div>
     </div>
     <div style="display:flex; align-items:center;">

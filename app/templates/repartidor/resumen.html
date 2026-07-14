@@ -195,9 +195,19 @@
       </div>
       {% endif %}
       <div class="ruta-fila subtotal">
-        <span class="rf-label">Subtotal</span>
+        <span class="rf-label">Subtotal Cobrado</span>
         <span class="rf-valor">${{ "%.2f"|format(r.subtotal) }}</span>
       </div>
+      {% if r.gastos > 0 %}
+      <div class="ruta-fila" style="background: #fdf5f5; border-left: 3px solid #d32f2f;">
+        <span class="rf-label" style="color: #d32f2f;">Gastos de la ruta</span>
+        <span class="rf-valor" style="color: #d32f2f;">-${{ "%.2f"|format(r.gastos) }}</span>
+      </div>
+      <div class="ruta-fila" style="background: #f5fdf7; border-left: 3px solid #1a6b3c;">
+        <span class="rf-label" style="font-weight: bold; color: #1a6b3c;">Efectivo a rendir (Ruta)</span>
+        <span class="rf-valor" style="font-weight: bold; color: #1a6b3c;">${{ "%.2f"|format(r.neto_efectivo) }}</span>
+      </div>
+      {% endif %}
     </div>
     {% endfor %}
   {% else %}

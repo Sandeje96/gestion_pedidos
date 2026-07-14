@@ -443,8 +443,9 @@ def resumen():
     # Agrupado por ruta del cliente
     rutas_dict = defaultdict(lambda: {
         'efectivo': 0.0, 'transferencia': 0.0, 'cheque': 0.0,
-        'subtotal': 0.0, 'visitas': 0
+        'subtotal': 0.0, 'visitas': 0, 'gastos': 0.0, 'neto_efectivo': 0.0
     })
+    
     for p in pagos_hoy:
         ruta = p.cliente.ruta if p.cliente and p.cliente.ruta else 'Sin ruta'
         rutas_dict[ruta]['efectivo']      += float(p.efectivo)
@@ -452,6 +453,13 @@ def resumen():
         rutas_dict[ruta]['cheque']        += float(p.cheque)
         rutas_dict[ruta]['subtotal']      += float(p.total_recibido)
         rutas_dict[ruta]['visitas']       += 1
+        
+    for g in gastos_hoy:
+        ruta = g.ruta if g.ruta else 'Sin ruta'
+        rutas_dict[ruta]['gastos'] += float(g.monto)
+        
+    for r in rutas_dict.values():
+        r['neto_efectivo'] = r['efectivo'] - r['gastos']
 
     resumen_rutas = [
         {'ruta': ruta, **datos}
@@ -486,6 +494,11 @@ def gastos():
         tipo = request.form.get('tipo', '').strip()
         monto_str = request.form.get('monto', '0').strip().replace(',', '.')
         notas = request.form.get('notas', '').strip()
+        ruta_seleccionada = request.form.get('ruta', '').strip()
+        
+        if not ruta_seleccionada:
+            flash('Debe seleccionar a qué ruta corresponde el gasto.', 'warning')
+            return redirect(url_for('repartidor.gastos'))
         
         try:
             monto = Decimal(monto_str)
@@ -504,6 +517,7 @@ def gastos():
             fecha=hoy,
             tipo=tipo,
             monto=monto,
+            ruta=ruta_seleccionada,
             notas=notas if notas else None
         )
         
@@ -520,11 +534,20 @@ def gastos():
     
     total_gastos = sum(g.monto for g in gastos_hoy)
     
+    rutas_db = db.session.query(Cliente.ruta).filter(
+        Cliente.activo == True,
+        Cliente.ruta != 'SUCURSALES',
+        Cliente.ruta != None,
+        Cliente.ruta != ''
+    ).distinct().order_by(Cliente.ruta).all()
+    rutas_disponibles = [r[0] for r in rutas_db]
+
     return render_template(
         'repartidor/gastos.html',
         title='Mis Gastos',
         gastos_hoy=gastos_hoy,
         total_gastos=total_gastos,
+        rutas=rutas_disponibles,
         hoy=hoy
     )
 

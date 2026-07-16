@@ -111,7 +111,7 @@
 <!-- ENCABEZADO: TOTAL DEL DÍA -->
 <div class="gastos-header shadow-sm">
   <div class="total-lbl">Total Gastos Hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
-  <div class="total-num">${{ "%.2f"|format(total_gastos) }}</div>
+  <div class="total-num">${{ total_gastos|formato_peso }}</div>
   {% if gastos_hoy %}
   <form action="{{ url_for('repartidor.limpiar_gastos') }}" method="POST" style="margin-top: 15px;">
     <button type="submit" class="btn-submit" style="background: #d32f2f; padding: 10px;" 
@@ -177,7 +177,7 @@
       <div class="notas" style="font-size: 0.75rem; color: #999;">Cargado a las {{ g.fecha_creacion.strftime('%H:%M') }}</div>
     </div>
     <div style="display:flex; align-items:center;">
-      <div class="gasto-monto">${{ "%.2f"|format(g.monto) }}</div>
+      <div class="gasto-monto">${{ g.monto|formato_peso }}</div>
       <form action="{{ url_for('repartidor.eliminar_gasto', gasto_id=g.id) }}" method="POST" style="margin:0; padding:0;">
         <button type="submit" class="btn-eliminar" onclick="return confirm('¿Seguro que deseas eliminar este gasto?');" title="Eliminar gasto">&#10005;</button>
       </form>

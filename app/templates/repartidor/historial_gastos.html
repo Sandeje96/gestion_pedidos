@@ -88,12 +88,12 @@
                     <span class="gasto-fecha">Repartidor ID: {{ g.repartidor_id }} - {{ g.fecha_creacion.strftime('%H:%M') }}</span>
                 </div>
                 <div class="gasto-monto">
-                    ${{ "%.2f"|format(g.monto|float) }}
+                    ${{ g.monto|float|formato_peso }}
                 </div>
             </div>
         {% endfor %}
         <div class="total-dia text-danger">
-            Total del día: ${{ "%.2f"|format(total_dia) }}
+            Total del día: ${{ total_dia|formato_peso }}
         </div>
         {% endfor %}
     {% endif %}

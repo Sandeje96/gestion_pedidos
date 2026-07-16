@@ -120,19 +120,19 @@
 
   <div class="res-card verde">
     <span class="rc-label">Efectivo</span>
-    <span class="rc-valor">${{ "%.2f"|format(total_efectivo) }}</span>
+    <span class="rc-valor">${{ total_efectivo|formato_peso }}</span>
   </div>
   <div class="res-card verde">
     <span class="rc-label">Transferencia</span>
-    <span class="rc-valor">${{ "%.2f"|format(total_transferencia) }}</span>
+    <span class="rc-valor">${{ total_transferencia|formato_peso }}</span>
   </div>
   <div class="res-card verde">
     <span class="rc-label">Cheque</span>
-    <span class="rc-valor">${{ "%.2f"|format(total_cheque) }}</span>
+    <span class="rc-valor">${{ total_cheque|formato_peso }}</span>
   </div>
   <div class="res-card gris">
     <span class="rc-label">Total cobrado</span>
-    <span class="rc-valor">${{ "%.2f"|format(total_cobrado) }}</span>
+    <span class="rc-valor">${{ total_cobrado|formato_peso }}</span>
   </div>
 
   <div class="res-seccion">Gastos del dia</div>
@@ -142,14 +142,14 @@
       {% for g in gastos_hoy %}
       <div class="gasto-fila">
         <span class="gf-tipo">{{ g.tipo }}{% if g.notas and g.tipo == 'Otros' %}: {{ g.notas }}{% endif %}</span>
-        <span class="gf-monto">${{ "%.2f"|format(g.monto|float) }}</span>
+        <span class="gf-monto">${{ g.monto|float|formato_peso }}</span>
       </div>
       {% endfor %}
     </div>
   {% endif %}
   <div class="res-card naranja">
     <span class="rc-label">Total gastos</span>
-    <span class="rc-valor">${{ "%.2f"|format(total_gastos) }}</span>
+    <span class="rc-valor">${{ total_gastos|formato_peso }}</span>
   </div>
 
   <div class="res-seccion">Resultado</div>
@@ -157,7 +157,7 @@
   <div class="res-card gris">
     <span class="rc-label">Efectivo a rendir (Efectivo - Gastos)</span>
     <span class="rc-valor" style="color:{% if neto_efectivo >= 0 %}#1a6b3c{% else %}#c0392b{% endif %};">
-      ${{ "%.2f"|format(neto_efectivo) }}
+      ${{ neto_efectivo|formato_peso }}
     </span>
   </div>
 
@@ -179,33 +179,33 @@
       {% if r.efectivo > 0 %}
       <div class="ruta-fila">
         <span class="rf-label">Efectivo</span>
-        <span class="rf-valor">${{ "%.2f"|format(r.efectivo) }}</span>
+        <span class="rf-valor">${{ r.efectivo|formato_peso }}</span>
       </div>
       {% endif %}
       {% if r.transferencia > 0 %}
       <div class="ruta-fila">
         <span class="rf-label">Transferencia</span>
-        <span class="rf-valor">${{ "%.2f"|format(r.transferencia) }}</span>
+        <span class="rf-valor">${{ r.transferencia|formato_peso }}</span>
       </div>
       {% endif %}
       {% if r.cheque > 0 %}
       <div class="ruta-fila">
         <span class="rf-label">Cheque</span>
-        <span class="rf-valor">${{ "%.2f"|format(r.cheque) }}</span>
+        <span class="rf-valor">${{ r.cheque|formato_peso }}</span>
       </div>
       {% endif %}
       <div class="ruta-fila subtotal">
         <span class="rf-label">Subtotal Cobrado</span>
-        <span class="rf-valor">${{ "%.2f"|format(r.subtotal) }}</span>
+        <span class="rf-valor">${{ r.subtotal|formato_peso }}</span>
       </div>
       {% if r.gastos > 0 %}
       <div class="ruta-fila" style="background: #fdf5f5; border-left: 3px solid #d32f2f;">
         <span class="rf-label" style="color: #d32f2f;">Gastos de la ruta</span>
-        <span class="rf-valor" style="color: #d32f2f;">-${{ "%.2f"|format(r.gastos) }}</span>
+        <span class="rf-valor" style="color: #d32f2f;">-${{ r.gastos|formato_peso }}</span>
       </div>
       <div class="ruta-fila" style="background: #f5fdf7; border-left: 3px solid #1a6b3c;">
         <span class="rf-label" style="font-weight: bold; color: #1a6b3c;">Efectivo a rendir (Ruta)</span>
-        <span class="rf-valor" style="font-weight: bold; color: #1a6b3c;">${{ "%.2f"|format(r.neto_efectivo) }}</span>
+        <span class="rf-valor" style="font-weight: bold; color: #1a6b3c;">${{ r.neto_efectivo|formato_peso }}</span>
       </div>
       {% endif %}
     </div>

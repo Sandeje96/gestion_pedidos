@@ -238,7 +238,7 @@
      ══════════════════════ -->
 <div class="card-resumen card-boleta">
   <div class="card-etiqueta">Boleta de hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
-  <div class="card-monto">${{ "%.2f"|format(monto_boleta_actual) }}</div>
+  <div class="card-monto">${{ monto_boleta_actual|formato_peso }}</div>
   {% if ya_cobro_hoy %}
     <div class="card-nota text-success fw-bold" style="color: #1a6b3c;"><i class="fas fa-check-circle me-1"></i>Visita del día completada.</div>
     <div class="card-nota">El saldo restante se trasladó a Cuenta Corriente.</div>
@@ -256,13 +256,13 @@
      ══════════════════════ -->
 <div class="card-resumen card-cc">
   <div class="card-etiqueta">Cuenta corriente — deudas anteriores</div>
-  <div class="card-monto">${{ "%.2f"|format(saldo_cc) }}</div>
+  <div class="card-monto">${{ saldo_cc|formato_peso }}</div>
   {% if boletas_cc %}
     <div style="margin-top: 12px;">
       {% for b in boletas_cc %}
       <div class="cc-fila">
         <span class="cc-fecha">{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</span>
-        <span class="cc-monto">${{ "%.2f"|format(b.saldo_pendiente|float) }}</span>
+        <span class="cc-monto">${{ b.saldo_pendiente|float|formato_peso }}</span>
       </div>
       {% endfor %}
     </div>
@@ -276,7 +276,7 @@
      ══════════════════════ -->
 <div class="card-resumen card-total">
   <div class="card-etiqueta">Total a cobrar</div>
-  <div class="card-monto">${{ "%.2f"|format(total_deuda) }}</div>
+  <div class="card-monto">${{ total_deuda|formato_peso }}</div>
 </div>
 
 <!-- ══════════════════════
@@ -323,19 +323,19 @@
   <div class="resumen-vivo">
     <div class="resumen-fila">
       <span class="r-etiqueta">Efectivo</span>
-      <span class="r-valor" id="r-efectivo">$0.00</span>
+      <span class="r-valor" id="r-efectivo">$0,00</span>
     </div>
     <div class="resumen-fila">
       <span class="r-etiqueta">Transferencia</span>
-      <span class="r-valor" id="r-transferencia">$0.00</span>
+      <span class="r-valor" id="r-transferencia">$0,00</span>
     </div>
     <div class="resumen-fila">
       <span class="r-etiqueta">Cheque</span>
-      <span class="r-valor" id="r-cheque">$0.00</span>
+      <span class="r-valor" id="r-cheque">$0,00</span>
     </div>
     <div class="resumen-total-fila">
       <span>Total recibido</span>
-      <span id="r-total">$0.00</span>
+      <span id="r-total">$0,00</span>
     </div>
     <div class="estado-cobro" id="estadoCobro"></div>
   </div>
@@ -362,14 +362,14 @@
 {% for pago in historial_pagos %}
 <div class="hist-fila">
   <div class="hist-fecha">{{ pago.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}</div>
-  <div class="hist-total">Total: ${{ "%.2f"|format(pago.total_recibido|float) }}</div>
+  <div class="hist-total">Total: ${{ pago.total_recibido|float|formato_peso }}</div>
   <div class="hist-detalle">
-    {% if pago.efectivo > 0 %}Efectivo: ${{ "%.2f"|format(pago.efectivo|float) }}  {% endif %}
-    {% if pago.transferencia > 0 %}Transf: ${{ "%.2f"|format(pago.transferencia|float) }}  {% endif %}
-    {% if pago.cheque > 0 %}Cheque: ${{ "%.2f"|format(pago.cheque|float) }}
+    {% if pago.efectivo > 0 %}Efectivo: ${{ pago.efectivo|float|formato_peso }}  {% endif %}
+    {% if pago.transferencia > 0 %}Transf: ${{ pago.transferencia|float|formato_peso }}  {% endif %}
+    {% if pago.cheque > 0 %}Cheque: ${{ pago.cheque|float|formato_peso }}
       {% if pago.fecha_cobro_cheque %}({{ pago.fecha_cobro_cheque.strftime('%d/%m/%Y') }}){% endif %}
     {% endif %}
-    {% if pago.saldo_favor > 0 %} — A favor: ${{ "%.2f"|format(pago.saldo_favor|float) }}{% endif %}
+    {% if pago.saldo_favor > 0 %} — A favor: ${{ pago.saldo_favor|float|formato_peso }}{% endif %}
   </div>
   {% if pago.notas %}
   <div class="hist-detalle" style="margin-top:4px; font-style:italic;">{{ pago.notas }}</div>
@@ -390,7 +390,11 @@
   }
 
   function fmt(n) {
-    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    // Formato latinoamericano: punto para miles, coma para decimales
+    var str = n.toFixed(2);                           // '1234.56'
+    var parts = str.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return '$' + parts[0] + ',' + parts[1];
   }
 
   function calcular() {
@@ -453,10 +457,10 @@
     var saldoCC = {{ saldo_cc }};
     var totalNuevoCC = monto + saldoCC;
     var msg = '¿Confirmar que TODA la boleta de hoy queda en cuenta corriente?\n\n' +
-              'Boleta de hoy: $' + monto.toFixed(2) + '\n';
+              'Boleta de hoy: $' + monto.toFixed(2).replace('.', ',') + '\n';
     if (saldoCC > 0) {
-      msg += 'CC anterior: $' + saldoCC.toFixed(2) + '\n';
-      msg += 'Nuevo total CC: $' + totalNuevoCC.toFixed(2) + '\n';
+      msg += 'CC anterior: $' + saldoCC.toFixed(2).replace('.', ',') + '\n';
+      msg += 'Nuevo total CC: $' + totalNuevoCC.toFixed(2).replace('.', ',') + '\n';
     }
     msg += '\nNo se registrará ningún cobro.';
     if (confirm(msg)) {

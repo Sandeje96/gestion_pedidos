@@ -185,7 +185,7 @@
   <div class="resumen-sep"></div>
   <div class="resumen-stat">
     <div class="num" style="color:#3fb950;">
-      ${{ "%.0f"|format(resumen_rutas.values()|sum(attribute='total_a_cobrar')) }}
+      ${{ resumen_rutas.values()|sum(attribute='total_a_cobrar')|formato_peso(0) }}
     </div>
     <div class="lbl">Total a cobrar</div>
   </div>
@@ -202,28 +202,28 @@
 <div class="resumen-general mb-4 mt-2">
   <div class="resumen-stat">
     <div class="num text-success">
-      ${{ "%.0f"|format(total_efectivo) }}
+      ${{ total_efectivo|formato_peso(0) }}
     </div>
     <div class="lbl">Efectivo</div>
   </div>
   <div class="resumen-sep"></div>
   <div class="resumen-stat">
     <div class="num text-info">
-      ${{ "%.0f"|format(total_transferencia) }}
+      ${{ total_transferencia|formato_peso(0) }}
     </div>
     <div class="lbl">Transferencias</div>
   </div>
   <div class="resumen-sep"></div>
   <div class="resumen-stat">
     <div class="num text-secondary">
-      ${{ "%.0f"|format(total_cheque) }}
+      ${{ total_cheque|formato_peso(0) }}
     </div>
     <div class="lbl">Cheques</div>
   </div>
   <div class="resumen-sep"></div>
   <div class="resumen-stat">
     <div class="num text-primary">
-      ${{ "%.0f"|format(total_efectivo + total_transferencia + total_cheque) }}
+      ${{ (total_efectivo + total_transferencia + total_cheque)|formato_peso(0) }}
     </div>
     <div class="lbl">Total Cobrado Hoy</div>
   </div>
@@ -297,13 +297,13 @@
           <!-- Total a cobrar -->
           {% if r.total_a_cobrar > 0 %}
           <span class="badge bg-success" title="Total a cobrar al inicio">
-            ${{ "%.2f"|format(r.total_a_cobrar) }}
+            ${{ r.total_a_cobrar|formato_peso }}
           </span>
           {% endif %}
           <!-- Total debe -->
           {% if r.total_debe > 0 %}
           <span class="badge bg-danger" title="Total deuda actual (Debe)">
-            ${{ "%.2f"|format(r.total_debe) }}
+            ${{ r.total_debe|formato_peso }}
           </span>
           {% endif %}
         </span>
@@ -345,35 +345,35 @@
                 </td>
                 <td class="text-end">
                   {% if d.boleta_hoy %}
-                    <span class="fw-bold text-primary">${{ "%.2f"|format(d.monto_hoy) }}</span>
+                    <span class="fw-bold text-primary">${{ d.monto_hoy|formato_peso }}</span>
                   {% else %}
                     <span class="text-muted pill-sin-boleta">—</span>
                   {% endif %}
                 </td>
                 <td class="text-end">
                   {% if d.saldo_cc > 0 %}
-                    <span class="fw-bold text-warning">${{ "%.2f"|format(d.saldo_cc) }}</span>
+                    <span class="fw-bold text-warning">${{ d.saldo_cc|formato_peso }}</span>
                   {% else %}
-                    <span class="text-muted small">$0.00</span>
+                    <span class="text-muted small">$0,00</span>
                   {% endif %}
                 </td>
                 <td class="text-end">
                   {% if d.total_a_cobrar > 0 %}
-                    <span class="fw-bold">${{ "%.2f"|format(d.total_a_cobrar) }}</span>
+                    <span class="fw-bold">${{ d.total_a_cobrar|formato_peso }}</span>
                   {% else %}
                     <span class="text-muted small">—</span>
                   {% endif %}
                 </td>
                 <td class="text-end text-success">
                   {% if d.cobrado_hoy > 0 %}
-                    <span class="fw-bold">${{ "%.2f"|format(d.cobrado_hoy) }}</span>
+                    <span class="fw-bold">${{ d.cobrado_hoy|formato_peso }}</span>
                   {% else %}
-                    <span class="text-muted small">$0.00</span>
+                    <span class="text-muted small">$0,00</span>
                   {% endif %}
                 </td>
                 <td class="text-end text-danger">
                   {% if d.debe > 0 %}
-                    <span class="fw-bold">${{ "%.2f"|format(d.debe) }}</span>
+                    <span class="fw-bold">${{ d.debe|formato_peso }}</span>
                   {% else %}
                     <span class="text-success small"><i class="fas fa-check me-1"></i>Al día</span>
                   {% endif %}
@@ -437,7 +437,7 @@
           {% endif %}
 
           {% if r.total_a_cobrar > 0 %}
-          <span class="ms-auto">Total ruta: <strong>${{ "%.2f"|format(r.total_a_cobrar) }}</strong></span>
+          <span class="ms-auto">Total ruta: <strong>${{ r.total_a_cobrar|formato_peso }}</strong></span>
           {% endif %}
         </div>
       </div>

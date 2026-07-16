@@ -130,6 +130,24 @@ def create_app(config_name='development'):
             db.session.rollback()
             print(f"Migración: columna 'recibido_conforme' ya existe o no se pudo agregar: {e_recibido}")
     
+    # ── Filtros Jinja2 personalizados ──
+    def formato_peso(value, decimales=2):
+        """Formatea un número con punto como separador de miles y coma para decimales.
+        Ejemplo: 1234567.89 → '1.234.567,89'
+        """
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return value
+        # Formatear con los decimales solicitados usando locale-style manual
+        formatted = f"{value:,.{decimales}f}"          # '1,234,567.89' (anglosajón)
+        formatted = formatted.replace(',', 'X')        # '1X234X567.89'
+        formatted = formatted.replace('.', ',')        # '1X234X567,89'
+        formatted = formatted.replace('X', '.')        # '1.234.567,89'
+        return formatted
+
+    app.jinja_env.filters['formato_peso'] = formato_peso
+
     return app
 
 

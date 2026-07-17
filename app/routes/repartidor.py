@@ -148,6 +148,19 @@ def cobro_cliente(cliente_id):
         .all()
     )
 
+    # Pago más reciente de la sesión activa (editable por el repartidor)
+    pago_activo = (
+        PagoBoleta.query
+        .filter_by(
+            cliente_id=cliente_id,
+            cobrado_por_id=current_user.id,
+            procesado=False
+        )
+        .order_by(PagoBoleta.fecha_cobro.desc())
+        .first()
+    )
+    pago_activo_id = pago_activo.id if pago_activo else None
+
     return render_template(
         'repartidor/cobro_cliente.html',
         title=f'Cobro — {cliente.nombre}',
@@ -159,7 +172,8 @@ def cobro_cliente(cliente_id):
         total_deuda=total_deuda,
         historial_pagos=historial_pagos,
         ya_cobro_hoy=ya_cobro_hoy,
-        hoy=hoy
+        hoy=hoy,
+        pago_activo_id=pago_activo_id
     )
 
 
@@ -614,6 +628,225 @@ def limpiar_gastos():
     db.session.commit()
     flash('Viaje limpiado con éxito. Los gastos volvieron a cero.', 'success')
     return redirect(url_for('repartidor.gastos'))
+
+@repartidor_bp.route('/cliente/<int:cliente_id>/editar-pago/<int:pago_id>', methods=['GET'])
+@repartidor_requerido
+def editar_pago_form(cliente_id, pago_id):
+    """
+    Muestra el formulario de edición de un pago de la sesión activa.
+    Solo permite editar pagos propios y no procesados.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    pago = PagoBoleta.query.get_or_404(pago_id)
+
+    # Validaciones de seguridad
+    if pago.cobrado_por_id != current_user.id:
+        flash('No tenés permiso para editar este pago.', 'danger')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+    if pago.procesado:
+        flash('Este pago ya fue procesado y no se puede editar.', 'warning')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+    if pago.cliente_id != cliente_id:
+        flash('El pago no corresponde a este cliente.', 'danger')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+    return render_template(
+        'repartidor/editar_pago.html',
+        title=f'Editar cobro — {cliente.nombre}',
+        cliente=cliente,
+        pago=pago
+    )
+
+
+@repartidor_bp.route('/cliente/<int:cliente_id>/editar-pago/<int:pago_id>', methods=['POST'])
+@repartidor_requerido
+def editar_pago(cliente_id, pago_id):
+    """
+    Procesa la edición de un pago activo:
+      1. Revierte los saldos de las boletas afectadas por el pago original.
+      2. Elimina el pago original.
+      3. Aplica los nuevos montos con la misma lógica que registrar_pago.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    pago = PagoBoleta.query.get_or_404(pago_id)
+
+    # Validaciones de seguridad
+    if pago.cobrado_por_id != current_user.id:
+        flash('No tenés permiso para editar este pago.', 'danger')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+    if pago.procesado:
+        flash('Este pago ya fue procesado y no se puede editar.', 'warning')
+        return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
+    # ── Leer y validar campos del formulario ──
+    def parse_decimal(field_name, default=Decimal('0')):
+        raw = request.form.get(field_name, '').strip().replace(',', '.')
+        if not raw:
+            return default
+        try:
+            val = Decimal(raw)
+            return val if val >= 0 else default
+        except InvalidOperation:
+            return default
+
+    efectivo      = parse_decimal('efectivo')
+    transferencia = parse_decimal('transferencia')
+    cheque_monto  = parse_decimal('cheque')
+    fecha_cheque_str = request.form.get('fecha_cobro_cheque', '').strip()
+    notas = request.form.get('notas', '').strip() or None
+
+    fecha_cobro_cheque = None
+    if cheque_monto > 0:
+        if not fecha_cheque_str:
+            flash('Si cargás un cheque debés indicar la fecha de cobro.', 'danger')
+            return redirect(url_for('repartidor.editar_pago_form', cliente_id=cliente_id, pago_id=pago_id))
+        try:
+            fecha_cobro_cheque = datetime.strptime(fecha_cheque_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('La fecha de cobro del cheque no es válida.', 'danger')
+            return redirect(url_for('repartidor.editar_pago_form', cliente_id=cliente_id, pago_id=pago_id))
+
+    total_recibido = efectivo + transferencia + cheque_monto
+
+    if total_recibido <= 0:
+        flash('El total recibido debe ser mayor a $0.', 'warning')
+        return redirect(url_for('repartidor.editar_pago_form', cliente_id=cliente_id, pago_id=pago_id))
+
+    # ── PASO 1: Revertir saldos de boletas afectadas por el pago original ──
+    # El pago original aplicó aplicado_boleta a una boleta y aplicado_cc a boletas de CC.
+    # Recuperamos esas boletas y devolvemos sus saldos.
+    hoy = (datetime.utcnow() - timedelta(hours=3)).date()
+
+    boleta_actual = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    boletas_cc = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
+        )
+        .order_by(Boleta.fecha_entrega.asc())
+        .all()
+    )
+
+    # Revertir aplicado_boleta sobre la boleta del día
+    remanente_revertir = Decimal(str(pago.aplicado_boleta))
+    if boleta_actual and remanente_revertir > 0:
+        boleta_actual.saldo_pendiente = Decimal(str(boleta_actual.saldo_pendiente)) + remanente_revertir
+        boleta_actual.estado = 'pendiente' if boleta_actual.saldo_pendiente >= boleta_actual.monto_boleta else 'parcial'
+        boleta_actual.fecha_actualizacion = datetime.utcnow()
+
+    # Revertir aplicado_cc sobre boletas de CC (de más antigua a más reciente)
+    remanente_cc = Decimal(str(pago.aplicado_cc))
+    for b in boletas_cc:
+        if remanente_cc <= 0:
+            break
+        a_revertir = min(remanente_cc, Decimal(str(b.monto_boleta)) - Decimal(str(b.saldo_pendiente)))
+        if a_revertir > 0:
+            b.saldo_pendiente = Decimal(str(b.saldo_pendiente)) + a_revertir
+            b.estado = 'pendiente' if b.saldo_pendiente >= b.monto_boleta else 'parcial'
+            b.fecha_actualizacion = datetime.utcnow()
+            remanente_cc -= a_revertir
+
+    # ── PASO 2: Eliminar el pago original ──
+    db.session.delete(pago)
+
+    # ── PASO 3: Aplicar nuevos montos (misma lógica que registrar_pago) ──
+    remanente = total_recibido
+    aplicado_boleta = Decimal('0')
+    aplicado_cc     = Decimal('0')
+
+    # Refrescar estado de boletas tras la reversión
+    db.session.flush()
+
+    boleta_actual_fresh = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+    boletas_cc_fresh = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_entrega.asc())
+        .all()
+    )
+
+    # Aplicar a boleta actual
+    if boleta_actual_fresh and remanente > 0:
+        saldo = Decimal(str(boleta_actual_fresh.saldo_pendiente))
+        a_aplicar = min(remanente, saldo)
+        boleta_actual_fresh.saldo_pendiente = saldo - a_aplicar
+        boleta_actual_fresh.estado = 'cobrada' if boleta_actual_fresh.saldo_pendiente == 0 else 'parcial'
+        boleta_actual_fresh.fecha_actualizacion = datetime.utcnow()
+        aplicado_boleta = a_aplicar
+        remanente -= a_aplicar
+
+    # Aplicar remanente a cuenta corriente
+    for b in boletas_cc_fresh:
+        if remanente <= 0:
+            break
+        saldo = Decimal(str(b.saldo_pendiente))
+        a_aplicar = min(remanente, saldo)
+        b.saldo_pendiente = saldo - a_aplicar
+        b.estado = 'cobrada' if b.saldo_pendiente == 0 else 'parcial'
+        b.fecha_actualizacion = datetime.utcnow()
+        aplicado_cc += a_aplicar
+        remanente -= a_aplicar
+
+    saldo_favor = remanente
+
+    boleta_ref_id = (
+        boleta_actual_fresh.id if boleta_actual_fresh
+        else (boletas_cc_fresh[0].id if boletas_cc_fresh else None)
+    )
+
+    nuevo_pago = PagoBoleta(
+        boleta_id=boleta_ref_id,
+        cliente_id=cliente_id,
+        efectivo=efectivo,
+        transferencia=transferencia,
+        cheque=cheque_monto,
+        fecha_cobro_cheque=fecha_cobro_cheque,
+        total_recibido=total_recibido,
+        aplicado_boleta=aplicado_boleta,
+        aplicado_cc=aplicado_cc,
+        saldo_favor=saldo_favor,
+        cobrado_por_id=current_user.id,
+        notas=notas
+    )
+    db.session.add(nuevo_pago)
+
+    try:
+        db.session.commit()
+        flash(
+            f'✅ Cobro actualizado correctamente. '
+            f'Total recibido: ${float(total_recibido):,.2f}',
+            'success'
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al actualizar el pago: {str(e)}', 'danger')
+
+    return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
+
 
 @repartidor_bp.route('/historial_gastos')
 @repartidor_requerido

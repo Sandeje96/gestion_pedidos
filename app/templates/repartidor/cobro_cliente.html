@@ -219,6 +219,20 @@
 .hist-fecha { font-size: 0.8rem; color: #888; margin-bottom: 4px; }
 .hist-total { font-size: 1.1rem; font-weight: bold; color: #1a6b3c; margin-bottom: 4px; }
 .hist-detalle { font-size: 0.85rem; color: #555; }
+.hist-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.btn-editar-pago {
+  display: inline-block;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #1a6b3c;
+  border: 2px solid #1a6b3c;
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-editar-pago:active { background: #e8f5ee; }
 {% endblock %}
 
 {% block content %}
@@ -361,8 +375,17 @@
 <div class="historial-titulo">Cobros anteriores</div>
 {% for pago in historial_pagos %}
 <div class="hist-fila">
-  <div class="hist-fecha">{{ pago.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}</div>
-  <div class="hist-total">Total: ${{ pago.total_recibido|float|formato_peso }}</div>
+  <div class="hist-header">
+    <div>
+      <div class="hist-fecha">{{ pago.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}</div>
+      <div class="hist-total">Total: ${{ pago.total_recibido|float|formato_peso }}</div>
+    </div>
+    {% if pago.id == pago_activo_id %}
+    <a href="/repartidor/cliente/{{ cliente.id }}/editar-pago/{{ pago.id }}" class="btn-editar-pago">
+      ✏️ Editar
+    </a>
+    {% endif %}
+  </div>
   <div class="hist-detalle">
     {% if pago.efectivo > 0 %}Efectivo: ${{ pago.efectivo|float|formato_peso }}  {% endif %}
     {% if pago.transferencia > 0 %}Transf: ${{ pago.transferencia|float|formato_peso }}  {% endif %}

@@ -1,0 +1,310 @@
+{% extends 'repartidor/base_repartidor.html' %}
+
+{% block extra_css %}
+.btn-volver {
+  display: inline-block;
+  padding: 10px 16px;
+  background: #e8e8e8;
+  color: #111;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 14px;
+}
+.btn-volver:active { background: #d0d0d0; }
+
+.cliente-titulo {
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #111;
+  margin-bottom: 4px;
+}
+.cliente-sub {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.aviso-edicion {
+  background: #fff8e1;
+  border: 2px solid #f0c040;
+  border-left: 5px solid #f0c040;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  color: #7a5800;
+  margin-bottom: 20px;
+}
+.aviso-edicion strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+
+.seccion-titulo {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #333;
+  border-bottom: 2px solid #ccc;
+  padding-bottom: 6px;
+  margin: 20px 0 14px;
+}
+
+.campo { margin-bottom: 16px; }
+.campo label {
+  display: block;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 6px;
+}
+.campo input[type="number"],
+.campo input[type="date"],
+.campo textarea {
+  width: 100%;
+  padding: 14px 12px;
+  font-size: 1.3rem;
+  border: 2px solid #bbb;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.campo input:focus,
+.campo textarea:focus {
+  outline: none;
+  border-color: #1a6b3c;
+}
+.campo textarea { font-size: 1rem; min-height: 70px; resize: vertical; }
+
+.campo-fecha-cheque { display: none; margin-top: 10px; }
+.campo-fecha-cheque.visible { display: block; }
+.campo-fecha-cheque label { font-size: 0.95rem; font-weight: bold; color: #333; margin-bottom: 6px; display: block; }
+
+.resumen-vivo {
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.resumen-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 1rem;
+}
+.resumen-fila:last-child { border-bottom: none; }
+.resumen-fila .r-etiqueta { color: #555; }
+.resumen-fila .r-valor { font-weight: bold; }
+.resumen-total-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0 4px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-top: 2px solid #ccc;
+  margin-top: 4px;
+}
+
+.btn-guardar {
+  display: block;
+  width: 100%;
+  padding: 18px;
+  background: #1a6b3c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 16px;
+  text-align: center;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+}
+.btn-guardar:active { background: #145530; }
+.btn-guardar:disabled { background: #aaa; cursor: not-allowed; }
+
+.btn-cancelar {
+  display: block;
+  width: 100%;
+  padding: 15px;
+  background: #fff;
+  color: #555;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+  text-align: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+}
+.btn-cancelar:active { background: #f0f0f0; }
+
+.estado-cobro {
+  padding: 12px 14px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 10px;
+  display: none;
+}
+.estado-cobro.visible { display: block; }
+.estado-ok      { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.estado-parcial { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+.estado-favor   { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+{% endblock %}
+
+{% block content %}
+
+<a href="/repartidor/cliente/{{ cliente.id }}" class="btn-volver">&#x2190; Cancelar</a>
+
+<div class="cliente-titulo">{{ cliente.nombre }}</div>
+<div class="cliente-sub">
+  {{ cliente.ruta }}
+  {% if cliente.direccion %}&middot; {{ cliente.direccion }}{% endif %}
+</div>
+
+<div class="aviso-edicion">
+  <strong>&#9998; Editando cobro del {{ pago.fecha_cobro.strftime('%d/%m/%Y a las %H:%M') }}</strong>
+  Los saldos se reverter&aacute;n y se volver&aacute;n a aplicar con los nuevos valores que ingreses.
+</div>
+
+<form method="POST" action="/repartidor/cliente/{{ cliente.id }}/editar-pago/{{ pago.id }}" id="formEditar">
+
+  <div class="seccion-titulo">Corregir cobro</div>
+
+  <div class="campo">
+    <label for="efectivo">Efectivo ($)</label>
+    <input type="number" id="efectivo" name="efectivo"
+           min="0" step="0.01" placeholder="0.00"
+           inputmode="decimal"
+           value="{{ pago.efectivo|float }}"
+           oninput="calcular()">
+  </div>
+
+  <div class="campo">
+    <label for="transferencia">Transferencia ($)</label>
+    <input type="number" id="transferencia" name="transferencia"
+           min="0" step="0.01" placeholder="0.00"
+           inputmode="decimal"
+           value="{{ pago.transferencia|float }}"
+           oninput="calcular()">
+  </div>
+
+  <div class="campo">
+    <label for="cheque">Cheque ($)</label>
+    <input type="number" id="cheque" name="cheque"
+           min="0" step="0.01" placeholder="0.00"
+           inputmode="decimal"
+           value="{{ pago.cheque|float }}"
+           oninput="onCheque()">
+    <div class="campo-fecha-cheque{% if pago.cheque > 0 %} visible{% endif %}" id="fechaChequeDiv">
+      <label for="fecha_cobro_cheque">Fecha de cobro del cheque</label>
+      <input type="date" id="fecha_cobro_cheque" name="fecha_cobro_cheque"
+             value="{% if pago.fecha_cobro_cheque %}{{ pago.fecha_cobro_cheque.strftime('%Y-%m-%d') }}{% endif %}">
+    </div>
+  </div>
+
+  <div class="campo">
+    <label for="notas">Observaciones (opcional)</label>
+    <textarea id="notas" name="notas" placeholder="Dejar en blanco si no hay nada que aclarar">{{ pago.notas or '' }}</textarea>
+  </div>
+
+  <!-- RESUMEN EN VIVO -->
+  <div class="resumen-vivo">
+    <div class="resumen-fila">
+      <span class="r-etiqueta">Efectivo</span>
+      <span class="r-valor" id="r-efectivo">$0,00</span>
+    </div>
+    <div class="resumen-fila">
+      <span class="r-etiqueta">Transferencia</span>
+      <span class="r-valor" id="r-transferencia">$0,00</span>
+    </div>
+    <div class="resumen-fila">
+      <span class="r-etiqueta">Cheque</span>
+      <span class="r-valor" id="r-cheque">$0,00</span>
+    </div>
+    <div class="resumen-total-fila">
+      <span>Total recibido</span>
+      <span id="r-total">$0,00</span>
+    </div>
+    <div class="estado-cobro" id="estadoCobro"></div>
+  </div>
+
+  <button type="submit" class="btn-guardar" id="btnGuardar">
+    GUARDAR CAMBIOS
+  </button>
+
+</form>
+
+<a href="/repartidor/cliente/{{ cliente.id }}" class="btn-cancelar">Cancelar sin guardar</a>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function num(id) {
+    var v = parseFloat(document.getElementById(id).value);
+    return (isNaN(v) || v < 0) ? 0 : v;
+  }
+
+  function fmt(n) {
+    var str = n.toFixed(2);
+    var parts = str.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return '$' + parts[0] + ',' + parts[1];
+  }
+
+  function calcular() {
+    var ef = num('efectivo');
+    var tr = num('transferencia');
+    var ch = num('cheque');
+    var total = ef + tr + ch;
+
+    document.getElementById('r-efectivo').textContent      = fmt(ef);
+    document.getElementById('r-transferencia').textContent = fmt(tr);
+    document.getElementById('r-cheque').textContent        = fmt(ch);
+    document.getElementById('r-total').textContent         = fmt(total);
+
+    var estado = document.getElementById('estadoCobro');
+    var btn    = document.getElementById('btnGuardar');
+
+    if (total <= 0) {
+      estado.className = 'estado-cobro';
+      btn.disabled = true;
+    } else {
+      btn.disabled = false;
+      estado.className = 'estado-cobro visible estado-ok';
+      estado.textContent = 'Total a registrar: ' + fmt(total);
+    }
+  }
+
+  function onCheque() {
+    calcular();
+    var monto = num('cheque');
+    var div   = document.getElementById('fechaChequeDiv');
+    var input = document.getElementById('fecha_cobro_cheque');
+    if (monto > 0) {
+      div.classList.add('visible');
+      input.required = true;
+    } else {
+      div.classList.remove('visible');
+      input.required = false;
+      input.value = '';
+    }
+  }
+
+  document.getElementById('formEditar').addEventListener('submit', function(e) {
+    if (num('cheque') > 0 && !document.getElementById('fecha_cobro_cheque').value) {
+      e.preventDefault();
+      alert('Ingres\u00e1 la fecha de cobro del cheque antes de continuar.');
+    }
+  });
+
+  // Inicializar resumen con valores prellenados
+  calcular();
+</script>
+{% endblock %}

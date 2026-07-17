@@ -61,11 +61,7 @@
                             <i class="fas fa-file-invoice-dollar"></i> Boletas y Cobros
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('ventas.historial_gastos') }}">
-                            <i class="fas fa-history"></i> Historial Gastos
-                        </a>
-                    </li>
+
                     {% elif current_user.es_operario() %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('fabrica.dashboard') }}">

@@ -29,7 +29,48 @@
   background: #1a6b3c;
   color: #fff;
 }
-.sub-tab:first-child { border-right: 2px solid #ccc; }
+.sub-tab:not(:last-child) { border-right: 2px solid #ccc; }
+.cliente-card {
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.cliente-card .cliente-nombre {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: #f0f0f0;
+  border-bottom: 2px solid #ddd;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #222;
+}
+.cliente-card .cliente-ruta-badge {
+  font-size: 0.75rem;
+  font-weight: normal;
+  background: #1a6b3c;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.cliente-fila {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+.cliente-fila:last-child { border-bottom: none; }
+.cliente-fila .cf-label { color: #666; }
+.cliente-fila .cf-valor { font-weight: bold; color: #111; }
+.cliente-fila.total-cliente { background: #f5fdf7; }
+.cliente-fila.total-cliente .cf-label { color: #1a6b3c; font-weight: bold; }
+.cliente-fila.total-cliente .cf-valor { color: #1a6b3c; font-size: 1rem; }
+.cliente-fila.cc-tag { background: #fdf5e6; }
+.cliente-fila.cc-tag .cf-label { color: #c8860a; font-style: italic; }
 .res-card {
   background: #fff;
   border: 2px solid #ddd;
@@ -111,6 +152,7 @@
 <div class="sub-tabs">
   <button class="sub-tab activo" id="tabGeneral" onclick="mostrar('general')">General</button>
   <button class="sub-tab" id="tabRutas" onclick="mostrar('rutas')">Por ruta</button>
+  <button class="sub-tab" id="tabClientes" onclick="mostrar('clientes')">Por cliente</button>
 </div>
 
 <!-- VISTA GENERAL -->
@@ -216,15 +258,74 @@
 
 </div>
 
+<!-- VISTA POR CLIENTE -->
+<div id="vistaClientes" style="display:none;">
+
+  {# Agrupar pagos por ruta y cliente usando resumen_por_cliente #}
+  {% if resumen_por_cliente %}
+    {% set ruta_actual = namespace(nombre='') %}
+    {% for item in resumen_por_cliente %}
+      {% if item.ruta != ruta_actual.nombre %}
+        {% if not loop.first %}</div>{% endif %}
+        {% set ruta_actual.nombre = item.ruta %}
+        <div class="res-seccion">{{ item.ruta }}</div>
+        <div>
+      {% endif %}
+
+      <div class="cliente-card">
+        <div class="cliente-nombre">
+          <span>{{ item.nombre }}</span>
+          <span class="cliente-ruta-badge">{{ item.ruta }}</span>
+        </div>
+        {% if item.efectivo > 0 %}
+        <div class="cliente-fila">
+          <span class="cf-label">Efectivo</span>
+          <span class="cf-valor">${{ item.efectivo|formato_peso }}</span>
+        </div>
+        {% endif %}
+        {% if item.transferencia > 0 %}
+        <div class="cliente-fila">
+          <span class="cf-label">Transferencia</span>
+          <span class="cf-valor">${{ item.transferencia|formato_peso }}</span>
+        </div>
+        {% endif %}
+        {% if item.cheque > 0 %}
+        <div class="cliente-fila">
+          <span class="cf-label">Cheque</span>
+          <span class="cf-valor">${{ item.cheque|formato_peso }}</span>
+        </div>
+        {% endif %}
+        {% if item.es_cc %}
+        <div class="cliente-fila cc-tag">
+          <span class="cf-label">&#9888; Dejado en cuenta corriente</span>
+          <span class="cf-valor">—</span>
+        </div>
+        {% endif %}
+        <div class="cliente-fila total-cliente">
+          <span class="cf-label">Total cobrado</span>
+          <span class="cf-valor">${{ item.total|formato_peso }}</span>
+        </div>
+      </div>
+
+      {% if loop.last %}</div>{% endif %}
+    {% endfor %}
+  {% else %}
+    <div class="sin-datos">Sin cobros registrados en esta sesión.</div>
+  {% endif %}
+
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
   function mostrar(vista) {
-    document.getElementById('vistaGeneral').style.display = vista === 'general' ? '' : 'none';
-    document.getElementById('vistaRutas').style.display   = vista === 'rutas'   ? '' : 'none';
-    document.getElementById('tabGeneral').className = 'sub-tab' + (vista === 'general' ? ' activo' : '');
-    document.getElementById('tabRutas').className   = 'sub-tab' + (vista === 'rutas'   ? ' activo' : '');
+    document.getElementById('vistaGeneral').style.display   = vista === 'general'   ? '' : 'none';
+    document.getElementById('vistaRutas').style.display     = vista === 'rutas'     ? '' : 'none';
+    document.getElementById('vistaClientes').style.display  = vista === 'clientes'  ? '' : 'none';
+    document.getElementById('tabGeneral').className   = 'sub-tab' + (vista === 'general'   ? ' activo' : '');
+    document.getElementById('tabRutas').className     = 'sub-tab' + (vista === 'rutas'     ? ' activo' : '');
+    document.getElementById('tabClientes').className  = 'sub-tab' + (vista === 'clientes'  ? ' activo' : '');
   }
 </script>
 {% endblock %}

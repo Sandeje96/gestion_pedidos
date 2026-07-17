@@ -466,6 +466,28 @@ def resumen():
         for ruta, datos in sorted(rutas_dict.items())
     ]
 
+    # Agrupado por cliente (para la pestaña "Por cliente")
+    clientes_dict = defaultdict(lambda: {
+        'nombre': '', 'ruta': '', 'efectivo': 0.0,
+        'transferencia': 0.0, 'cheque': 0.0, 'total': 0.0, 'es_cc': False
+    })
+    for p in pagos_hoy:
+        cid = p.cliente_id
+        ruta = p.cliente.ruta if p.cliente and p.cliente.ruta else 'Sin ruta'
+        clientes_dict[cid]['nombre'] = p.cliente.nombre if p.cliente else f'Cliente #{cid}'
+        clientes_dict[cid]['ruta']   = ruta
+        clientes_dict[cid]['efectivo']      += float(p.efectivo)
+        clientes_dict[cid]['transferencia'] += float(p.transferencia)
+        clientes_dict[cid]['cheque']        += float(p.cheque)
+        clientes_dict[cid]['total']         += float(p.total_recibido)
+        if p.notas == 'Todo a cuenta corriente' and float(p.total_recibido) == 0:
+            clientes_dict[cid]['es_cc'] = True
+
+    resumen_por_cliente = sorted(
+        clientes_dict.values(),
+        key=lambda x: (x['ruta'], x['nombre'])
+    )
+
     return render_template(
         'repartidor/resumen.html',
         title='Resumen del día',
@@ -478,6 +500,7 @@ def resumen():
         neto_efectivo=neto_efectivo,
         gastos_hoy=gastos_hoy,
         resumen_rutas=resumen_rutas,
+        resumen_por_cliente=resumen_por_cliente,
         total_visitas=len(pagos_hoy)
     )
 

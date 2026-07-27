@@ -177,23 +177,129 @@
     </div>
 
     <!-- ══════════════════════════════════
-         COLUMNA DERECHA — COBROS DEL REPARTIDOR
+         COLUMNA DERECHA — COBRO Y HISTORIAL
          ══════════════════════════════════ -->
     <div class="col-12 col-md-6">
+
+        <!-- ── FORMULARIO DE COBRO DESDE VENTAS ── -->
+        <div class="card border-success mb-3">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-cash-register"></i> Registrar Cobro (Ventas)
+            </div>
+            <div class="card-body">
+                {% if not boleta_hoy and not boletas_cc %}
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-info-circle fa-2x mb-2 d-block opacity-50"></i>
+                    <small>No hay boleta ni deuda pendiente para cobrar.</small>
+                </div>
+                {% else %}
+                <form method="POST" action="{{ url_for('ventas.registrar_pago_ventas', cliente_id=cliente.id) }}" id="formCobrosVentas">
+                    <div class="row g-2 mb-2">
+                        <div class="col-4">
+                            <label class="form-label form-label-sm fw-semibold mb-1">
+                                <i class="fas fa-money-bill-wave text-success me-1"></i>Efectivo
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="efectivo" id="v_efectivo"
+                                       class="form-control" step="0.01" min="0" value="0"
+                                       placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label form-label-sm fw-semibold mb-1">
+                                <i class="fas fa-exchange-alt text-primary me-1"></i>Transferencia
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="transferencia" id="v_transferencia"
+                                       class="form-control" step="0.01" min="0" value="0"
+                                       placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label form-label-sm fw-semibold mb-1">
+                                <i class="fas fa-money-check text-secondary me-1"></i>Cheque
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="cheque" id="v_cheque"
+                                       class="form-control" step="0.01" min="0" value="0"
+                                       placeholder="0.00"
+                                       oninput="toggleFechaChequeVentas(this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fecha cobro cheque (oculto hasta que se ingrese monto) -->
+                    <div class="mb-2" id="fechaChequeVentasWrapper" style="display:none;">
+                        <label class="form-label form-label-sm">
+                            <i class="fas fa-calendar-alt me-1 text-secondary"></i>Fecha de cobro del cheque
+                        </label>
+                        <input type="date" name="fecha_cobro_cheque" id="v_fecha_cobro_cheque"
+                               class="form-control form-control-sm">
+                    </div>
+
+                    <!-- Total calculado en tiempo real -->
+                    <div class="mb-2 p-2 bg-light rounded d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">Total a registrar:</span>
+                        <span class="fw-bold text-success fs-5" id="v_totalDisplay">$0.00</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label form-label-sm">Notas (opcional)</label>
+                        <input type="text" name="notas" class="form-control form-control-sm"
+                               placeholder="Ej: cobro anticipado, acuerdo especial...">
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 fw-bold"
+                            onclick="return confirmarCobro()">
+                        <i class="fas fa-check-circle me-1"></i> Confirmar Cobro
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ── HISTORIAL DE TODOS LOS COBROS ── -->
         <div class="card border-dark">
-            <div class="card-header bg-dark text-white">
-                <i class="fas fa-truck"></i> Cobros registrados por el Repartidor
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-history"></i> Historial de Cobros</span>
+                <span class="badge bg-secondary">{{ historial_cobros|length }} registro(s)</span>
             </div>
             <div class="card-body p-0">
                 {% if historial_cobros %}
                 <div class="list-group list-group-flush">
                     {% for cobro in historial_cobros %}
-                    <div class="list-group-item px-3 py-3">
+                    {% set es_ventas = cobro.cobrado_por and cobro.cobrado_por.rol == 'vendedor' %}
+                    <div class="list-group-item px-3 py-3 {% if es_ventas %}border-start border-success border-3{% else %}border-start border-dark border-3{% endif %}">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <span class="text-muted small">
                                 <i class="fas fa-clock me-1"></i>{{ cobro.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}
                             </span>
                             <span class="fw-bold text-success fs-6">${{ "%.2f"|format(cobro.total_recibido|float) }}</span>
+                        </div>
+
+                        <!-- Badge de origen -->
+                        <div class="mb-1">
+                            {% if es_ventas %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 me-1">
+                                <i class="fas fa-user-tie me-1"></i>Ventas
+                            </span>
+                            {% else %}
+                            <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-25 me-1">
+                                <i class="fas fa-truck me-1"></i>Repartidor
+                            </span>
+                            {% endif %}
+                            {% if cobro.procesado %}
+                            <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25">
+                                <i class="fas fa-archive me-1"></i>Archivado
+                            </span>
+                            {% else %}
+                            <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">
+                                <i class="fas fa-circle me-1"></i>Sesión activa
+                            </span>
+                            {% endif %}
                         </div>
 
                         <!-- Detalle formas de pago -->
@@ -241,13 +347,56 @@
                 </div>
                 {% else %}
                 <div class="text-center text-muted py-5">
-                    <i class="fas fa-truck fa-3x mb-3 opacity-25 d-block"></i>
-                    El repartidor aún no registró cobros para este cliente.
+                    <i class="fas fa-history fa-3x mb-3 opacity-25 d-block"></i>
+                    No hay cobros registrados para este cliente.
                 </div>
                 {% endif %}
             </div>
         </div>
+
     </div>
 
 </div>
+
+<script>
+// ── Total en tiempo real para el formulario de ventas ──
+(function () {
+    const campos = ['v_efectivo', 'v_transferencia', 'v_cheque'];
+    const display = document.getElementById('v_totalDisplay');
+
+    function recalcular() {
+        let total = 0;
+        campos.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) total += parseFloat(el.value) || 0;
+        });
+        if (display) display.textContent = '$' + total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    campos.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', recalcular);
+    });
+})();
+
+// ── Mostrar/ocultar fecha de cheque ──
+function toggleFechaChequeVentas(val) {
+    const wrapper = document.getElementById('fechaChequeVentasWrapper');
+    if (wrapper) {
+        wrapper.style.display = (parseFloat(val) > 0) ? '' : 'none';
+    }
+}
+
+// ── Confirmación antes de registrar ──
+function confirmarCobro() {
+    const display = document.getElementById('v_totalDisplay');
+    const total = display ? display.textContent : '$0';
+    if (total === '$0.00' || total === '$0,00') {
+        alert('El total a registrar debe ser mayor a $0.');
+        return false;
+    }
+    return confirm('¿Confirmar cobro de ' + total + ' registrado por Ventas?');
+}
+</script>
+
 {% endblock %}

@@ -87,6 +87,7 @@ def cobro_cliente(cliente_id):
 
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
+        PagoBoleta.cobrado_por_id == current_user.id,  # Solo cuenta cobros propios del repartidor
         PagoBoleta.fecha_cobro >= inicio_hoy_utc,
         PagoBoleta.procesado == False
     ).count()
@@ -333,9 +334,10 @@ def todo_a_cuenta_corriente(cliente_id):
     inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
     hoy = ahora_arg.date()
 
-    # Verificar que no se haya operado ya hoy en esta sesión activa
+    # Verificar que no se haya operado ya hoy en esta sesión activa (solo cobros propios del repartidor)
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
+        PagoBoleta.cobrado_por_id == current_user.id,  # Solo cuenta cobros propios del repartidor
         PagoBoleta.fecha_cobro >= inicio_hoy_utc,
         PagoBoleta.procesado == False
     ).count()

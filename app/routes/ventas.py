@@ -1269,4 +1269,147 @@ def historial_gastos():
         gastos_agrupados=gastos_agrupados,
         title='Historial de Gastos'
     )
+
+
+@ventas_bp.route('/cliente/<int:cliente_id>/registrar-pago-ventas', methods=['POST'])
+@vendedor_requerido
+def registrar_pago_ventas(cliente_id):
+    """
+    Registra un cobro directamente desde el usuario Ventas.
+
+    Lógica idéntica a la del repartidor pero:
+      - Protegida por @vendedor_requerido.
+      - cobrado_por_id = current_user.id (usuario ventas, no repartidor).
+      - procesado = False (ciclo normal: se archiva al cerrar el día con resetear_cliente_dia).
+
+    Estos pagos NO aparecen en el resumen ni en los cobros del Repartidor,
+    ya que el repartidor filtra siempre por cobrado_por_id == su propio id.
+    SÍ se reflejan en /ventas/boletas (columna Total cobrado).
+    """
+    from app.models.boleta import Boleta, PagoBoleta
+    from decimal import Decimal, InvalidOperation
+
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    # ── Leer y validar campos del formulario ──
+    def parse_decimal(field_name, default=Decimal('0')):
+        raw = request.form.get(field_name, '').strip().replace(',', '.')
+        if not raw:
+            return default
+        try:
+            val = Decimal(raw)
+            return val if val >= 0 else default
+        except InvalidOperation:
+            return default
+
+    efectivo      = parse_decimal('efectivo')
+    transferencia = parse_decimal('transferencia')
+    cheque_monto  = parse_decimal('cheque')
+    fecha_cheque_str = request.form.get('fecha_cobro_cheque', '').strip()
+    notas = request.form.get('notas', '').strip() or None
+
+    # Validar fecha de cheque si se cargó monto
+    fecha_cobro_cheque = None
+    if cheque_monto > 0:
+        if not fecha_cheque_str:
+            flash('Si cargás un cheque debés indicar la fecha de cobro.', 'danger')
+            return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+        try:
+            fecha_cobro_cheque = datetime.strptime(fecha_cheque_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('La fecha de cobro del cheque no es válida.', 'danger')
+            return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+    total_recibido = efectivo + transferencia + cheque_monto
+
+    if total_recibido <= 0:
+        flash('El total recibido debe ser mayor a $0.', 'warning')
+        return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+    hoy = date.today()
+
+    # ── Boleta actual y CC ──
+    boleta_actual = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    boletas_cc = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_entrega.asc())
+        .all()
+    )
+
+    # ── Distribuir el pago ──
+    remanente = total_recibido
+    aplicado_boleta = Decimal('0')
+    aplicado_cc     = Decimal('0')
+
+    # 1. Aplicar a boleta actual
+    if boleta_actual and remanente > 0:
+        saldo = Decimal(str(boleta_actual.saldo_pendiente))
+        a_aplicar = min(remanente, saldo)
+        boleta_actual.saldo_pendiente = saldo - a_aplicar
+        boleta_actual.estado = 'cobrada' if boleta_actual.saldo_pendiente == 0 else 'parcial'
+        boleta_actual.fecha_actualizacion = datetime.utcnow()
+        aplicado_boleta = a_aplicar
+        remanente -= a_aplicar
+
+    # 2. Aplicar remanente a cuenta corriente (más antigua primero)
+    for b in boletas_cc:
+        if remanente <= 0:
+            break
+        saldo = Decimal(str(b.saldo_pendiente))
+        a_aplicar = min(remanente, saldo)
+        b.saldo_pendiente = saldo - a_aplicar
+        b.estado = 'cobrada' if b.saldo_pendiente == 0 else 'parcial'
+        b.fecha_actualizacion = datetime.utcnow()
+        aplicado_cc += a_aplicar
+        remanente -= a_aplicar
+
+    # 3. Lo que sobra es saldo a favor
+    saldo_favor = remanente
+
+    boleta_ref_id = boleta_actual.id if boleta_actual else (boletas_cc[0].id if boletas_cc else None)
+
+    pago = PagoBoleta(
+        boleta_id=boleta_ref_id,
+        cliente_id=cliente_id,
+        efectivo=efectivo,
+        transferencia=transferencia,
+        cheque=cheque_monto,
+        fecha_cobro_cheque=fecha_cobro_cheque,
+        total_recibido=total_recibido,
+        aplicado_boleta=aplicado_boleta,
+        aplicado_cc=aplicado_cc,
+        saldo_favor=saldo_favor,
+        cobrado_por_id=current_user.id,  # Marca explícitamente que lo cobró Ventas
+        notas=notas,
+        procesado=False  # Ciclo normal: se archiva al cerrar el día
+    )
+    db.session.add(pago)
+
+    try:
+        db.session.commit()
+        flash(
+            f'✅ Pago registrado por Ventas. '
+            f'Total: ${float(total_recibido):,.2f}',
+            'success'
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al registrar el pago: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
 

@@ -311,7 +311,8 @@
                                                     <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="text-center">
+                                                <td class="text-center" id="despacho-cell-{{ pedido.id }}">
+                                                    {% if pedido.estado != 'cancelado' %}
                                                     <button type="button" 
                                                             id="despacho-toggle-{{ pedido.id }}" 
                                                             class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
@@ -322,6 +323,9 @@
                                                         <i class="fas fa-truck-loading"></i> <span>NO</span>
                                                         {% endif %}
                                                     </button>
+                                                    {% else %}
+                                                    <span class="text-muted small">-</span>
+                                                    {% endif %}
                                                 </td>
                                                 <td>
                                                     {% if pedido.observaciones_fabrica %}
@@ -437,7 +441,8 @@
                                                     <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
                                                     {% endif %}
                                                 </td>
-                                                <td class="text-center">
+                                                <td class="text-center" id="despacho-cell-{{ pedido.id }}">
+                                                    {% if pedido.estado != 'cancelado' %}
                                                     <button type="button" 
                                                             id="despacho-toggle-{{ pedido.id }}" 
                                                             class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
@@ -448,6 +453,9 @@
                                                         <i class="fas fa-truck-loading"></i> <span>NO</span>
                                                         {% endif %}
                                                     </button>
+                                                    {% else %}
+                                                    <span class="text-muted small">-</span>
+                                                    {% endif %}
                                                 </td>
                                                 <td>
                                                     {% if pedido.observaciones_fabrica %}
@@ -563,7 +571,8 @@
                                                      <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
                                                      {% endif %}
                                                  </td>
-                                                 <td class="text-center">
+                                                 <td class="text-center" id="despacho-cell-{{ pedido.id }}">
+                                                     {% if pedido.estado != 'cancelado' %}
                                                      <button type="button" 
                                                              id="despacho-toggle-{{ pedido.id }}" 
                                                              class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}" 
@@ -574,6 +583,9 @@
                                                          <i class="fas fa-truck-loading"></i> <span>NO</span>
                                                          {% endif %}
                                                      </button>
+                                                     {% else %}
+                                                     <span class="text-muted small">-</span>
+                                                     {% endif %}
                                                  </td>
                                                  <td>
                                                      {% if pedido.observaciones_fabrica %}

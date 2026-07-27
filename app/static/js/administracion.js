@@ -210,14 +210,18 @@ socket.on('pedido_actualizado', function(data) {
             }
             
             // Actualizar botón de despacho
-            const btnDespacho = document.getElementById(`despacho-toggle-${pedido.id}`);
-            if (btnDespacho) {
-                if (pedido.despachado) {
-                    btnDespacho.className = 'despacho-toggle-btn despacho-si';
-                    btnDespacho.innerHTML = '<i class="fas fa-truck"></i> <span>SI</span>';
+            const btnDespachoCell = document.getElementById(`despacho-cell-${pedido.id}`);
+            if (btnDespachoCell) {
+                if (pedido.estado === 'cancelado') {
+                    btnDespachoCell.innerHTML = '<span class="text-muted small">-</span>';
                 } else {
-                    btnDespacho.className = 'despacho-toggle-btn despacho-no';
-                    btnDespacho.innerHTML = '<i class="fas fa-truck-loading"></i> <span>NO</span>';
+                    let btnHtml = '';
+                    if (pedido.despachado) {
+                        btnHtml = `<button type="button" id="despacho-toggle-${pedido.id}" class="despacho-toggle-btn despacho-si" onclick="toggleDespacho(${pedido.id})"><i class="fas fa-truck"></i> <span>SI</span></button>`;
+                    } else {
+                        btnHtml = `<button type="button" id="despacho-toggle-${pedido.id}" class="despacho-toggle-btn despacho-no" onclick="toggleDespacho(${pedido.id})"><i class="fas fa-truck-loading"></i> <span>NO</span></button>`;
+                    }
+                    btnDespachoCell.innerHTML = btnHtml;
                 }
             }
             

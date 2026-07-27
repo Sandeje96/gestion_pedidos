@@ -1174,8 +1174,12 @@ def resetear_cliente_dia(cliente_id):
     ).update({'procesado': True}, synchronize_session=False)
     
     db.session.commit()
-    
-    # 4. Si ya no quedan pagos sin procesar en todo el sistema, limpiamos los gastos del repartidor
+
+    # Archivar los gastos activos del repartidor correspondientes a este cliente.
+    # Se archivan los gastos de cualquier ruta, ya que el repartidor puede haber
+    # registrado gastos de distintas rutas durante el mismo viaje.
+    # Solo se archivan si ya no quedan pagos sin procesar en todo el sistema
+    # (para no interrumpir viajes en curso de otros clientes).
     pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
     if pagos_pendientes == 0:
         from app.models.gasto_repartidor import GastoRepartidor
@@ -1227,15 +1231,28 @@ def resetear_ruta_dia(ruta_nombre):
     ).update({'procesado': True}, synchronize_session=False)
 
     db.session.commit()
-    
-    # 4. Si ya no quedan pagos sin procesar en todo el sistema, limpiamos los gastos del repartidor
+
+    # Archivar gastos activos del repartidor que correspondan a esta ruta.
+    # Si ventas cierra una ruta entera, los gastos de esa ruta se archivan.
+    # Los gastos de otras rutas que aún estén en curso no se tocan.
+    from app.models.gasto_repartidor import GastoRepartidor
+    gastos_ruta = GastoRepartidor.query.filter_by(
+        procesado=False,
+        ruta=ruta_nombre
+    ).all()
+    for g in gastos_ruta:
+        g.procesado = True
+    if gastos_ruta:
+        db.session.commit()
+
+    # Adicionalmente, si ya no quedan pagos activos en todo el sistema,
+    # archivar cualquier gasto restante de otras rutas
     pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
     if pagos_pendientes == 0:
-        from app.models.gasto_repartidor import GastoRepartidor
-        gastos_activos = GastoRepartidor.query.filter_by(procesado=False).all()
-        for g in gastos_activos:
+        gastos_restantes = GastoRepartidor.query.filter_by(procesado=False).all()
+        for g in gastos_restantes:
             g.procesado = True
-        if gastos_activos:
+        if gastos_restantes:
             db.session.commit()
 
     flash(

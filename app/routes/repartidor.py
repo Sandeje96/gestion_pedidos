@@ -854,16 +854,31 @@ def editar_pago(cliente_id, pago_id):
 @repartidor_requerido
 def historial_gastos():
     """
-    Muestra el historial de gastos archivados/procesados del repartidor actual.
-    Agrupados por viaje: (ruta, año ISO, semana ISO).
-    Cada card representa un viaje a una ruta específica en una semana determinada,
-    mostrando el intervalo de fechas y el desglose de gastos.
+    Muestra el historial de gastos del repartidor actual, agrupados por viaje
+    (ruta + semana ISO).
+
+    Se incluyen dos tipos de gastos:
+      1. procesado=True  → archivados correctamente por Ventas al cerrar la ruta.
+      2. procesado=False de semanas ANTERIORES → gastos "huérfanos" que no se
+         archivaron porque el sistema requería que todos los pagos del sistema
+         estuvieran cerrados. Se muestran igual para que no se pierdan.
+
+    Los gastos procesado=False de la semana ACTUAL no se incluyen aquí;
+    esos se ven en la pantalla de Gastos activos.
     """
     from collections import defaultdict
 
-    gastos_procesados = GastoRepartidor.query.filter_by(
-        repartidor_id=current_user.id,
-        procesado=True
+    # Inicio del lunes de la semana actual (para separar semana actual de anteriores)
+    hoy = date.today()
+    lunes_actual = hoy - timedelta(days=hoy.weekday())
+
+    # Traer gastos archivados + gastos de semanas anteriores no archivados
+    gastos_historial = GastoRepartidor.query.filter(
+        GastoRepartidor.repartidor_id == current_user.id,
+        db.or_(
+            GastoRepartidor.procesado == True,
+            GastoRepartidor.fecha < lunes_actual   # semanas pasadas aunque no estén archivados
+        )
     ).order_by(GastoRepartidor.fecha.asc(), GastoRepartidor.fecha_creacion.asc()).all()
 
     # Agrupar por (ruta, año ISO, semana ISO)
@@ -875,10 +890,11 @@ def historial_gastos():
         'fecha_inicio': None,
         'fecha_fin': None,
         'total': 0.0,
-        'breakdown': defaultdict(float),  # subtotal por tipo
+        'breakdown': defaultdict(float),
+        'tiene_sin_archivar': False,  # True si algún gasto del viaje no fue archivado formalmente
     })
 
-    for g in gastos_procesados:
+    for g in gastos_historial:
         iso = g.fecha.isocalendar()
         anio, semana = iso[0], iso[1]
         ruta = g.ruta or 'Sin ruta'
@@ -891,20 +907,21 @@ def historial_gastos():
         v['gastos'].append(g)
         v['total']  += float(g.monto)
         v['breakdown'][g.tipo] += float(g.monto)
+        if not g.procesado:
+            v['tiene_sin_archivar'] = True
 
         if v['fecha_inicio'] is None or g.fecha < v['fecha_inicio']:
             v['fecha_inicio'] = g.fecha
         if v['fecha_fin'] is None or g.fecha > v['fecha_fin']:
             v['fecha_fin'] = g.fecha
 
-    # Ordenar: viaje más reciente primero (por fecha_fin descendente)
+    # Ordenar: viaje más reciente primero
     viajes = sorted(
         viajes_dict.values(),
         key=lambda v: (v['fecha_fin'], v['ruta']),
         reverse=True
     )
 
-    # Cantidad de rutas distintas visitadas
     rutas_distintas = len({v['ruta'] for v in viajes})
 
     return render_template(

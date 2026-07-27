@@ -4,98 +4,313 @@
 
 {% block extra_css %}
 <style>
-  .fecha-header {
-    background-color: #fff;
-    border-left: 4px solid #1a6b3c;
-    padding: 10px 15px;
-    margin-top: 20px;
-    margin-bottom: 15px;
-    font-weight: bold;
-    font-size: 1.1rem;
-    border-radius: 4px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  /* ── PAGE ── */
+  .historial-wrap {
+    padding-bottom: 40px;
   }
-  .gasto-card {
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .page-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin-bottom: 4px;
   }
-  .gasto-info {
-    display: flex;
-    flex-direction: column;
-  }
-  .gasto-tipo {
-    font-weight: bold;
-    color: #333;
-    font-size: 1rem;
-  }
-  .gasto-notas {
+  .page-sub {
     font-size: 0.85rem;
     color: #6c757d;
+    margin-bottom: 24px;
   }
-  .gasto-monto {
-    font-weight: bold;
-    color: #c8860a;
-    font-size: 1.1rem;
+
+  /* ── RESUMEN GLOBAL ── */
+  .resumen-global {
+    background: linear-gradient(135deg, #1a6b3c 0%, #145530 100%);
+    border-radius: 14px;
+    padding: 18px 20px;
+    color: #fff;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 28px;
+    box-shadow: 0 4px 16px rgba(26,107,60,0.3);
   }
-  .gasto-fecha {
-    font-size: 0.8rem;
+  .resumen-global .stat { text-align: center; }
+  .resumen-global .stat .num {
+    font-size: 1.8rem; font-weight: 800; line-height: 1;
+  }
+  .resumen-global .stat .lbl {
+    font-size: 0.7rem; opacity: 0.75; text-transform: uppercase;
+    letter-spacing: 0.05em; margin-top: 2px;
+  }
+  .resumen-sep { width: 1px; background: rgba(255,255,255,0.2); height: 40px; }
+
+  /* ── VIAJE CARD ── */
+  .viaje-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .viaje-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+
+  .viaje-header {
+    background: #fff;
+    padding: 16px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.2s;
+    user-select: none;
+  }
+  .viaje-header:hover,
+  .viaje-header[aria-expanded="true"] {
+    border-color: #1a6b3c;
+    background: #f8fdf9;
+  }
+
+  .viaje-ruta-badge {
+    background: #1a6b3c;
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .viaje-meta {
+    flex: 1;
+    min-width: 0;
+  }
+  .viaje-fechas {
+    font-size: 0.9rem;
+    color: #495057;
+    font-weight: 600;
+  }
+  .viaje-semana {
+    font-size: 0.75rem;
+    color: #adb5bd;
+    margin-top: 2px;
+  }
+
+  .viaje-total {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #c8430a;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .viaje-chevron {
+    color: #adb5bd;
+    font-size: 1rem;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .viaje-header[aria-expanded="true"] .viaje-chevron {
+    transform: rotate(180deg);
+  }
+
+  /* ── BREAKDOWN PILLS ── */
+  .breakdown-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .breakdown-pill {
+    font-size: 0.72rem;
+    background: #e9f5ee;
+    color: #1a6b3c;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-weight: 600;
+  }
+
+  /* ── TABLA DE GASTOS ── */
+  .viaje-body {
+    background: #fafafa;
+    border-top: 1px solid #e9ecef;
+  }
+  .gasto-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    gap: 12px;
+  }
+  .gasto-row:last-child { border-bottom: none; }
+
+  .tipo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .tipo-combustible { background: #fff3e0; color: #e65100; }
+  .tipo-hospedaje   { background: #e3f2fd; color: #1565c0; }
+  .tipo-viatico     { background: #fce4ec; color: #c62828; }
+  .tipo-otros       { background: #f3e5f5; color: #6a1b9a; }
+
+  .gasto-detail { flex: 1; min-width: 0; }
+  .gasto-tipo-lbl { font-weight: 700; font-size: 0.92rem; color: #212529; }
+  .gasto-notas-lbl { font-size: 0.8rem; color: #6c757d; margin-top: 2px; }
+  .gasto-fecha-lbl { font-size: 0.75rem; color: #adb5bd; margin-top: 2px; }
+
+  .gasto-monto-lbl {
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #c8430a;
+    white-space: nowrap;
+  }
+
+  /* ── VACÍO ── */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
     color: #adb5bd;
   }
-  .total-dia {
-    background: #e9ecef;
-    padding: 10px 15px;
-    border-radius: 6px;
-    text-align: right;
-    font-weight: bold;
-    margin-bottom: 20px;
-    font-size: 1.05rem;
-  }
+  .empty-state .icon { font-size: 3.5rem; margin-bottom: 16px; }
+  .empty-state .msg { font-size: 1rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="contenido">
-    <div style="margin-bottom: 20px;">
-        <h2>&#x1F4DC; Historial de Gastos</h2>
-    </div>
+<div class="historial-wrap contenido">
 
-    {% if not gastos_agrupados %}
-    <div class="alert alert-info text-center">
-        <i class="fas fa-info-circle fa-2x mb-3 d-block"></i>
-        No hay gastos archivados en el historial.
+  <!-- ── ENCABEZADO ── -->
+  <div class="page-title">📋 Historial de Gastos</div>
+  <div class="page-sub">Gastos archivados por viaje y ruta</div>
+
+  {% if viajes %}
+
+  <!-- ── RESUMEN GLOBAL ── -->
+  {% set total_global = viajes | sum(attribute='total') %}
+  <div class="resumen-global">
+    <div class="stat">
+      <div class="num">{{ viajes | length }}</div>
+      <div class="lbl">Viaje{{ 's' if viajes|length != 1 else '' }}</div>
     </div>
-    {% else %}
-        {% for fecha, gastos in gastos_agrupados.items() %}
-        <div class="fecha-header">
-            <i class="far fa-calendar-alt me-2"></i> {{ fecha.strftime('%d/%m/%Y') }}
+    <div class="resumen-sep"></div>
+    <div class="stat">
+      <div class="num">{{ rutas_distintas }}</div>
+      <div class="lbl">Ruta{{ 's' if rutas_distintas != 1 else '' }}</div>
+    </div>
+    <div class="resumen-sep"></div>
+    <div class="stat">
+      <div class="num">${{ total_global | formato_peso(0) }}</div>
+      <div class="lbl">Total histórico</div>
+    </div>
+  </div>
+
+  <!-- ── CARDS DE VIAJES ── -->
+  <div id="acordeonViajes">
+    {% for v in viajes %}
+    {% set viaje_id = 'viaje-' ~ loop.index %}
+    {% set es_primero = loop.first %}
+
+    <div class="viaje-card">
+
+      <!-- HEADER -->
+      <div class="viaje-header"
+           data-bs-toggle="collapse"
+           data-bs-target="#{{ viaje_id }}"
+           aria-expanded="{{ 'true' if es_primero else 'false' }}"
+           aria-controls="{{ viaje_id }}">
+
+        <div class="viaje-ruta-badge">
+          📍 {{ v.ruta }}
         </div>
-        
-        {% set total_dia = 0 %}
-        {% for g in gastos %}
-            {% set total_dia = total_dia + g.monto|float %}
-            <div class="gasto-card">
-                <div class="gasto-info">
-                    <span class="gasto-tipo">{{ g.tipo }}</span>
-                    {% if g.notas %}
-                    <span class="gasto-notas">{{ g.notas }}</span>
-                    {% endif %}
-                    <span class="gasto-fecha">Repartidor ID: {{ g.repartidor_id }} - {{ g.fecha_creacion.strftime('%H:%M') }}</span>
-                </div>
-                <div class="gasto-monto">
-                    ${{ g.monto|float|formato_peso }}
-                </div>
+
+        <div class="viaje-meta">
+          <div class="viaje-fechas">
+            {% if v.fecha_inicio == v.fecha_fin %}
+              {{ v.fecha_inicio.strftime('%d/%m/%Y') }}
+            {% else %}
+              {{ v.fecha_inicio.strftime('%d/%m') }} — {{ v.fecha_fin.strftime('%d/%m/%Y') }}
+            {% endif %}
+          </div>
+          <div class="viaje-semana">
+            Semana {{ v.semana }}, {{ v.anio }} · {{ v.gastos | length }} gasto{{ 's' if v.gastos|length != 1 else '' }}
+          </div>
+          <!-- Breakdown de tipos -->
+          <div class="breakdown-pills">
+            {% for tipo, subtotal in v.breakdown.items() %}
+            <span class="breakdown-pill">{{ tipo }}: ${{ subtotal | formato_peso(0) }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="viaje-total">${{ v.total | formato_peso(0) }}</div>
+        <i class="fas fa-chevron-down viaje-chevron"></i>
+      </div>
+
+      <!-- BODY -->
+      <div id="{{ viaje_id }}"
+           class="collapse {{ 'show' if es_primero else '' }}"
+           data-bs-parent="">
+        <div class="viaje-body">
+          {% for g in v.gastos %}
+          {% set tipo_lower = g.tipo | lower %}
+          <div class="gasto-row">
+            <div class="tipo-icon
+              {% if 'combustible' in tipo_lower %}tipo-combustible
+              {% elif 'hospedaje' in tipo_lower %}tipo-hospedaje
+              {% elif 'viatico' in tipo_lower or 'viático' in tipo_lower %}tipo-viatico
+              {% else %}tipo-otros{% endif %}">
+              {% if 'combustible' in tipo_lower %}⛽
+              {% elif 'hospedaje' in tipo_lower %}🏨
+              {% elif 'viatico' in tipo_lower or 'viático' in tipo_lower %}🍔
+              {% else %}📦{% endif %}
             </div>
-        {% endfor %}
-        <div class="total-dia text-danger">
-            Total del día: ${{ total_dia|formato_peso }}
+            <div class="gasto-detail">
+              <div class="gasto-tipo-lbl">{{ g.tipo }}</div>
+              {% if g.notas %}
+              <div class="gasto-notas-lbl">{{ g.notas }}</div>
+              {% endif %}
+              <div class="gasto-fecha-lbl">
+                <i class="far fa-calendar-alt me-1"></i>{{ g.fecha.strftime('%d/%m/%Y') }}
+                &nbsp;·&nbsp;
+                <i class="far fa-clock me-1"></i>{{ g.fecha_creacion.strftime('%H:%M') }}
+              </div>
+            </div>
+            <div class="gasto-monto-lbl">${{ g.monto | formato_peso }}</div>
+          </div>
+          {% endfor %}
+
+          <!-- TOTAL DEL VIAJE -->
+          <div style="background:#fff; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; border-top: 2px solid #e9ecef;">
+            <span style="color:#6c757d; font-size:0.85rem; font-weight:600;">
+              TOTAL DEL VIAJE
+            </span>
+            <span style="font-size:1.2rem; font-weight:800; color:#c8430a;">
+              ${{ v.total | formato_peso }}
+            </span>
+          </div>
         </div>
-        {% endfor %}
-    {% endif %}
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <!-- ── ESTADO VACÍO ── -->
+  <div class="empty-state">
+    <div class="icon">📋</div>
+    <div class="msg">No hay gastos archivados todavía.<br>
+      <small>Los gastos aparecerán aquí cuando Ventas cierre una ruta.</small>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}

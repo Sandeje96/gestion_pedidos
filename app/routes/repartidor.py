@@ -855,21 +855,61 @@ def editar_pago(cliente_id, pago_id):
 def historial_gastos():
     """
     Muestra el historial de gastos archivados/procesados del repartidor actual.
-    Agrupados por fecha.
+    Agrupados por viaje: (ruta, año ISO, semana ISO).
+    Cada card representa un viaje a una ruta específica en una semana determinada,
+    mostrando el intervalo de fechas y el desglose de gastos.
     """
     from collections import defaultdict
-    
+
     gastos_procesados = GastoRepartidor.query.filter_by(
         repartidor_id=current_user.id,
         procesado=True
-    ).order_by(GastoRepartidor.fecha.desc(), GastoRepartidor.fecha_creacion.desc()).all()
-    
-    gastos_agrupados = defaultdict(list)
+    ).order_by(GastoRepartidor.fecha.asc(), GastoRepartidor.fecha_creacion.asc()).all()
+
+    # Agrupar por (ruta, año ISO, semana ISO)
+    viajes_dict = defaultdict(lambda: {
+        'ruta': '',
+        'anio': 0,
+        'semana': 0,
+        'gastos': [],
+        'fecha_inicio': None,
+        'fecha_fin': None,
+        'total': 0.0,
+        'breakdown': defaultdict(float),  # subtotal por tipo
+    })
+
     for g in gastos_procesados:
-        gastos_agrupados[g.fecha].append(g)
-        
+        iso = g.fecha.isocalendar()
+        anio, semana = iso[0], iso[1]
+        ruta = g.ruta or 'Sin ruta'
+        key = (ruta, anio, semana)
+
+        v = viajes_dict[key]
+        v['ruta']   = ruta
+        v['anio']   = anio
+        v['semana'] = semana
+        v['gastos'].append(g)
+        v['total']  += float(g.monto)
+        v['breakdown'][g.tipo] += float(g.monto)
+
+        if v['fecha_inicio'] is None or g.fecha < v['fecha_inicio']:
+            v['fecha_inicio'] = g.fecha
+        if v['fecha_fin'] is None or g.fecha > v['fecha_fin']:
+            v['fecha_fin'] = g.fecha
+
+    # Ordenar: viaje más reciente primero (por fecha_fin descendente)
+    viajes = sorted(
+        viajes_dict.values(),
+        key=lambda v: (v['fecha_fin'], v['ruta']),
+        reverse=True
+    )
+
+    # Cantidad de rutas distintas visitadas
+    rutas_distintas = len({v['ruta'] for v in viajes})
+
     return render_template(
         'repartidor/historial_gastos.html',
-        gastos_agrupados=gastos_agrupados,
+        viajes=viajes,
+        rutas_distintas=rutas_distintas,
         title='Historial de Gastos'
     )

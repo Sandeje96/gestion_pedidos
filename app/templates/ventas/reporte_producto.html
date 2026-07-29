@@ -91,7 +91,7 @@
 <div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
     <div>
         <h2 class="mb-0"><i class="fas fa-chart-bar text-primary me-2"></i>Reporte de Ventas por Producto</h2>
-        <small class="text-muted">Solo pedidos <strong>completados</strong> · incluye activos e históricos archivados</small>
+        <small class="text-muted">Solo pedidos <strong>completados</strong> · la fecha refleja cuándo fábrica los completó · incluye activos e históricos archivados</small>
     </div>
     <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary ms-auto">
         <i class="fas fa-arrow-left me-1"></i> Volver
@@ -128,7 +128,7 @@
 
             <div class="col-6 col-md-3">
                 <label for="fechaDesde" class="form-label fw-semibold">
-                    <i class="fas fa-calendar-alt me-1 text-primary"></i>Desde
+                    <i class="fas fa-calendar-alt me-1 text-primary"></i>Completado desde
                 </label>
                 <input type="date" id="fechaDesde" name="fecha_desde"
                        class="form-control" value="{{ fecha_desde_str }}">
@@ -136,7 +136,7 @@
 
             <div class="col-6 col-md-3">
                 <label for="fechaHasta" class="form-label fw-semibold">
-                    <i class="fas fa-calendar-alt me-1 text-primary"></i>Hasta
+                    <i class="fas fa-calendar-alt me-1 text-primary"></i>Completado hasta
                 </label>
                 <input type="date" id="fechaHasta" name="fecha_hasta"
                        class="form-control" value="{{ fecha_hasta_str }}">
@@ -268,8 +268,8 @@
                             {% for pedido in pedidos %}
                             <tr>
                                 <td class="text-nowrap small text-muted">
-                                    <i class="fas fa-calendar-alt me-1"></i>
-                                    {{ pedido.fecha_creacion.strftime('%d/%m/%Y') if pedido.fecha_creacion else '-' }}
+                                    <i class="fas fa-check-circle me-1 text-success"></i>
+                                    {{ pedido.fecha_completado.strftime('%d/%m/%Y') if pedido.fecha_completado else '-' }}
                                 </td>
                                 <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
                                 <td>{{ pedido.cliente.nombre if pedido.cliente else '-' }}</td>

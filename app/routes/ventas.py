@@ -1467,11 +1467,11 @@ def reporte_producto():
     if producto_filtro:
         query = query.filter(Pedido.producto_nombre.ilike(f'%{producto_filtro}%'))
     if fecha_desde:
-        query = query.filter(Pedido.fecha_creacion >= fecha_desde)
+        query = query.filter(Pedido.fecha_completado >= fecha_desde)
     if fecha_hasta:
-        query = query.filter(Pedido.fecha_creacion <= fecha_hasta)
+        query = query.filter(Pedido.fecha_completado <= fecha_hasta)
 
-    pedidos = query.order_by(Pedido.fecha_creacion.desc()).all()
+    pedidos = query.order_by(Pedido.fecha_completado.desc()).all()
 
     # Agrupar totales por nombre de producto
     totales_por_producto = {}

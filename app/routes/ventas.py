@@ -1429,4 +1429,85 @@ def registrar_pago_ventas(cliente_id):
         flash(f'Error al registrar el pago: {str(e)}', 'danger')
 
     return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+# ─────────────────────────────────────────────
+#  REPORTE DE VENTAS POR PRODUCTO
+# ─────────────────────────────────────────────
+
+@ventas_bp.route('/reporte-producto', methods=['GET'])
+@login_required
+@vendedor_requerido
+def reporte_producto():
+    """
+    Muestra un reporte de litros vendidos por producto en un rango de fechas.
+    Solo considera pedidos con estado 'completado'.
+    """
+    # Parámetros del formulario
+    producto_filtro = request.args.get('producto', '').strip()
+    fecha_desde_str = request.args.get('fecha_desde', '')
+    fecha_hasta_str = request.args.get('fecha_hasta', '')
+
+    # Parsear fechas
+    fecha_desde = None
+    fecha_hasta = None
+    try:
+        if fecha_desde_str:
+            fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d')
+        if fecha_hasta_str:
+            fecha_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d').replace(
+                hour=23, minute=59, second=59
+            )
+    except ValueError:
+        flash('Las fechas ingresadas no son válidas.', 'danger')
+
+    # Construir query base: solo completados (activos y archivados)
+    query = Pedido.query.filter(Pedido.estado == 'completado')
+
+    if producto_filtro:
+        query = query.filter(Pedido.producto_nombre.ilike(f'%{producto_filtro}%'))
+    if fecha_desde:
+        query = query.filter(Pedido.fecha_creacion >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(Pedido.fecha_creacion <= fecha_hasta)
+
+    pedidos = query.order_by(Pedido.fecha_creacion.desc()).all()
+
+    # Agrupar totales por nombre de producto
+    totales_por_producto = {}
+    for p in pedidos:
+        nombre = p.producto_nombre.upper()
+        if nombre not in totales_por_producto:
+            totales_por_producto[nombre] = {
+                'litros': 0.0,
+                'cantidad_pedidos': 0,
+                'unidad': p.unidad or 'litros'
+            }
+        totales_por_producto[nombre]['litros'] += float(p.cantidad or 0)
+        totales_por_producto[nombre]['cantidad_pedidos'] += 1
+
+    # Ordenar por mayor cantidad
+    totales_ordenados = sorted(
+        totales_por_producto.items(),
+        key=lambda x: x[1]['litros'],
+        reverse=True
+    )
+
+    total_general = sum(float(p.cantidad or 0) for p in pedidos)
+
+    # Lista de productos disponibles para el autocomplete
+    productos_disponibles = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
+
+    return render_template(
+        'ventas/reporte_producto.html',
+        pedidos=pedidos,
+        totales_ordenados=totales_ordenados,
+        total_general=total_general,
+        producto_filtro=producto_filtro,
+        fecha_desde_str=fecha_desde_str,
+        fecha_hasta_str=fecha_hasta_str,
+        productos_disponibles=productos_disponibles,
+        hay_resultados=len(pedidos) > 0,
+        se_busco=(bool(producto_filtro) or bool(fecha_desde_str) or bool(fecha_hasta_str))
+    )
 

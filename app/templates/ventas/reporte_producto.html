@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Reporte de Ventas por Producto{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-radius: 12px;
+        border: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .filter-card {
+        border-radius: 12px;
+        border: 1px solid #dee2e6;
+        background: #f8f9fa;
+    }
+    .resultado-header {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        color: white;
+        border-radius: 10px 10px 0 0;
+        padding: 1rem 1.5rem;
+    }
+    .badge-litros {
+        font-size: 1rem;
+        padding: 0.4em 0.8em;
+        border-radius: 8px;
+    }
+    .progress-bar-custom {
+        height: 8px;
+        border-radius: 4px;
+        background: #e9ecef;
+        overflow: hidden;
+        margin-top: 4px;
+    }
+    .progress-fill {
+        height: 100%;
+        border-radius: 4px;
+        background: linear-gradient(90deg, #0d6efd, #6ea8fe);
+        transition: width 0.6s ease;
+    }
+    .table-detalle thead th {
+        background: #212529;
+        color: white;
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #6c757d;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.4;
+    }
+    .total-banner {
+        background: linear-gradient(135deg, #198754, #146c43);
+        color: white;
+        border-radius: 12px;
+        padding: 1.2rem 1.8rem;
+    }
+    #productoInput {
+        border-radius: 8px 0 0 8px;
+    }
+    .datalist-wrapper {
+        position: relative;
+    }
+    .chip-filtro {
+        display: inline-flex;
+        align-items: center;
+        background: #e7f1ff;
+        color: #0d6efd;
+        border-radius: 20px;
+        padding: 3px 12px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    .chip-filtro i {
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
+    <div>
+        <h2 class="mb-0"><i class="fas fa-chart-bar text-primary me-2"></i>Reporte de Ventas por Producto</h2>
+        <small class="text-muted">Solo pedidos <strong>completados</strong> · incluye activos e históricos archivados</small>
+    </div>
+    <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary ms-auto">
+        <i class="fas fa-arrow-left me-1"></i> Volver
+    </a>
+</div>
+
+<!-- ── Formulario de filtros ── -->
+<div class="card filter-card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('ventas.reporte_producto') }}" class="row g-3 align-items-end">
+
+            <div class="col-12 col-md-5">
+                <label for="productoInput" class="form-label fw-semibold">
+                    <i class="fas fa-search me-1 text-primary"></i>Producto
+                </label>
+                <div class="input-group">
+                    <input
+                        type="text"
+                        id="productoInput"
+                        name="producto"
+                        class="form-control"
+                        placeholder="Ej: Mekasil, Jabón líquido…"
+                        value="{{ producto_filtro }}"
+                        list="listaProductos"
+                        autocomplete="off">
+                    <datalist id="listaProductos">
+                        {% for prod in productos_disponibles %}
+                            <option value="{{ prod.nombre }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="form-text">Dejalo vacío para ver todos los productos</div>
+            </div>
+
+            <div class="col-6 col-md-3">
+                <label for="fechaDesde" class="form-label fw-semibold">
+                    <i class="fas fa-calendar-alt me-1 text-primary"></i>Desde
+                </label>
+                <input type="date" id="fechaDesde" name="fecha_desde"
+                       class="form-control" value="{{ fecha_desde_str }}">
+            </div>
+
+            <div class="col-6 col-md-3">
+                <label for="fechaHasta" class="form-label fw-semibold">
+                    <i class="fas fa-calendar-alt me-1 text-primary"></i>Hasta
+                </label>
+                <input type="date" id="fechaHasta" name="fecha_hasta"
+                       class="form-control" value="{{ fecha_hasta_str }}">
+            </div>
+
+            <div class="col-12 col-md-1 d-grid">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+
+        </form>
+
+        <!-- Chips de filtros activos -->
+        {% if se_busco %}
+        <div class="mt-3 d-flex flex-wrap gap-1 align-items-center">
+            <small class="text-muted me-1">Filtros activos:</small>
+            {% if producto_filtro %}
+                <span class="chip-filtro"><i class="fas fa-tag"></i>{{ producto_filtro }}</span>
+            {% endif %}
+            {% if fecha_desde_str %}
+                <span class="chip-filtro"><i class="fas fa-calendar"></i>Desde {{ fecha_desde_str }}</span>
+            {% endif %}
+            {% if fecha_hasta_str %}
+                <span class="chip-filtro"><i class="fas fa-calendar"></i>Hasta {{ fecha_hasta_str }}</span>
+            {% endif %}
+            <a href="{{ url_for('ventas.reporte_producto') }}" class="btn btn-sm btn-outline-secondary ms-2">
+                <i class="fas fa-times me-1"></i>Limpiar
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Resultados ── -->
+{% if se_busco %}
+    {% if hay_resultados %}
+
+        <!-- Banner total general -->
+        <div class="total-banner mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <div class="fw-bold fs-5">
+                    <i class="fas fa-tint me-2"></i>Total vendido
+                    {% if producto_filtro %} de "{{ producto_filtro }}"{% endif %}
+                </div>
+                {% if fecha_desde_str or fecha_hasta_str %}
+                <small class="opacity-75">
+                    {% if fecha_desde_str %}desde {{ fecha_desde_str }}{% endif %}
+                    {% if fecha_hasta_str %} hasta {{ fecha_hasta_str }}{% endif %}
+                </small>
+                {% endif %}
+            </div>
+            <div class="text-end">
+                <span class="fs-2 fw-bold">{{ "%.2f"|format(total_general) }} lts</span>
+                <div class="opacity-75 small">{{ pedidos|length }} pedido(s) completado(s)</div>
+            </div>
+        </div>
+
+        <!-- Resumen por producto (cuando no hay filtro específico o hay varios) -->
+        {% if totales_ordenados|length > 1 %}
+        <div class="card mb-4">
+            <div class="resultado-header">
+                <i class="fas fa-layer-group me-2"></i>Resumen por Producto
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-center">Pedidos</th>
+                                <th class="text-end">Total</th>
+                                <th style="width:30%">Proporción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for nombre, datos in totales_ordenados %}
+                            <tr>
+                                <td class="fw-semibold">{{ nombre }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary">{{ datos.cantidad_pedidos }}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="badge bg-primary badge-litros">
+                                        {{ "%.2f"|format(datos.litros) }} lts
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="progress-bar-custom flex-grow-1">
+                                            <div class="progress-fill"
+                                                 style="width: {{ ((datos.litros / total_general) * 100)|round(1) }}%">
+                                            </div>
+                                        </div>
+                                        <small class="text-muted" style="min-width:38px">
+                                            {{ ((datos.litros / total_general) * 100)|round(1) }}%
+                                        </small>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Detalle de pedidos -->
+        <div class="card">
+            <div class="resultado-header">
+                <i class="fas fa-list me-2"></i>Detalle de Pedidos
+                <span class="badge bg-white text-primary ms-2">{{ pedidos|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover table-detalle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Cliente</th>
+                                <th>Ruta</th>
+                                <th>Operario</th>
+                                <th class="text-end">Cantidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pedido in pedidos %}
+                            <tr>
+                                <td class="text-nowrap small text-muted">
+                                    <i class="fas fa-calendar-alt me-1"></i>
+                                    {{ pedido.fecha_creacion.strftime('%d/%m/%Y') if pedido.fecha_creacion else '-' }}
+                                </td>
+                                <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
+                                <td>{{ pedido.cliente.nombre if pedido.cliente else '-' }}</td>
+                                <td>
+                                    {% if pedido.cliente %}
+                                        <span class="badge bg-secondary">{{ pedido.cliente.ruta or '-' }}</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="small">
+                                    {{ pedido.operario_responsable.nombre if pedido.operario_responsable else
+                                       '<span class="text-muted">Sin asignar</span>'|safe }}
+                                </td>
+                                <td class="text-end fw-semibold text-primary">
+                                    {{ "%.2f"|format(pedido.cantidad|float) }} {{ pedido.unidad or 'lts' }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="5" class="fw-bold text-end">TOTAL</td>
+                                <td class="text-end fw-bold text-success fs-6">
+                                    {{ "%.2f"|format(total_general) }} lts
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Sin resultados -->
+        <div class="card">
+            <div class="card-body empty-state">
+                <i class="fas fa-search-minus d-block"></i>
+                <h5>Sin resultados</h5>
+                <p class="text-muted">
+                    No se encontraron pedidos completados con los filtros aplicados.<br>
+                    Probá cambiando el nombre del producto o el rango de fechas.
+                </p>
+                <a href="{{ url_for('ventas.reporte_producto') }}" class="btn btn-outline-primary mt-2">
+                    <i class="fas fa-redo me-1"></i>Limpiar filtros
+                </a>
+            </div>
+        </div>
+    {% endif %}
+
+{% else %}
+    <!-- Estado inicial: sin búsqueda -->
+    <div class="card">
+        <div class="card-body empty-state">
+            <i class="fas fa-chart-bar d-block"></i>
+            <h5 class="mt-2">Buscá un producto para ver su reporte</h5>
+            <p class="text-muted">
+                Ingresá el nombre de un producto y/o un rango de fechas para consultar<br>
+                los litros vendidos en pedidos completados.
+            </p>
+        </div>
+    </div>
+{% endif %}
+
+{% endblock %}

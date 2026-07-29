@@ -61,6 +61,11 @@
                             <i class="fas fa-file-invoice-dollar"></i> Boletas y Cobros
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('ventas.reporte_producto') }}">
+                            <i class="fas fa-chart-bar"></i> Reportes
+                        </a>
+                    </li>
 
                     {% elif current_user.es_operario() %}
                     <li class="nav-item">

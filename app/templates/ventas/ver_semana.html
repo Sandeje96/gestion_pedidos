@@ -69,6 +69,7 @@
                                                                     <th>Estado</th>
                                                                     <th>Operario</th>
                                                                     <th>Observaciones</th>
+                                                                    <th>Fecha</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -96,6 +97,13 @@
                                                                             </small>
                                                                         {% else %}
                                                                             <small class="text-muted">-</small>
+                                                                        {% endif %}
+                                                                    </td>
+                                                                    <td class="small text-muted text-nowrap">
+                                                                        {% if pedido.fecha_creacion %}
+                                                                            <i class="fas fa-calendar-alt me-1"></i>{{ pedido.fecha_creacion.strftime('%d/%m/%Y') }}
+                                                                        {% else %}
+                                                                            -
                                                                         {% endif %}
                                                                     </td>
                                                                 </tr>

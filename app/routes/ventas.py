@@ -706,6 +706,42 @@ def limpiar_pedidos_antiguos():
     flash(f'✅ {mensaje_detalle}', 'success')
     return redirect(url_for('ventas.historial_semanas'))
 
+@ventas_bp.route('/desarchivar-semana/<string:semana>', methods=['POST'])
+@vendedor_requerido
+def desarchivar_semana(semana):
+    """
+    Restaura todos los pedidos de una semana archivada, devolviéndolos al estado activo.
+    Útil cuando se cerró la semana por error o se necesita recuperar los pedidos.
+    """
+    pedidos_archivados = Pedido.query.filter(
+        Pedido.archivado == True,
+        Pedido.semana_archivado == semana
+    ).all()
+
+    if not pedidos_archivados:
+        flash(f'No se encontraron pedidos archivados en "{semana}"', 'warning')
+        return redirect(url_for('ventas.historial_semanas'))
+
+    total_restaurados = 0
+    for pedido in pedidos_archivados:
+        pedido.archivado = False
+        pedido.fecha_archivado = None
+        pedido.semana_archivado = None
+        total_restaurados += 1
+
+    db.session.commit()
+
+    # Notificar via WebSocket
+    socketio.emit('semana_desarchivada', {
+        'semana': semana,
+        'total_restaurados': total_restaurados,
+        'mensaje': f'Se restauraron {total_restaurados} pedidos de "{semana}"'
+    }, namespace='/')
+
+    flash(f'✅ Se restauraron {total_restaurados} pedido(s) de "{semana}". Ya son visibles en el dashboard.', 'success')
+    return redirect(url_for('ventas.dashboard'))
+
+
 @ventas_bp.route('/api/cliente/<int:cliente_id>/info')
 @vendedor_requerido
 def api_cliente_info(cliente_id):

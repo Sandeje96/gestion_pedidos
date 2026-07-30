@@ -57,6 +57,14 @@
                                         class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i> Ver Pedidos
                                         </a>
+                                        <form method="POST" 
+                                              action="{{ url_for('ventas.desarchivar_semana', semana=semana.semana_archivado) }}"
+                                              style="display:inline;"
+                                              onsubmit="return confirm('¿Restaurar todos los pedidos de {{ semana.semana_archivado }}? Volverán a aparecer en el dashboard activo.')">
+                                            <button type="submit" class="btn btn-sm btn-warning ms-1">
+                                                <i class="fas fa-undo"></i> Restaurar
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                                 {% endfor %}

@@ -244,6 +244,14 @@
     Descargar PDF
   </button>
 
+  <div style="text-align:center; font-size:0.82rem; color:#888; margin-bottom:12px;">
+    {% if fecha_desde == fecha_hasta %}
+      Sesión: {{ fecha_desde.strftime('%d/%m/%Y') }}
+    {% else %}
+      Sesión: del {{ fecha_desde.strftime('%d/%m/%Y') }} al {{ fecha_hasta.strftime('%d/%m/%Y') }}
+    {% endif %}
+  </div>
+
     {% for r in resumen_rutas %}
     <div class="ruta-card">
       <div class="ruta-titulo">{{ r.ruta }}</div>

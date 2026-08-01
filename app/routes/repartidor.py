@@ -482,6 +482,18 @@ def resumen():
         for ruta, datos in sorted(rutas_dict.items())
     ]
 
+    # Rango de fechas de la sesión activa
+    fechas_pagos = [
+        p.fecha_cobro.date() if hasattr(p.fecha_cobro, 'date') else p.fecha_cobro
+        for p in pagos_hoy if p.fecha_cobro
+    ]
+    fechas_pagos += [
+        g.fecha_creacion.date() if hasattr(g.fecha_creacion, 'date') else g.fecha_creacion
+        for g in gastos_hoy if g.fecha_creacion
+    ]
+    fecha_desde = min(fechas_pagos) if fechas_pagos else hoy
+    fecha_hasta = max(fechas_pagos) if fechas_pagos else hoy
+
     # Agrupado por cliente (para la pestaña "Por cliente")
     clientes_dict = defaultdict(lambda: {
         'nombre': '', 'ruta': '', 'efectivo': 0.0,
@@ -508,6 +520,8 @@ def resumen():
         'repartidor/resumen.html',
         title='Resumen del día',
         hoy=hoy,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
         total_efectivo=total_efectivo,
         total_transferencia=total_transferencia,
         total_cheque=total_cheque,

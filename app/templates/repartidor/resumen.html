@@ -164,16 +164,7 @@
 .btn-pdf:active { transform: scale(0.97); }
 .btn-pdf:hover  { background: #155732; }
 .btn-pdf svg { flex-shrink: 0; }
-/* Contenido oculto solo para PDF - fuera de pantalla para que html2canvas pueda renderizarlo */
-#pdfContenido {
-  position: fixed;
-  left: -9999px;
-  top: 0;
-  width: 700px;
-  visibility: hidden;
-  pointer-events: none;
-  z-index: -1;
-}
+
 {% endblock %}
 
 {% block content %}
@@ -296,62 +287,7 @@
 
 </div>
 
-<!-- Contenido oculto usado como fuente para el PDF -->
-<div id="pdfContenido">
-  <div style="font-family: Arial, sans-serif; padding: 24px; max-width: 700px; margin: auto;">
-    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 3px solid #1a6b3c; padding-bottom: 12px; margin-bottom: 20px;">
-      <div>
-        <div style="font-size:1.4rem; font-weight:bold; color:#1a6b3c;">Resumen por Ruta</div>
-        <div style="font-size:0.9rem; color:#666; margin-top:4px;">Fecha: {{ hoy.strftime('%d/%m/%Y') }}</div>
-      </div>
-      <div style="font-size:0.85rem; color:#999;">Gestión de Pedidos</div>
-    </div>
 
-    {% if resumen_rutas %}
-      {% for r in resumen_rutas %}
-      <div style="border: 1.5px solid #ddd; border-radius:8px; margin-bottom:16px; overflow:hidden;">
-        <div style="background:#1a6b3c; color:#fff; padding:9px 14px; font-weight:bold; font-size:1rem;">{{ r.ruta }}</div>
-        {% if r.efectivo > 0 %}
-        <div style="display:flex; justify-content:space-between; padding:8px 14px; border-bottom:1px solid #eee; font-size:0.9rem;">
-          <span style="color:#555;">Efectivo</span>
-          <span style="font-weight:bold;">${{ r.efectivo|formato_peso }}</span>
-        </div>
-        {% endif %}
-        {% if r.transferencia > 0 %}
-        <div style="display:flex; justify-content:space-between; padding:8px 14px; border-bottom:1px solid #eee; font-size:0.9rem;">
-          <span style="color:#555;">Transferencia</span>
-          <span style="font-weight:bold;">${{ r.transferencia|formato_peso }}</span>
-        </div>
-        {% endif %}
-        {% if r.cheque > 0 %}
-        <div style="display:flex; justify-content:space-between; padding:8px 14px; border-bottom:1px solid #eee; font-size:0.9rem;">
-          <span style="color:#555;">Cheque</span>
-          <span style="font-weight:bold;">${{ r.cheque|formato_peso }}</span>
-        </div>
-        {% endif %}
-        <div style="display:flex; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #eee; background:#f9f9f9; font-size:0.95rem;">
-          <span style="font-weight:bold; color:#333;">Subtotal Cobrado</span>
-          <span style="font-weight:bold; color:#1a6b3c; font-size:1.05rem;">${{ r.subtotal|formato_peso }}</span>
-        </div>
-        {% if r.gastos > 0 %}
-        <div style="display:flex; justify-content:space-between; padding:8px 14px; border-bottom:1px solid #eee; background:#fdf5f5; border-left:3px solid #d32f2f; font-size:0.9rem;">
-          <span style="color:#d32f2f;">Gastos de la ruta</span>
-          <span style="font-weight:bold; color:#d32f2f;">-${{ r.gastos|formato_peso }}</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; padding:9px 14px; background:#f5fdf7; border-left:3px solid #1a6b3c; font-size:0.95rem;">
-          <span style="font-weight:bold; color:#1a6b3c;">Efectivo a rendir (Ruta)</span>
-          <span style="font-weight:bold; color:#1a6b3c;">${{ r.neto_efectivo|formato_peso }}</span>
-        </div>
-        {% endif %}
-      </div>
-      {% endfor %}
-    {% endif %}
-
-    <div style="margin-top:24px; font-size:0.75rem; color:#aaa; text-align:center; border-top:1px solid #eee; padding-top:10px;">
-      Reporte generado el {{ hoy.strftime('%d/%m/%Y') }} — Gestión de Pedidos
-    </div>
-  </div>
-</div>
 
 <!-- VISTA POR CLIENTE -->
 <div id="vistaClientes" style="display:none;">
@@ -426,28 +362,23 @@
 
   function descargarPDFRutas() {
     const btn = document.querySelector('.btn-pdf');
-    btn.disabled = true;
-    btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Generando PDF...';
-
-    const elemento = document.getElementById('pdfContenido');
+    const vistaRutas = document.getElementById('vistaRutas');
     const fecha = '{{ hoy.strftime("%d-%m-%Y") }}';
 
-    // Hacer visible momentáneamente para que html2canvas pueda renderizarlo
-    elemento.style.visibility = 'visible';
+    // Ocultar el botón para que no aparezca en el PDF
+    btn.style.display = 'none';
 
     const opciones = {
-      margin:       [10, 10, 10, 10],
+      margin:       [12, 10, 12, 10],
       filename:     'Resumen_Rutas_' + fecha + '.pdf',
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    html2pdf().set(opciones).from(elemento).save().then(function() {
-      // Volver a ocultar
-      elemento.style.visibility = 'hidden';
-      btn.disabled = false;
-      btn.innerHTML = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" /></svg> Descargar PDF';
+    html2pdf().set(opciones).from(vistaRutas).save().then(function() {
+      // Restaurar el botón
+      btn.style.display = 'flex';
     });
   }
 </script>

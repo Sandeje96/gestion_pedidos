@@ -164,8 +164,16 @@
 .btn-pdf:active { transform: scale(0.97); }
 .btn-pdf:hover  { background: #155732; }
 .btn-pdf svg { flex-shrink: 0; }
-/* Contenido oculto solo para PDF */
-#pdfContenido { display: none; }
+/* Contenido oculto solo para PDF - fuera de pantalla para que html2canvas pueda renderizarlo */
+#pdfContenido {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 700px;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
 {% endblock %}
 
 {% block content %}
@@ -424,15 +432,20 @@
     const elemento = document.getElementById('pdfContenido');
     const fecha = '{{ hoy.strftime("%d-%m-%Y") }}';
 
+    // Hacer visible momentáneamente para que html2canvas pueda renderizarlo
+    elemento.style.visibility = 'visible';
+
     const opciones = {
       margin:       [10, 10, 10, 10],
       filename:     'Resumen_Rutas_' + fecha + '.pdf',
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false },
+      html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     html2pdf().set(opciones).from(elemento).save().then(function() {
+      // Volver a ocultar
+      elemento.style.visibility = 'hidden';
       btn.disabled = false;
       btn.innerHTML = '<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" /></svg> Descargar PDF';
     });

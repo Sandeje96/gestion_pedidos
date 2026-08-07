@@ -25,6 +25,7 @@
                         <table class="table table-hover align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th>ID</th>
                                     <th>Nombre</th>
                                     <th>Teléfono</th>
                                     <th>Dirección</th>
@@ -35,6 +36,9 @@
                             <tbody>
                                 {% for cliente in clientes %}
                                 <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">#{{ cliente.id }}</span>
+                                    </td>
                                     <td>
                                         <strong><i class="fas fa-user text-muted me-2"></i> {{ cliente.nombre }}</strong>
                                     </td>

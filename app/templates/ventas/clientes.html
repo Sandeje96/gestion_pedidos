@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="fas fa-address-book"></i> Directorio de Clientes</h2>
+        <p class="text-muted">Gestiona todos tus clientes, incluso aquellos que no tienen pedidos activos.</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+        <a href="{{ url_for('ventas.nuevo_cliente') }}" class="btn btn-primary h-100 d-flex align-items-center">
+            <i class="fas fa-user-plus me-2"></i> Nuevo Cliente
+        </a>
+        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-outline-secondary h-100 d-flex align-items-center">
+            <i class="fas fa-arrow-left me-2"></i> Volver al Dashboard
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                {% if clientes %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Teléfono</th>
+                                    <th>Dirección</th>
+                                    <th>Ruta</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cliente in clientes %}
+                                <tr>
+                                    <td>
+                                        <strong><i class="fas fa-user text-muted me-2"></i> {{ cliente.nombre }}</strong>
+                                    </td>
+                                    <td>
+                                        {% if cliente.telefono %}
+                                            <i class="fas fa-phone text-muted me-1"></i> {{ cliente.telefono }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if cliente.direccion %}
+                                            <i class="fas fa-map-marker-alt text-muted me-1"></i> {{ cliente.direccion }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info"><i class="fas fa-route"></i> {{ cliente.ruta }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-2">
+                                            <a href="{{ url_for('ventas.editar_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-primary" title="Editar Cliente">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </a>
+                                            <form method="POST" action="{{ url_for('ventas.eliminar_cliente', cliente_id=cliente.id) }}" onsubmit="return confirm('¿Estás seguro que deseas eliminar este cliente? Esta acción también cancelará todos sus pedidos activos.');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar Cliente">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i> No hay clientes cargados en el sistema. <a href="{{ url_for('ventas.nuevo_cliente') }}">Haz clic aquí para agregar tu primer cliente.</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

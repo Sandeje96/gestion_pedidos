@@ -130,7 +130,7 @@ def nuevo_cliente():
         db.session.commit()
         
         flash(f'Cliente "{cliente.nombre}" creado exitosamente en {cliente.ruta}', 'success')
-        return redirect(url_for('ventas.dashboard'))
+        return redirect(url_for('ventas.clientes'))
     
     return render_template(
         'ventas/cliente_form.html',
@@ -138,6 +138,26 @@ def nuevo_cliente():
         title='Nuevo Cliente',
         accion='Crear'
     )
+
+@ventas_bp.route('/clientes', methods=['GET'])
+@vendedor_requerido
+def clientes():
+    """
+    Directorio de todos los clientes activos.
+    Permite visualizar, editar y eliminar clientes.
+    """
+    # Obtener clientes activos EXCLUYENDO los de la ruta SUCURSALES
+    clientes = Cliente.query.filter(
+        Cliente.activo == True,
+        Cliente.ruta != 'SUCURSALES'
+    ).order_by(Cliente.ruta, Cliente.nombre).all()
+    
+    return render_template(
+        'ventas/clientes.html',
+        title='Directorio de Clientes',
+        clientes=clientes
+    )
+
 
 
 @ventas_bp.route('/cliente/<int:cliente_id>/editar', methods=['GET', 'POST'])
@@ -162,7 +182,7 @@ def editar_cliente(cliente_id):
         db.session.commit()
         
         flash(f'Cliente "{cliente.nombre}" actualizado exitosamente', 'success')
-        return redirect(url_for('ventas.dashboard'))
+        return redirect(url_for('ventas.clientes'))
     
     return render_template(
         'ventas/cliente_form.html',
@@ -171,6 +191,33 @@ def editar_cliente(cliente_id):
         accion='Actualizar',
         cliente=cliente
     )
+
+@ventas_bp.route('/cliente/<int:cliente_id>/eliminar', methods=['POST'])
+@vendedor_requerido
+def eliminar_cliente(cliente_id):
+    """
+    Eliminar un cliente (baja lógica).
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    
+    # Baja lógica
+    cliente.activo = False
+    cliente.fecha_actualizacion = datetime.utcnow()
+    
+    # Archivar/cancelar pedidos activos del cliente si los tuviera
+    pedidos_activos = Pedido.query.filter_by(cliente_id=cliente.id, archivado=False).all()
+    for pedido in pedidos_activos:
+        pedido.estado = 'cancelado'
+        if not pedido.notas_vendedor:
+            pedido.notas_vendedor = '[Cliente eliminado]'
+        else:
+            pedido.notas_vendedor += ' [Cliente eliminado]'
+        pedido.archivar('Cancelado por eliminación de cliente')
+        
+    db.session.commit()
+    
+    flash(f'Cliente "{cliente.nombre}" eliminado exitosamente', 'success')
+    return redirect(url_for('ventas.clientes'))
 
 
 @ventas_bp.route('/pedido/nuevo', methods=['GET', 'POST'])

@@ -73,13 +73,25 @@
                     </div>
                     
                     <!-- Botones -->
-                    <div class="d-flex gap-2">
-                        {{ form.submit(class="btn btn-primary") }}
-                        <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> Cancelar
-                        </a>
+                    <div class="d-flex justify-content-between">
+                        <div class="d-flex gap-2">
+                            {{ form.submit(class="btn btn-primary") }}
+                            <a href="{{ url_for('ventas.clientes') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </a>
+                        </div>
+                        {% if cliente %}
+                        <button type="button" class="btn btn-outline-danger" onclick="if(confirm('¿Estás seguro que deseas eliminar este cliente? Esta acción también cancelará todos sus pedidos activos.')){ document.getElementById('form-eliminar-cliente').submit(); }">
+                            <i class="fas fa-trash"></i> Eliminar Cliente
+                        </button>
+                        {% endif %}
                     </div>
                 </form>
+                
+                {% if cliente %}
+                <form id="form-eliminar-cliente" method="POST" action="{{ url_for('ventas.eliminar_cliente', cliente_id=cliente.id) }}" style="display: none;">
+                </form>
+                {% endif %}
             </div>
         </div>
     </div>

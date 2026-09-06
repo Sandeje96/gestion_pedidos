@@ -500,12 +500,14 @@ def setup_gerente_production():
                 rol="gerente",
                 activo=True
             )
-            u_gerente.set_password("123456")
+            u_gerente.set_password("admin123")
             db.session.add(u_gerente)
             db.session.commit()
             mensaje = "Usuario 'gerente' creado exitosamente."
         else:
-            mensaje = "Usuario 'gerente' ya existía en la base de datos."
+            u_gerente.set_password("admin123")
+            db.session.commit()
+            mensaje = "Usuario 'gerente' ya existía — contraseña actualizada a admin123."
 
         return f"""
         <html>

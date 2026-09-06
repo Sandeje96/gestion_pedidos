@@ -1,0 +1,75 @@
+# -*- coding: utf-8 -*-
+"""
+Modelo MateriaPrima - Representa las materias primas usadas en la fabricación.
+"""
+
+from app import db
+from datetime import datetime
+from decimal import Decimal
+
+
+class MateriaPrima(db.Model):
+    """
+    Modelo de Materia Prima.
+    Representa los insumos que componen los productos fabricados.
+    El stock se actualiza con ingresos (compras) y egresos (producción).
+    """
+
+    __tablename__ = 'materias_primas'
+
+    # Campos de la tabla
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(200), nullable=False, unique=True, index=True)
+    descripcion = db.Column(db.Text, nullable=True)
+
+    # Unidad de medida: 'kg', 'litros', 'gramos', 'unidades', 'ml', etc.
+    unidad = db.Column(db.String(20), nullable=False)
+
+    # Stock en tiempo real
+    stock_actual = db.Column(db.Numeric(10, 3), default=0, nullable=False)
+
+    # Umbral mínimo para alertas visuales
+    stock_minimo = db.Column(db.Numeric(10, 3), default=0, nullable=False)
+
+    # Para dar de baja sin eliminar
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Timestamps
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relaciones
+    formulaciones = db.relationship('FormulacionProducto', backref='materia_prima', lazy='dynamic',
+                                    cascade='all, delete-orphan')
+    movimientos = db.relationship('MovimientoMateriaPrima', backref='materia_prima', lazy='dynamic',
+                                  cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<MateriaPrima {self.nombre} - {self.stock_actual} {self.unidad}>'
+
+    def agregar_stock(self, cantidad):
+        """Suma cantidad al stock actual (al registrar un ingreso/compra)."""
+        self.stock_actual = (self.stock_actual or Decimal('0')) + Decimal(str(cantidad))
+
+    def descontar_stock(self, cantidad):
+        """Resta cantidad del stock actual (al registrar producción)."""
+        nuevo = (self.stock_actual or Decimal('0')) - Decimal(str(cantidad))
+        self.stock_actual = max(nuevo, Decimal('0'))  # No permitir stock negativo
+
+    @property
+    def stock_bajo(self):
+        """Retorna True si el stock actual está por debajo del mínimo."""
+        return float(self.stock_actual or 0) < float(self.stock_minimo or 0)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'descripcion': self.descripcion,
+            'unidad': self.unidad,
+            'stock_actual': float(self.stock_actual or 0),
+            'stock_minimo': float(self.stock_minimo or 0),
+            'stock_bajo': self.stock_bajo,
+            'activo': self.activo,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
+        }

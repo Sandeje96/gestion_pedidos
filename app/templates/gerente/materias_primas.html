@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Materias Primas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fas fa-vials"></i> Materias Primas</h2>
+        <p class="text-muted mb-0">Stock actual de todos los insumos</p>
+    </div>
+    <a href="{{ url_for('gerente.nueva_materia_prima') }}" class="btn btn-success">
+        <i class="fas fa-plus"></i> Nueva Materia Prima
+    </a>
+</div>
+
+{% if mps %}
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Unidad</th>
+                        <th class="text-end">Stock Actual</th>
+                        <th class="text-end">Stock Mínimo</th>
+                        <th>Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mp in mps %}
+                    <tr class="{{ 'table-warning' if mp.stock_bajo else '' }}">
+                        <td>
+                            <strong>{{ mp.nombre }}</strong>
+                            {% if mp.descripcion %}
+                            <br><small class="text-muted">{{ mp.descripcion }}</small>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge bg-secondary">{{ mp.unidad }}</span></td>
+                        <td class="text-end fw-bold {{ 'text-danger' if mp.stock_bajo else 'text-success' }}">
+                            {{ mp.stock_actual|float|round(3) }}
+                        </td>
+                        <td class="text-end text-muted">{{ mp.stock_minimo|float|round(3) }}</td>
+                        <td>
+                            {% if mp.stock_bajo %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="fas fa-exclamation-triangle"></i> Stock bajo
+                            </span>
+                            {% else %}
+                            <span class="badge bg-success">OK</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('gerente.ingreso_stock', mp_id=mp.id) }}"
+                               class="btn btn-sm btn-outline-success" title="Registrar ingreso">
+                                <i class="fas fa-plus"></i> Ingreso
+                            </a>
+                            <a href="{{ url_for('gerente.movimientos_mp', mp_id=mp.id) }}"
+                               class="btn btn-sm btn-outline-secondary ms-1" title="Ver historial">
+                                <i class="fas fa-history"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-vials fa-3x text-muted mb-3"></i>
+    <h5 class="text-muted">No hay materias primas registradas</h5>
+    <a href="{{ url_for('gerente.nueva_materia_prima') }}" class="btn btn-success mt-2">
+        <i class="fas fa-plus"></i> Registrar primera materia prima
+    </a>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="{{ url_for('gerente.dashboard') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Volver al Panel
+    </a>
+</div>
+{% endblock %}

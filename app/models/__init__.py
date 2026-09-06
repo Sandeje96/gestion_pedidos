@@ -12,5 +12,13 @@ from app.models.mensaje_pedido import MensajePedido
 from app.models.produccion import ProduccionDiaria
 from app.models.boleta import Boleta, PagoBoleta
 from app.models.gasto_repartidor import GastoRepartidor
+from app.models.materia_prima import MateriaPrima
+from app.models.formulacion_producto import FormulacionProducto
+from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 
-__all__ = ['Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido', 'ProduccionDiaria', 'Boleta', 'PagoBoleta', 'GastoRepartidor']
+__all__ = [
+    'Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido',
+    'ProduccionDiaria', 'Boleta', 'PagoBoleta', 'GastoRepartidor',
+    'MateriaPrima', 'FormulacionProducto', 'MovimientoMateriaPrima',
+]
+

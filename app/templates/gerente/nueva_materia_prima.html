@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Materia Prima{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Nueva Materia Prima</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label fw-bold">Nombre <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="nombre" name="nombre"
+                               placeholder="Ej: Alcohol etílico, Fragancia lavanda..." required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="descripcion" class="form-label fw-bold">Descripción</label>
+                        <textarea class="form-control" id="descripcion" name="descripcion"
+                                  rows="2" placeholder="Notas opcionales sobre este insumo..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="unidad" class="form-label fw-bold">Unidad de medida <span class="text-danger">*</span></label>
+                        <select class="form-select" id="unidad" name="unidad" required>
+                            <option value="" disabled selected>Seleccioná una unidad...</option>
+                            <option value="litros">Litros (L)</option>
+                            <option value="kg">Kilogramos (kg)</option>
+                            <option value="gramos">Gramos (g)</option>
+                            <option value="ml">Mililitros (ml)</option>
+                            <option value="unidades">Unidades</option>
+                            <option value="metros">Metros (m)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="stock_minimo" class="form-label fw-bold">Stock mínimo de alerta</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="stock_minimo" name="stock_minimo"
+                                   value="0" min="0" step="0.001">
+                            <span class="input-group-text text-muted" id="unidad_label">—</span>
+                        </div>
+                        <div class="form-text">Cuando el stock baje de este valor, se mostrará una alerta.</div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('gerente.materias_primas') }}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Guardar Materia Prima
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Actualizar etiqueta de unidad dinámicamente
+    document.getElementById('unidad').addEventListener('change', function() {
+        document.getElementById('unidad_label').textContent = this.value || '—';
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Ingreso — {{ mp.nombre }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-plus-circle"></i> Registrar Ingreso de Stock
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <strong><i class="fas fa-vial"></i> {{ mp.nombre }}</strong><br>
+                    Stock actual: <strong>{{ mp.stock_actual|float|round(3) }} {{ mp.unidad }}</strong>
+                </div>
+
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="cantidad" class="form-label fw-bold">
+                            Cantidad a ingresar <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="cantidad" name="cantidad"
+                                   min="0.001" step="0.001" placeholder="0.000" required>
+                            <span class="input-group-text">{{ mp.unidad }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="descripcion" class="form-label fw-bold">Detalle del ingreso</label>
+                        <input type="text" class="form-control" id="descripcion" name="descripcion"
+                               placeholder="Ej: Compra Proveedor X, Factura #123...">
+                        <div class="form-text">Opcional. Ayuda a rastrear el origen del stock.</div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('gerente.materias_primas') }}" class="btn btn-outline-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check"></i> Confirmar Ingreso
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

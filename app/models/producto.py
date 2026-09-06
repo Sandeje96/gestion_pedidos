@@ -33,6 +33,11 @@ class Producto(db.Model):
     # Relación con producciones
     producciones = db.relationship('ProduccionDiaria', backref='producto', lazy='dynamic')
 
+    # Relación con formulaciones (receta/BOM del producto)
+    formulaciones = db.relationship('FormulacionProducto', backref='producto', lazy='dynamic',
+                                    cascade='all, delete-orphan')
+
+
     def __repr__(self):
         """Representación en string del producto"""
         return f'<Producto {self.nombre}>'

@@ -97,6 +97,10 @@ def create_app(config_name='development'):
     
     # Crear tablas si no existen (solo en desarrollo)
     with app.app_context():
+        # Importar todos los modelos para que SQLAlchemy los registre antes del create_all
+        from app.models.materia_prima import MateriaPrima          # noqa
+        from app.models.formulacion_producto import FormulacionProducto  # noqa
+        from app.models.movimiento_materia_prima import MovimientoMateriaPrima  # noqa
         db.create_all()
         
         # Migraciones automáticas de base de datos para producción (PostgreSQL) y local (SQLite)

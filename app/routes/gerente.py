@@ -6,15 +6,11 @@ Blueprint para el panel de Gerencia.
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
-from app.models.pedido import Pedido
-from app.models.cliente import Cliente
-from app.models.usuario import Usuario
 from app.models.producto import Producto
 from app.models.materia_prima import MateriaPrima
 from app.models.formulacion_producto import FormulacionProducto
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 from functools import wraps
-from sqlalchemy import distinct
 from decimal import Decimal, InvalidOperation
 
 # Crear el Blueprint
@@ -44,27 +40,15 @@ def gerente_requerido(f):
 def dashboard():
     """
     Panel principal de Gerencia.
-    Muestra los productos únicos pedidos a fábrica por vendedores y sucursales.
+    Muestra el catálogo completo de productos (mismo que gestiona administración),
+    desde donde el gerente identifica cuáles son fabricados internamente y les asigna fórmula.
     """
-    usuarios_ids = db.session.query(Usuario.id).filter(
-        Usuario.rol.in_(['vendedor', 'sucursal'])
-    ).subquery()
+    # Catálogo completo de productos disponibles (misma fuente que administración)
+    productos_lista = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
 
-    productos = db.session.query(
-        distinct(Pedido.producto_nombre)
-    ).join(Cliente, Pedido.cliente_id == Cliente.id).filter(
-        Pedido.destinatario == 'fabrica',
-        Pedido.archivado == False,
-        Cliente.creado_por_id.in_(usuarios_ids)
-    ).order_by(Pedido.producto_nombre).all()
-
-    productos_lista = [p[0] for p in productos]
-
-    # Resumen de stock de materias primas con stock bajo
-    mp_stock_bajo = MateriaPrima.query.filter(
-        MateriaPrima.activo == True
-    ).all()
-    alertas_stock = [mp for mp in mp_stock_bajo if mp.stock_bajo]
+    # Alertas de stock bajo en materias primas
+    mp_todas = MateriaPrima.query.filter_by(activo=True).all()
+    alertas_stock = [mp for mp in mp_todas if mp.stock_bajo]
 
     return render_template(
         'gerente/dashboard.html',

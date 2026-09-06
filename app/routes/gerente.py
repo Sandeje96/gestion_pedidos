@@ -162,6 +162,62 @@ def movimientos_mp(mp_id):
                            title=f'Movimientos — {mp.nombre}', mp=mp, movimientos=movimientos)
 
 
+@gerente_bp.route('/materias-primas/<int:mp_id>/editar', methods=['GET', 'POST'])
+@gerente_requerido
+def editar_materia_prima(mp_id):
+    """Editar nombre, descripción, unidad y stock mínimo de una materia prima.
+    Al cambiar el nombre se actualiza automáticamente en todas las fórmulas
+    que la usan, ya que se relacionan por ID."""
+    mp = MateriaPrima.query.get_or_404(mp_id)
+
+    if request.method == 'POST':
+        nombre = request.form.get('nombre', '').strip()
+        descripcion = request.form.get('descripcion', '').strip()
+        unidad = request.form.get('unidad', '').strip()
+        stock_minimo_str = request.form.get('stock_minimo', '0').strip()
+
+        if not nombre or not unidad:
+            flash('El nombre y la unidad son obligatorios.', 'danger')
+            return render_template('gerente/editar_materia_prima.html',
+                                   title=f'Editar — {mp.nombre}', mp=mp)
+
+        # Verificar que el nuevo nombre no lo use otra MP distinta
+        duplicada = MateriaPrima.query.filter(
+            MateriaPrima.nombre == nombre,
+            MateriaPrima.id != mp_id
+        ).first()
+        if duplicada:
+            flash(f'Ya existe otra materia prima con el nombre "{nombre}".', 'danger')
+            return render_template('gerente/editar_materia_prima.html',
+                                   title=f'Editar — {mp.nombre}', mp=mp)
+
+        try:
+            stock_minimo = Decimal(stock_minimo_str) if stock_minimo_str else Decimal('0')
+        except InvalidOperation:
+            flash('El stock mínimo debe ser un número válido.', 'danger')
+            return render_template('gerente/editar_materia_prima.html',
+                                   title=f'Editar — {mp.nombre}', mp=mp)
+
+        nombre_anterior = mp.nombre
+        mp.nombre = nombre
+        mp.descripcion = descripcion or None
+        mp.unidad = unidad
+        mp.stock_minimo = stock_minimo
+        db.session.commit()
+
+        if nombre != nombre_anterior:
+            flash(f'Materia prima renombrada de "{nombre_anterior}" a "{nombre}". '
+                  f'Se actualizó en todas las fórmulas automáticamente.', 'success')
+        else:
+            flash(f'Materia prima "{nombre}" actualizada correctamente.', 'success')
+
+        return redirect(url_for('gerente.materias_primas'))
+
+    return render_template('gerente/editar_materia_prima.html',
+                           title=f'Editar — {mp.nombre}', mp=mp)
+
+
+
 # ─────────────────────────────────────────────
 # FÓRMULAS DE PRODUCTOS
 # ─────────────────────────────────────────────

@@ -52,8 +52,12 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
+                            <a href="{{ url_for('gerente.editar_materia_prima', mp_id=mp.id) }}"
+                               class="btn btn-sm btn-outline-warning" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
                             <a href="{{ url_for('gerente.ingreso_stock', mp_id=mp.id) }}"
-                               class="btn btn-sm btn-outline-success" title="Registrar ingreso">
+                               class="btn btn-sm btn-outline-success ms-1" title="Registrar ingreso">
                                 <i class="fas fa-plus"></i> Ingreso
                             </a>
                             <a href="{{ url_for('gerente.movimientos_mp', mp_id=mp.id) }}"

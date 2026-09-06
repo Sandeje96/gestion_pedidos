@@ -35,7 +35,7 @@ def login():
         elif current_user.es_repartidor():
             return redirect(url_for('repartidor.dashboard'))
         elif current_user.es_gerente():
-            return redirect(url_for('index'))
+            return redirect(url_for('gerente.dashboard'))
     
     form = LoginForm()
     
@@ -72,7 +72,7 @@ def login():
             elif usuario.es_repartidor():
                 return redirect(url_for('repartidor.dashboard'))
             elif usuario.es_gerente():
-                return redirect(url_for('index'))
+                return redirect(url_for('gerente.dashboard'))
             else:
                 return redirect(url_for('index'))
         

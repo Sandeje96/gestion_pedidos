@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Gerencia{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="fas fa-briefcase"></i> Panel de Gerencia</h2>
+        <p class="text-muted">Productos solicitados a fábrica por Ventas y Sucursales</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-box"></i> Productos pedidos a Fábrica
+                    <span class="badge bg-light text-primary ms-2">{{ productos|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if productos %}
+                <ul class="list-group list-group-flush">
+                    {% for producto in productos %}
+                    <li class="list-group-item">
+                        <i class="fas fa-circle text-primary me-2" style="font-size: 0.5rem; vertical-align: middle;"></i>
+                        {{ producto }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-2x mb-2"></i>
+                    <p>No hay productos pedidos a fábrica actualmente.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

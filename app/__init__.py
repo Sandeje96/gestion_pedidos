@@ -137,7 +137,16 @@ def create_app(config_name='development'):
         except Exception as e_recibido:
             db.session.rollback()
             print(f"Migración: columna 'recibido_conforme' ya existe o no se pudo agregar: {e_recibido}")
-    
+
+        # 5. Agregar columna 'grupo_alternativa' en formulaciones_producto
+        try:
+            db.session.execute(text("ALTER TABLE formulaciones_producto ADD COLUMN IF NOT EXISTS grupo_alternativa INTEGER"))
+            db.session.commit()
+        except Exception as e_grupo:
+            db.session.rollback()
+            print(f"Migración: columna 'grupo_alternativa' ya existe o no se pudo agregar: {e_grupo}")
+
+
     # ── Filtros Jinja2 personalizados ──
     def formato_peso(value, decimales=2):
         """Formatea un número con punto como separador de miles y coma para decimales.

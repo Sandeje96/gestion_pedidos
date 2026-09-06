@@ -22,30 +22,42 @@
                 <h6 class="mb-0"><i class="fas fa-list"></i> Ingredientes actuales</h6>
             </div>
             <div class="card-body p-0">
-                {% if formulaciones %}
+                {% if not sin_grupo and not grupos %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-flask fa-2x mb-2"></i>
+                    <p class="mb-0">Sin ingredientes. Agregá materias primas desde el panel de la derecha.</p>
+                </div>
+                {% else %}
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Materia Prima</th>
                             <th class="text-end">Por unidad</th>
-                            <th class="text-end">Por 100 unidades</th>
+                            <th class="text-end">Por 100</th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for f in formulaciones %}
+
+                        {# ── Ingredientes SIN variantes ── #}
+                        {% for f in sin_grupo %}
                         <tr>
                             <td>
                                 <strong>{{ f.materia_prima.nombre }}</strong>
                                 <span class="badge bg-secondary ms-1">{{ f.materia_prima.unidad }}</span>
                             </td>
                             <td class="text-end">{{ f.cantidad_por_unidad|float|round(4) }}</td>
-                            <td class="text-end text-muted">
-                                {{ (f.cantidad_por_unidad|float * 100)|round(3) }}
-                            </td>
+                            <td class="text-end text-muted">{{ (f.cantidad_por_unidad|float * 100)|round(3) }}</td>
                             <td class="text-end">
+                                {# Botón agregar variante #}
+                                <button class="btn btn-sm btn-outline-warning me-1"
+                                        onclick="prepararVariante({{ f.id }}, '{{ f.materia_prima.nombre }}')"
+                                        title="Agregar variante alternativa">
+                                    <i class="fas fa-code-branch"></i>
+                                </button>
+                                {# Botón eliminar #}
                                 <form method="POST" class="d-inline"
-                                      onsubmit="return confirm('¿Eliminar este ingrediente de la fórmula?')">
+                                      onsubmit="return confirm('¿Eliminar este ingrediente?')">
                                     <input type="hidden" name="accion" value="eliminar">
                                     <input type="hidden" name="formulacion_id" value="{{ f.id }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -55,27 +67,83 @@
                             </td>
                         </tr>
                         {% endfor %}
+
+                        {# ── Grupos de variantes ── #}
+                        {% for grupo_num, items in grupos.items() %}
+                        <tr class="table-light">
+                            <td colspan="4">
+                                <small class="text-muted fw-bold">
+                                    <i class="fas fa-code-branch text-warning"></i>
+                                    GRUPO {{ grupo_num }} — Variantes intercambiables (usar una de las siguientes):
+                                </small>
+                            </td>
+                        </tr>
+                        {% for f in items %}
+                        <tr>
+                            <td class="ps-4">
+                                <i class="fas fa-circle-dot text-warning me-1" style="font-size:0.7rem;"></i>
+                                <strong>{{ f.materia_prima.nombre }}</strong>
+                                <span class="badge bg-secondary ms-1">{{ f.materia_prima.unidad }}</span>
+                            </td>
+                            <td class="text-end">{{ f.cantidad_por_unidad|float|round(4) }}</td>
+                            <td class="text-end text-muted">{{ (f.cantidad_por_unidad|float * 100)|round(3) }}</td>
+                            <td class="text-end">
+                                {# Agregar otra variante al mismo grupo #}
+                                <button class="btn btn-sm btn-outline-warning me-1"
+                                        onclick="prepararVariante({{ f.id }}, '{{ f.materia_prima.nombre }}')"
+                                        title="Agregar otra variante a este grupo">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <form method="POST" class="d-inline"
+                                      onsubmit="return confirm('¿Eliminar este ingrediente?')">
+                                    <input type="hidden" name="accion" value="eliminar">
+                                    <input type="hidden" name="formulacion_id" value="{{ f.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+
                     </tbody>
                 </table>
-                {% else %}
-                <div class="text-center text-muted py-4">
-                    <i class="fas fa-flask fa-2x mb-2"></i>
-                    <p class="mb-0">Sin ingredientes. Agregá materias primas desde el panel de la derecha.</p>
-                </div>
                 {% endif %}
             </div>
         </div>
+
+        {# Leyenda #}
+        <div class="mt-2">
+            <small class="text-muted">
+                <i class="fas fa-code-branch text-warning"></i> = agregar variante alternativa
+            </small>
+        </div>
     </div>
 
-    {# ── Agregar ingrediente ── #}
+    {# ── Panel derecho: agregar ingrediente ── #}
     <div class="col-md-5 mb-4">
-        <div class="card shadow-sm border-success">
-            <div class="card-header bg-success text-white">
-                <h6 class="mb-0"><i class="fas fa-plus"></i> Agregar ingrediente</h6>
+        <div class="card shadow-sm" id="card-agregar">
+            <div class="card-header text-white" id="card-header-agregar"
+                 style="background-color: #198754;">
+                <h6 class="mb-0" id="titulo-agregar">
+                    <i class="fas fa-plus"></i> Agregar ingrediente
+                </h6>
             </div>
             <div class="card-body">
-                <form method="POST">
+                {# Aviso cuando se está agregando variante #}
+                <div id="alerta-variante" class="alert alert-warning py-2 mb-3" style="display:none;">
+                    <i class="fas fa-code-branch"></i>
+                    Agregando variante de: <strong id="nombre-origen-variante"></strong>
+                    <br><small>El sistema los agrupará como alternativas intercambiables.</small>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+                            onclick="cancelarVariante()">Cancelar</button>
+                </div>
+
+                <form method="POST" id="form-agregar">
                     <input type="hidden" name="accion" value="agregar">
+                    {# Campo oculto: si se está agregando como variante de otro ingrediente #}
+                    <input type="hidden" name="variante_de_id" id="variante_de_id" value="">
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Materia Prima <span class="text-danger">*</span></label>
@@ -90,15 +158,13 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">
                             Lote base <span class="text-danger">*</span>
-                            <i class="fas fa-info-circle text-muted ms-1"
-                               title="¿Para cuántas unidades/litros es esta fórmula?"></i>
                         </label>
                         <div class="input-group">
                             <input type="number" class="form-control" name="lote_base" id="lote_base"
                                    min="0.001" step="0.001" placeholder="Ej: 100" required>
                             <span class="input-group-text">unidades/L</span>
                         </div>
-                        <div class="form-text">¿Para cuántos litros/unidades es la fórmula que vas a ingresar?</div>
+                        <div class="form-text">¿Para cuántos litros/unidades es la fórmula que ingresás?</div>
                     </div>
 
                     <div class="mb-3">
@@ -107,28 +173,28 @@
                         </label>
                         <input type="number" class="form-control" name="cantidad_lote" id="cantidad_lote"
                                min="0.001" step="0.001" placeholder="Ej: 85" required>
-                        <div class="form-text">Cuánta MP se usa para producir el lote base.</div>
                     </div>
 
-                    {# Calculadora en tiempo real #}
+                    {# Preview calculadora #}
                     <div class="alert alert-light border mb-3 py-2" id="preview-calc" style="display:none;">
                         <small>
                             <i class="fas fa-calculator text-primary"></i>
-                            Ratio calculado: <strong id="ratio-result">—</strong> por unidad/L
+                            Ratio: <strong id="ratio-result">—</strong> por unidad/L
                         </small>
                     </div>
 
                     {% if not mps_disponibles %}
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle"></i>
-                        No hay materias primas registradas.
-                        <a href="{{ url_for('gerente.nueva_materia_prima') }}">Registrar una →</a>
+                        No hay materias primas. <a href="{{ url_for('gerente.nueva_materia_prima') }}">Registrar →</a>
                     </div>
                     {% endif %}
 
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-success" {{ 'disabled' if not mps_disponibles }}>
-                            <i class="fas fa-plus"></i> Agregar a la fórmula
+                        <button type="submit" class="btn btn-success" id="btn-submit"
+                                {{ 'disabled' if not mps_disponibles }}>
+                            <i class="fas fa-plus"></i>
+                            <span id="btn-texto">Agregar ingrediente</span>
                         </button>
                     </div>
                 </form>
@@ -141,7 +207,6 @@
 
 {% block extra_js %}
 <script>
-    // Calculadora en tiempo real del ratio
     const loteInput = document.getElementById('lote_base');
     const cantInput = document.getElementById('cantidad_lote');
     const preview = document.getElementById('preview-calc');
@@ -151,15 +216,36 @@
         const lote = parseFloat(loteInput.value);
         const cant = parseFloat(cantInput.value);
         if (lote > 0 && cant > 0) {
-            const ratio = cant / lote;
-            ratioResult.textContent = ratio.toFixed(6);
+            ratioResult.textContent = (cant / lote).toFixed(6);
             preview.style.display = 'block';
         } else {
             preview.style.display = 'none';
         }
     }
-
     loteInput.addEventListener('input', calcularRatio);
     cantInput.addEventListener('input', calcularRatio);
+
+    // ── Lógica de variantes ──
+    function prepararVariante(formulacionId, nombreOrigen) {
+        document.getElementById('variante_de_id').value = formulacionId;
+        document.getElementById('alerta-variante').style.display = 'block';
+        document.getElementById('nombre-origen-variante').textContent = nombreOrigen;
+        document.getElementById('titulo-agregar').innerHTML =
+            '<i class="fas fa-code-branch"></i> Agregar variante';
+        document.getElementById('card-header-agregar').style.backgroundColor = '#ffc107';
+        document.getElementById('card-header-agregar').style.color = '#000';
+        document.getElementById('btn-texto').textContent = 'Agregar como variante';
+        document.getElementById('card-agregar').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelarVariante() {
+        document.getElementById('variante_de_id').value = '';
+        document.getElementById('alerta-variante').style.display = 'none';
+        document.getElementById('titulo-agregar').innerHTML =
+            '<i class="fas fa-plus"></i> Agregar ingrediente';
+        document.getElementById('card-header-agregar').style.backgroundColor = '#198754';
+        document.getElementById('card-header-agregar').style.color = '#fff';
+        document.getElementById('btn-texto').textContent = 'Agregar ingrediente';
+    }
 </script>
 {% endblock %}

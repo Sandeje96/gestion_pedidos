@@ -33,6 +33,11 @@ class FormulacionProducto(db.Model):
     # Cantidad de materia prima por 1 unidad base del producto (calculado al guardar)
     cantidad_por_unidad = db.Column(db.Numeric(10, 6), nullable=False)
 
+    # Grupo de alternativas: materias primas con el mismo número de grupo (en el mismo producto)
+    # son intercambiables entre sí. NULL = ingrediente único sin alternativas.
+    # Ejemplo: grupo=1 puede ser "COLOR BUENOS AIRES" o "COLOR EN POMITO PY"
+    grupo_alternativa = db.Column(db.Integer, nullable=True, index=True)
+
     # Timestamps
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

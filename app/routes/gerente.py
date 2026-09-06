@@ -188,16 +188,18 @@ def editar_formula(producto_id):
     mps_disponibles = MateriaPrima.query.filter_by(activo=True).order_by(MateriaPrima.nombre).all()
     formulaciones_actuales = FormulacionProducto.query.filter_by(
         producto_id=producto_id
-    ).all()
+    ).order_by(FormulacionProducto.grupo_alternativa.nullslast(), FormulacionProducto.id).all()
 
     if request.method == 'POST':
         accion = request.form.get('accion')
 
-        # ── Agregar una nueva línea a la fórmula ──
+        # ── Agregar ingrediente (normal o variante) ──
         if accion == 'agregar':
             mp_id_str = request.form.get('materia_prima_id', '').strip()
             lote_base_str = request.form.get('lote_base', '').strip()
             cantidad_lote_str = request.form.get('cantidad_lote', '').strip()
+            # ID del ingrediente al que queremos agregar como variante (opcional)
+            variante_de_id_str = request.form.get('variante_de_id', '').strip()
 
             try:
                 mp_id = int(mp_id_str)
@@ -209,13 +211,11 @@ def editar_formula(producto_id):
                 flash('Verificá que el lote base, la materia prima y la cantidad sean válidos.', 'danger')
                 return redirect(url_for('gerente.editar_formula', producto_id=producto_id))
 
-            # Verificar que la MP existe
             mp = MateriaPrima.query.get(mp_id)
             if not mp:
                 flash('Materia prima no encontrada.', 'danger')
                 return redirect(url_for('gerente.editar_formula', producto_id=producto_id))
 
-            # Calcular cantidad por unidad
             cantidad_por_unidad = cantidad_lote / lote_base
 
             # Verificar si ya existe esa MP en la fórmula
@@ -224,21 +224,47 @@ def editar_formula(producto_id):
             ).first()
 
             if existente:
-                # Actualizar si ya existe
                 existente.cantidad_por_unidad = cantidad_por_unidad
                 flash(f'Se actualizó "{mp.nombre}" en la fórmula.', 'success')
-            else:
-                nueva = FormulacionProducto(
-                    producto_id=producto_id,
-                    materia_prima_id=mp_id,
-                    cantidad_por_unidad=cantidad_por_unidad
-                )
-                db.session.add(nueva)
-                flash(f'Se agregó "{mp.nombre}" a la fórmula '
-                      f'({cantidad_lote} {mp.unidad} cada {lote_base} unidades → '
-                      f'{float(cantidad_por_unidad):.4f} {mp.unidad}/unidad).', 'success')
+                db.session.commit()
+                return redirect(url_for('gerente.editar_formula', producto_id=producto_id))
 
+            # Determinar grupo_alternativa
+            grupo = None
+            if variante_de_id_str:
+                try:
+                    variante_de_id = int(variante_de_id_str)
+                    origen = FormulacionProducto.query.get(variante_de_id)
+                    if origen and origen.producto_id == producto_id:
+                        if origen.grupo_alternativa:
+                            # El origen ya tiene grupo → usar el mismo
+                            grupo = origen.grupo_alternativa
+                        else:
+                            # El origen no tiene grupo → crear uno nuevo y asignarlo al origen también
+                            max_grupo = db.session.query(
+                                db.func.max(FormulacionProducto.grupo_alternativa)
+                            ).filter_by(producto_id=producto_id).scalar() or 0
+                            grupo = max_grupo + 1
+                            origen.grupo_alternativa = grupo
+                except (ValueError, TypeError):
+                    pass
+
+            nueva = FormulacionProducto(
+                producto_id=producto_id,
+                materia_prima_id=mp_id,
+                cantidad_por_unidad=cantidad_por_unidad,
+                grupo_alternativa=grupo
+            )
+            db.session.add(nueva)
             db.session.commit()
+
+            if grupo:
+                flash(f'"{mp.nombre}" agregada como variante del grupo {grupo}.', 'success')
+            else:
+                flash(f'"{mp.nombre}" agregada a la fórmula '
+                      f'({cantidad_lote} {mp.unidad} / {lote_base} → '
+                      f'{float(cantidad_por_unidad):.4f}/unidad).', 'success')
+
             return redirect(url_for('gerente.editar_formula', producto_id=producto_id))
 
         # ── Eliminar una línea de la fórmula ──
@@ -247,15 +273,44 @@ def editar_formula(producto_id):
             formulacion = FormulacionProducto.query.get(formulacion_id)
             if formulacion and formulacion.producto_id == producto_id:
                 nombre_mp = formulacion.materia_prima.nombre
+                grupo_era = formulacion.grupo_alternativa
+
                 db.session.delete(formulacion)
+                db.session.flush()
+
+                # Si al eliminar queda solo una MP en ese grupo, quitar el grupo (ya no hay alternativa)
+                if grupo_era is not None:
+                    restantes = FormulacionProducto.query.filter_by(
+                        producto_id=producto_id, grupo_alternativa=grupo_era
+                    ).count()
+                    if restantes == 1:
+                        unico = FormulacionProducto.query.filter_by(
+                            producto_id=producto_id, grupo_alternativa=grupo_era
+                        ).first()
+                        if unico:
+                            unico.grupo_alternativa = None
+
                 db.session.commit()
                 flash(f'Se eliminó "{nombre_mp}" de la fórmula.', 'info')
             return redirect(url_for('gerente.editar_formula', producto_id=producto_id))
+
+    # Organizar formulaciones para el template: agrupar por grupo_alternativa
+    grupos = {}    # grupo_num → [FormulacionProducto, ...]
+    sin_grupo = [] # ingredientes sin variantes
+
+    for f in formulaciones_actuales:
+        if f.grupo_alternativa is not None:
+            grupos.setdefault(f.grupo_alternativa, []).append(f)
+        else:
+            sin_grupo.append(f)
 
     return render_template(
         'gerente/editar_formula.html',
         title=f'Fórmula — {producto.nombre}',
         producto=producto,
         formulaciones=formulaciones_actuales,
+        sin_grupo=sin_grupo,
+        grupos=grupos,
         mps_disponibles=mps_disponibles
     )
+

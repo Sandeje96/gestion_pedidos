@@ -25,6 +25,7 @@
                         <th class="text-end">Stock Actual</th>
                         <th class="text-end">Stock Mínimo</th>
                         <th>Estado</th>
+                        <th class="text-center">Tipo</th>
                         <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -52,9 +53,22 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
+                            {% if mp.formula_propia.count() > 0 %}
+                            <span class="badge bg-warning text-dark" title="Se fabrica internamente">
+                                <i class="fas fa-atom"></i> Intermedia
+                            </span>
+                            {% else %}
+                            <span class="badge bg-light text-muted border">Externa</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
                             <a href="{{ url_for('gerente.editar_materia_prima', mp_id=mp.id) }}"
                                class="btn btn-sm btn-outline-warning" title="Editar">
                                 <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{{ url_for('gerente.formula_materia_prima', mp_id=mp.id) }}"
+                               class="btn btn-sm btn-outline-warning ms-1" title="Fórmula propia">
+                                <i class="fas fa-atom"></i>
                             </a>
                             <a href="{{ url_for('gerente.ingreso_stock', mp_id=mp.id) }}"
                                class="btn btn-sm btn-outline-success ms-1" title="Registrar ingreso">

@@ -15,10 +15,12 @@ from app.models.gasto_repartidor import GastoRepartidor
 from app.models.materia_prima import MateriaPrima
 from app.models.formulacion_producto import FormulacionProducto
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
+from app.models.formulacion_materia_prima import FormulacionMateriaPrima
 
 __all__ = [
     'Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido',
     'ProduccionDiaria', 'Boleta', 'PagoBoleta', 'GastoRepartidor',
     'MateriaPrima', 'FormulacionProducto', 'MovimientoMateriaPrima',
+    'FormulacionMateriaPrima',
 ]
 

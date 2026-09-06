@@ -9,6 +9,7 @@ from app import db
 from app.models.producto import Producto
 from app.models.materia_prima import MateriaPrima
 from app.models.formulacion_producto import FormulacionProducto
+from app.models.formulacion_materia_prima import FormulacionMateriaPrima
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 from functools import wraps
 from decimal import Decimal, InvalidOperation
@@ -216,6 +217,98 @@ def editar_materia_prima(mp_id):
     return render_template('gerente/editar_materia_prima.html',
                            title=f'Editar — {mp.nombre}', mp=mp)
 
+
+@gerente_bp.route('/materias-primas/<int:mp_id>/formula-propia', methods=['GET', 'POST'])
+@gerente_requerido
+def formula_materia_prima(mp_id):
+    """
+    Gestiona la fórmula propia de una Materia Prima.
+    Permite definir que una MP se produce internamente a partir de otras MPs.
+    El cálculo de cantidad es igual al de productos:
+        cantidad_por_unidad = cantidad_en_lote / lote_base
+    """
+    mp = MateriaPrima.query.get_or_404(mp_id)
+
+    # Todas las MPs disponibles EXCEPTO la propia (no puede ser componente de sí misma)
+    mps_disponibles = MateriaPrima.query.filter(
+        MateriaPrima.activo == True,
+        MateriaPrima.id != mp_id
+    ).order_by(MateriaPrima.nombre).all()
+
+    componentes_actuales = FormulacionMateriaPrima.query.filter_by(
+        materia_prima_id=mp_id
+    ).order_by(FormulacionMateriaPrima.id).all()
+
+    if request.method == 'POST':
+        accion = request.form.get('accion')
+
+        # ── Agregar componente ──
+        if accion == 'agregar':
+            comp_id_str = request.form.get('componente_id', '').strip()
+            lote_base_str = request.form.get('lote_base', '').strip()
+            cantidad_lote_str = request.form.get('cantidad_lote', '').strip()
+
+            try:
+                comp_id = int(comp_id_str)
+                lote_base = Decimal(lote_base_str)
+                cantidad_lote = Decimal(cantidad_lote_str)
+                if lote_base <= 0 or cantidad_lote <= 0:
+                    raise ValueError
+            except (ValueError, InvalidOperation):
+                flash('Verificá que el lote base, el componente y la cantidad sean válidos.', 'danger')
+                return redirect(url_for('gerente.formula_materia_prima', mp_id=mp_id))
+
+            # Evitar que se agregue a sí misma como componente
+            if comp_id == mp_id:
+                flash('Una materia prima no puede ser componente de sí misma.', 'danger')
+                return redirect(url_for('gerente.formula_materia_prima', mp_id=mp_id))
+
+            componente = MateriaPrima.query.get(comp_id)
+            if not componente:
+                flash('Componente no encontrado.', 'danger')
+                return redirect(url_for('gerente.formula_materia_prima', mp_id=mp_id))
+
+            cantidad_por_unidad = cantidad_lote / lote_base
+
+            existente = FormulacionMateriaPrima.query.filter_by(
+                materia_prima_id=mp_id, componente_id=comp_id
+            ).first()
+
+            if existente:
+                existente.cantidad_por_unidad = cantidad_por_unidad
+                flash(f'Se actualizó "{componente.nombre}" en la fórmula.', 'success')
+            else:
+                nuevo = FormulacionMateriaPrima(
+                    materia_prima_id=mp_id,
+                    componente_id=comp_id,
+                    cantidad_por_unidad=cantidad_por_unidad
+                )
+                db.session.add(nuevo)
+                flash(f'"{componente.nombre}" agregado como componente '
+                      f'({cantidad_lote} {componente.unidad} / {lote_base} → '
+                      f'{float(cantidad_por_unidad):.4f}/unidad).', 'success')
+
+            db.session.commit()
+            return redirect(url_for('gerente.formula_materia_prima', mp_id=mp_id))
+
+        # ── Eliminar componente ──
+        elif accion == 'eliminar':
+            comp_formula_id = request.form.get('comp_formula_id')
+            comp_formula = FormulacionMateriaPrima.query.get(comp_formula_id)
+            if comp_formula and comp_formula.materia_prima_id == mp_id:
+                nombre_comp = comp_formula.componente.nombre
+                db.session.delete(comp_formula)
+                db.session.commit()
+                flash(f'Se eliminó "{nombre_comp}" de la fórmula.', 'info')
+            return redirect(url_for('gerente.formula_materia_prima', mp_id=mp_id))
+
+    return render_template(
+        'gerente/formula_materia_prima.html',
+        title=f'Fórmula propia — {mp.nombre}',
+        mp=mp,
+        componentes=componentes_actuales,
+        mps_disponibles=mps_disponibles
+    )
 
 
 # ─────────────────────────────────────────────

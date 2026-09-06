@@ -101,6 +101,7 @@ def create_app(config_name='development'):
         from app.models.materia_prima import MateriaPrima          # noqa
         from app.models.formulacion_producto import FormulacionProducto  # noqa
         from app.models.movimiento_materia_prima import MovimientoMateriaPrima  # noqa
+        from app.models.formulacion_materia_prima import FormulacionMateriaPrima  # noqa
         db.create_all()
         
         # Migraciones automáticas de base de datos para producción (PostgreSQL) y local (SQLite)

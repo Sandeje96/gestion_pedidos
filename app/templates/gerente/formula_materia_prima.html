@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Fórmula propia — {{ mp.nombre }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fas fa-atom"></i> Fórmula propia de Materia Prima</h2>
+        <h5 class="text-warning">
+            <i class="fas fa-vial"></i> {{ mp.nombre }}
+            <span class="badge bg-secondary ms-1">{{ mp.unidad }}</span>
+        </h5>
+    </div>
+    <a href="{{ url_for('gerente.materias_primas') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Volver a Materias Primas
+    </a>
+</div>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i>
+    Esta MP se <strong>fabrica internamente</strong> a partir de los componentes que definas aquí.
+    La fórmula indica cuánto de cada componente se necesita para producir
+    <strong>1 {{ mp.unidad }}</strong> de <strong>{{ mp.nombre }}</strong>.
+</div>
+
+<div class="row">
+
+    {# ── Componentes actuales ── #}
+    <div class="col-md-7 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">
+                    <i class="fas fa-list"></i> Componentes de la fórmula
+                    <span class="badge bg-dark ms-2">{{ componentes|length }}</span>
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                {% if componentes %}
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Materia Prima (componente)</th>
+                            <th class="text-end">Por 1 {{ mp.unidad }}</th>
+                            <th class="text-end">Por 100 {{ mp.unidad }}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in componentes %}
+                        <tr>
+                            <td>
+                                <strong>{{ c.componente.nombre }}</strong>
+                                <span class="badge bg-secondary ms-1">{{ c.componente.unidad }}</span>
+                                {% if c.componente.formula_propia.count() > 0 %}
+                                <span class="badge bg-warning text-dark ms-1" title="Este componente también tiene fórmula propia">
+                                    <i class="fas fa-atom"></i>
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold">{{ c.cantidad_por_unidad|float|round(4) }}</td>
+                            <td class="text-end text-muted">{{ (c.cantidad_por_unidad|float * 100)|round(3) }}</td>
+                            <td class="text-end">
+                                <form method="POST" class="d-inline"
+                                      onsubmit="return confirm('¿Eliminar este componente?')">
+                                    <input type="hidden" name="accion" value="eliminar">
+                                    <input type="hidden" name="comp_formula_id" value="{{ c.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="4" class="text-muted small ps-3">
+                                <i class="fas fa-atom text-warning"></i> = ese componente también se fabrica internamente
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-flask fa-2x mb-2"></i>
+                    <p class="mb-0">Sin componentes. Agregá las materias primas desde el panel de la derecha.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# ── Agregar componente ── #}
+    <div class="col-md-5 mb-4">
+        <div class="card shadow-sm border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="fas fa-plus"></i> Agregar componente</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="accion" value="agregar">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            Materia Prima componente <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" name="componente_id" required>
+                            <option value="" disabled selected>Seleccioná una MP...</option>
+                            {% for mp_opt in mps_disponibles %}
+                            <option value="{{ mp_opt.id }}">
+                                {{ mp_opt.nombre }} ({{ mp_opt.unidad }})
+                                {% if mp_opt.formula_propia.count() > 0 %} ⚗️{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Las MPs con ⚗️ también se fabrican internamente.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            Lote base <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="lote_base" id="lote_base"
+                                   min="0.001" step="0.001" placeholder="Ej: 100" required>
+                            <span class="input-group-text">{{ mp.unidad }}</span>
+                        </div>
+                        <div class="form-text">¿Para cuántos {{ mp.unidad }} de "{{ mp.nombre }}" es esta fórmula?</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            Cantidad del componente en ese lote <span class="text-danger">*</span>
+                        </label>
+                        <input type="number" class="form-control" name="cantidad_lote" id="cantidad_lote"
+                               min="0.001" step="0.001" placeholder="Ej: 85" required>
+                    </div>
+
+                    <div class="alert alert-light border mb-3 py-2" id="preview-calc" style="display:none;">
+                        <small>
+                            <i class="fas fa-calculator text-primary"></i>
+                            Ratio: <strong id="ratio-result">—</strong> por {{ mp.unidad }}
+                        </small>
+                    </div>
+
+                    {% if not mps_disponibles %}
+                    <div class="alert alert-warning">
+                        No hay otras materias primas disponibles.
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-warning"
+                                {{ 'disabled' if not mps_disponibles }}>
+                            <i class="fas fa-plus"></i> Agregar componente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const loteInput = document.getElementById('lote_base');
+    const cantInput = document.getElementById('cantidad_lote');
+    const preview = document.getElementById('preview-calc');
+    const ratioResult = document.getElementById('ratio-result');
+
+    function calcularRatio() {
+        const lote = parseFloat(loteInput.value);
+        const cant = parseFloat(cantInput.value);
+        if (lote > 0 && cant > 0) {
+            ratioResult.textContent = (cant / lote).toFixed(6);
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+    loteInput.addEventListener('input', calcularRatio);
+    cantInput.addEventListener('input', calcularRatio);
+</script>
+{% endblock %}

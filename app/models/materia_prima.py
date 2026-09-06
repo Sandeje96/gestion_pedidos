@@ -44,6 +44,24 @@ class MateriaPrima(db.Model):
     movimientos = db.relationship('MovimientoMateriaPrima', backref='materia_prima', lazy='dynamic',
                                   cascade='all, delete-orphan')
 
+    # Fórmula propia: componentes necesarios para PRODUCIR esta MP internamente
+    formula_propia = db.relationship(
+        'FormulacionMateriaPrima',
+        foreign_keys='FormulacionMateriaPrima.materia_prima_id',
+        back_populates='materia_prima',
+        lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
+
+    # Referencia inversa: fórmulas de otras MPs donde esta MP es usada como componente
+    usado_como_componente = db.relationship(
+        'FormulacionMateriaPrima',
+        foreign_keys='FormulacionMateriaPrima.componente_id',
+        back_populates='componente',
+        lazy='dynamic'
+    )
+
+
     def __repr__(self):
         return f'<MateriaPrima {self.nombre} - {self.stock_actual} {self.unidad}>'
 

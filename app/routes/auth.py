@@ -34,6 +34,8 @@ def login():
             return redirect(url_for('administracion.dashboard'))
         elif current_user.es_repartidor():
             return redirect(url_for('repartidor.dashboard'))
+        elif current_user.es_gerente():
+            return redirect(url_for('index'))
     
     form = LoginForm()
     
@@ -69,6 +71,8 @@ def login():
                 return redirect(url_for('administracion.dashboard'))
             elif usuario.es_repartidor():
                 return redirect(url_for('repartidor.dashboard'))
+            elif usuario.es_gerente():
+                return redirect(url_for('index'))
             else:
                 return redirect(url_for('index'))
         
@@ -477,4 +481,67 @@ def setup_nuevos_usuarios_production():
         </html>
         """
 
+
+@auth_bp.route('/setup-gerente-v4r8t2w6', methods=['GET'])
+def setup_gerente_production():
+    """
+    Endpoint temporal para crear el usuario Gerente en producción.
+    ⚠️ ELIMINAR DESPUÉS DE USAR
+    """
+    from app.models.usuario import Usuario
+
+    try:
+        u_gerente = Usuario.query.filter_by(username='gerente').first()
+        if not u_gerente:
+            u_gerente = Usuario(
+                nombre="Gerente",
+                username="gerente",
+                email="gerente@ejemplo.com",
+                rol="gerente",
+                activo=True
+            )
+            u_gerente.set_password("123456")
+            db.session.add(u_gerente)
+            db.session.commit()
+            mensaje = "Usuario 'gerente' creado exitosamente."
+        else:
+            mensaje = "Usuario 'gerente' ya existía en la base de datos."
+
+        return f"""
+        <html>
+        <head><title>Setup Gerente</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f0f0f0;">
+            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #28a745;">✅ {mensaje}</h1>
+                <h3>Credenciales:</h3>
+                <ul>
+                    <li><strong>Usuario:</strong> gerente</li>
+                    <li><strong>Contraseña:</strong> 123456</li>
+                    <li><strong>Rol:</strong> gerente</li>
+                </ul>
+                <hr>
+                <h3 style="color: #dc3545;">⚠️ IMPORTANTE:</h3>
+                <p><strong>Elimina este endpoint después de verificar que funciona correctamente.</strong></p>
+                <hr>
+                <a href="/" style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 20px;">Ir al Inicio</a>
+            </div>
+        </body>
+        </html>
+        """
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        error_detail = traceback.format_exc()
+        return f"""
+        <html>
+        <head><title>Error Setup Gerente</title></head>
+        <body style="font-family: Arial; padding: 40px; background: #f0f0f0;">
+            <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #dc3545;">❌ Error al crear usuario gerente</h1>
+                <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">{error_detail}</pre>
+            </div>
+        </body>
+        </html>
+        """
 

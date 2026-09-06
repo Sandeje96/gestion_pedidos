@@ -19,6 +19,7 @@ class Usuario(UserMixin, db.Model):
         - sucursal: Puede gestionar pedidos de sucursales
         - administracion: Administración de fábrica, gestiona despacho
         - repartidor: Puede ver pedidos para entrega
+        - gerente: Acceso de gerencia con vista global del negocio
     """
     
     __tablename__ = 'usuarios'
@@ -81,6 +82,10 @@ class Usuario(UserMixin, db.Model):
     def es_repartidor(self):
         """Verifica si el usuario es repartidor"""
         return self.rol == 'repartidor'
+    
+    def es_gerente(self):
+        """Verifica si el usuario es gerente"""
+        return self.rol == 'gerente'
     
     # Método requerido por Flask-Login
     def get_id(self):

@@ -11,10 +11,13 @@ from app.models.cliente import Cliente
 from app.models.mensaje_pedido import MensajePedido
 from app.models.producto import Producto
 from app.models.produccion import ProduccionDiaria
-from app.routes.fabrica import _descontar_stock_pedido
+from app.models.materia_prima import MateriaPrima
+from app.models.movimiento_materia_prima import MovimientoMateriaPrima
+from app.routes.fabrica import _descontar_stock_pedido, _preview_materias_primas, _registrar_movimientos_mp
 from datetime import datetime, date, timedelta
 from functools import wraps
 from sqlalchemy import func
+import json
 
 # Crear el Blueprint
 administracion_bp = Blueprint('administracion', __name__)
@@ -387,8 +390,33 @@ def stock():
     )
 
 # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # SECCIÓN: PRODUCCIÓN DIARIA Y STOCK
 # ─────────────────────────────────────────────
+
+@administracion_bp.route('/produccion/preview-materias')
+@administracion_requerido
+def preview_materias_produccion():
+    """
+    Endpoint AJAX: devuelve la lista de materias primas calculadas para
+    una producción, agrupadas por grupo_alternativa.
+    """
+    producto_id = request.args.get('producto_id', type=int)
+    cantidad = request.args.get('cantidad', type=float)
+
+    if not producto_id or not cantidad or cantidad <= 0:
+        return jsonify({'grupos': [], 'todas_mp': []})
+
+    grupos = _preview_materias_primas(producto_id, cantidad)
+
+    todas_mp = MateriaPrima.query.filter_by(activo=True).order_by(MateriaPrima.nombre).all()
+
+    return jsonify({
+        'grupos': grupos,
+        'todas_mp': [{'id': mp.id, 'nombre': mp.nombre, 'unidad': mp.unidad,
+                      'stock_actual': float(mp.stock_actual or 0)} for mp in todas_mp],
+    })
+
 
 @administracion_bp.route('/produccion', methods=['GET', 'POST'])
 @administracion_requerido
@@ -396,7 +424,7 @@ def produccion():
     """
     Ver y cargar producción diaria.
     GET: muestra historial filtrado por fecha.
-    POST: registra una nueva producción y suma al stock del producto.
+    POST: registra producción, suma al stock del producto y descuenta materias primas.
     """
     if request.method == 'POST':
         producto_id = request.form.get('producto_id', type=int)
@@ -404,6 +432,7 @@ def produccion():
         unidad = request.form.get('unidad', '').strip()
         fecha_str = request.form.get('fecha_produccion', '').strip()
         observaciones = request.form.get('observaciones', '').strip() or None
+        materias_primas_json = request.form.get('materias_primas_json', '').strip()
 
         # Validaciones básicas
         if not producto_id or not cantidad or not unidad:
@@ -436,8 +465,19 @@ def produccion():
         # Sumar al stock actual del producto
         producto.agregar_stock(cantidad)
 
+        # Flush para obtener prod.id antes de los movimientos
+        db.session.flush()
+
+        # Registrar movimientos de materias primas si vienen del modal
+        if materias_primas_json:
+            try:
+                mp_data = json.loads(materias_primas_json)
+                _registrar_movimientos_mp(prod.id, mp_data, current_user.id)
+            except Exception as e:
+                pass  # No bloquear si hay error en MP
+
         db.session.commit()
-        flash(f'✅ Se registraron {cantidad} {unidad} de {producto.nombre}.', 'success')
+        flash(f'Se registraron {cantidad} {unidad} de {producto.nombre} y se descontaron las materias primas.', 'success')
         return redirect(url_for('administracion.produccion'))
 
     # GET: filtrar por fecha
@@ -477,12 +517,24 @@ def produccion():
 def eliminar_produccion(prod_id):
     """
     Eliminar un registro de producción y restar del stock del producto.
+    También revierte los movimientos de materias primas asociados.
     """
     prod = ProduccionDiaria.query.get_or_404(prod_id)
     producto = Producto.query.get(prod.producto_id)
 
     if producto:
         producto.descontar_stock(float(prod.cantidad))
+
+    # Revertir movimientos de MP asociados a esta producción
+    movimientos_mp = MovimientoMateriaPrima.query.filter_by(
+        produccion_id=prod_id,
+        tipo='egreso_produccion'
+    ).all()
+    for mov in movimientos_mp:
+        mp = MateriaPrima.query.get(mov.materia_prima_id)
+        if mp:
+            mp.agregar_stock(float(mov.cantidad))
+        db.session.delete(mov)
 
     nombre_prod = producto.nombre if producto else 'desconocido'
     cantidad = float(prod.cantidad)
@@ -491,7 +543,7 @@ def eliminar_produccion(prod_id):
     db.session.delete(prod)
     db.session.commit()
 
-    flash(f'⚠️ Se eliminó la producción de {cantidad} {unidad} de {nombre_prod} y se ajustó el stock.', 'warning')
+    flash(f'Se eliminó la producción de {cantidad} {unidad} de {nombre_prod} y se ajustó el stock.', 'warning')
     return redirect(url_for('administracion.produccion'))
 
 

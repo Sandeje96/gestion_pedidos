@@ -70,9 +70,9 @@ class MateriaPrima(db.Model):
         self.stock_actual = (self.stock_actual or Decimal('0')) + Decimal(str(cantidad))
 
     def descontar_stock(self, cantidad):
-        """Resta cantidad del stock actual (al registrar producción)."""
-        nuevo = (self.stock_actual or Decimal('0')) - Decimal(str(cantidad))
-        self.stock_actual = max(nuevo, Decimal('0'))  # No permitir stock negativo
+        """Resta cantidad del stock actual (al registrar producción).
+        Puede quedar en negativo si no hay suficiente stock."""
+        self.stock_actual = (self.stock_actual or Decimal('0')) - Decimal(str(cantidad))
 
     @property
     def stock_bajo(self):

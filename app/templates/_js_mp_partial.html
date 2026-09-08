@@ -1,0 +1,255 @@
+﻿<script>
+// ─── Estado del modal ───
+var _todasMP = [];
+var _filas = [];   // [{id, nombre, unidad, stock, cantidad, excluida, esExtra, variantesGrupo, grupoId}]
+var _formProduccion = null;
+
+// ─── Interceptar submit del formulario ───
+document.addEventListener('DOMContentLoaded', function() {
+    _formProduccion = document.querySelector('form[data-produccion-form]');
+    if (!_formProduccion) return;
+
+    _formProduccion.addEventListener('submit', function(e) {
+        var productoId = document.getElementById('producto_id').value;
+        var cantidad = parseFloat(document.getElementById('cantidad').value);
+        if (!productoId || !cantidad || cantidad <= 0) return; // deja que el form valide
+
+        e.preventDefault();
+        abrirModalMP(productoId, cantidad);
+    });
+});
+
+function abrirModalMP(productoId, cantidad) {
+    var modal = new bootstrap.Modal(document.getElementById('modalMateriasPrimas'));
+    document.getElementById('mp-loading').style.display = 'block';
+    document.getElementById('mp-contenido').style.display = 'none';
+    document.getElementById('mp-sin-formula').style.display = 'none';
+    modal.show();
+
+    fetch(PREVIEW_URL + '?producto_id=' + productoId + '&cantidad=' + cantidad)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            _todasMP = data.todas_mp || [];
+            _filas = [];
+
+            // Poblar selector de extras
+            var sel1 = document.getElementById('mp-extra-select');
+            var sel2 = document.getElementById('mp-extra-select-2');
+            [sel1, sel2].forEach(function(sel) {
+                if (!sel) return;
+                sel.innerHTML = '<option value="">— Seleccionar MP —</option>';
+                _todasMP.forEach(function(mp) {
+                    var opt = document.createElement('option');
+                    opt.value = mp.id;
+                    opt.textContent = mp.nombre + ' (' + mp.unidad + ')';
+                    opt.setAttribute('data-unidad', mp.unidad);
+                    opt.setAttribute('data-stock', mp.stock_actual);
+                    sel.appendChild(opt);
+                });
+            });
+
+            var grupos = data.grupos || [];
+            document.getElementById('mp-loading').style.display = 'none';
+
+            if (grupos.length === 0) {
+                document.getElementById('mp-sin-formula').style.display = 'block';
+            } else {
+                document.getElementById('mp-contenido').style.display = 'block';
+                renderGrupos(grupos);
+            }
+        })
+        .catch(function(err) {
+            document.getElementById('mp-loading').style.display = 'none';
+            document.getElementById('mp-sin-formula').style.display = 'block';
+            console.error('Error cargando MP:', err);
+        });
+}
+
+function renderGrupos(grupos) {
+    var container = document.getElementById('mp-grupos-container');
+    container.innerHTML = '';
+    _filas = [];
+
+    grupos.forEach(function(grupo, gi) {
+        var tieneVariantes = grupo.ingredientes.length > 1;
+        var seleccionado = grupo.ingredientes.find(function(i) { return i.mp_id === grupo.seleccionado_id; }) || grupo.ingredientes[0];
+        var filaId = 'fila-g' + gi;
+
+        var stockCls = seleccionado.stock_actual < seleccionado.cantidad_calculada ? 'text-danger' : 'text-success';
+        var stockInfo = '<small class="' + stockCls + '">Stock: ' + seleccionado.stock_actual.toFixed(2) + '</small>';
+
+        var html = '<div class="card mb-2 border-0 bg-light" id="' + filaId + '">';
+        html += '<div class="card-body py-2 px-3">';
+        html += '<div class="row g-2 align-items-center">';
+
+        // Nombre / selector de variante
+        html += '<div class="col-md-5">';
+        if (tieneVariantes) {
+            html += '<label class="form-label small fw-semibold mb-1"><i class="fas fa-code-branch text-warning me-1"></i>Variante (elegí cuál usaste):</label>';
+            html += '<select class="form-select form-select-sm" onchange="cambiarVariante(' + gi + ', this)">';
+            grupo.ingredientes.forEach(function(ing) {
+                var sel = ing.mp_id === grupo.seleccionado_id ? ' selected' : '';
+                html += '<option value="' + ing.mp_id + '" data-cantidad="' + ing.cantidad_calculada + '" data-stock="' + ing.stock_actual + '" data-unidad="' + ing.mp_unidad + '"' + sel + '>' + ing.mp_nombre + '</option>';
+            });
+            html += '</select>';
+        } else {
+            html += '<span class="fw-semibold small">' + seleccionado.mp_nombre + '</span><br>';
+            html += stockInfo;
+        }
+        html += '</div>';
+
+        // Cantidad editable
+        html += '<div class="col-md-3">';
+        html += '<label class="form-label small fw-semibold mb-1">Cantidad (' + seleccionado.mp_unidad + '):</label>';
+        html += '<input type="number" class="form-control form-control-sm" id="cant-g' + gi + '" value="' + seleccionado.cantidad_calculada + '" step="0.001" min="0" onchange="actualizarFila(' + gi + ', this.value)">';
+        html += '</div>';
+
+        // Stock y excluir
+        html += '<div class="col-md-3 text-center" id="stock-g' + gi + '">' + (tieneVariantes ? '' : '') + '</div>';
+        html += '<div class="col-md-1 text-center">';
+        html += '<button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1" title="Excluir esta MP" onclick="excluirFila(\'' + filaId + '\', ' + gi + ')" style="width:28px;height:28px;line-height:1;">';
+        html += '<i class="fas fa-times" style="font-size:.65rem;"></i></button>';
+        html += '</div>';
+
+        html += '</div></div></div>';
+
+        container.innerHTML += html;
+
+        // Guardar en _filas
+        _filas.push({
+            filaId: filaId,
+            grupoIdx: gi,
+            mp_id: seleccionado.mp_id,
+            mp_nombre: seleccionado.mp_nombre,
+            mp_unidad: seleccionado.mp_unidad,
+            cantidad: seleccionado.cantidad_calculada,
+            excluida: false,
+            esExtra: false,
+        });
+    });
+
+    // Actualizar stock info para variantes tras render
+    grupos.forEach(function(grupo, gi) {
+        if (grupo.ingredientes.length > 1) {
+            actualizarStockInfo(gi);
+        }
+    });
+}
+
+function cambiarVariante(grupoIdx, selectEl) {
+    var opt = selectEl.options[selectEl.selectedIndex];
+    var mp_id = parseInt(opt.value);
+    var cantidad = parseFloat(opt.getAttribute('data-cantidad'));
+    var stock = parseFloat(opt.getAttribute('data-stock'));
+    var unidad = opt.getAttribute('data-unidad');
+
+    _filas[grupoIdx].mp_id = mp_id;
+    _filas[grupoIdx].mp_nombre = opt.text;
+    _filas[grupoIdx].mp_unidad = unidad;
+    _filas[grupoIdx].cantidad = cantidad;
+
+    document.getElementById('cant-g' + grupoIdx).value = cantidad;
+    actualizarStockInfo(grupoIdx, stock, cantidad, unidad);
+}
+
+function actualizarStockInfo(grupoIdx, stock, cantidad, unidad) {
+    var stockCell = document.getElementById('stock-g' + grupoIdx);
+    if (!stockCell) return;
+    if (stock === undefined) {
+        var cantInput = document.getElementById('cant-g' + grupoIdx);
+        cantidad = cantInput ? parseFloat(cantInput.value) : 0;
+        // Buscar stock del mp_id actual
+        var mp = _todasMP.find(function(m) { return m.id === _filas[grupoIdx].mp_id; });
+        stock = mp ? mp.stock_actual : 0;
+        unidad = _filas[grupoIdx].mp_unidad;
+    }
+    var cls = stock < cantidad ? 'text-danger fw-bold' : 'text-success';
+    stockCell.innerHTML = '<small class="' + cls + '">Stock: ' + stock.toFixed(2) + ' ' + (unidad||'') + '</small>';
+}
+
+function actualizarFila(grupoIdx, valor) {
+    _filas[grupoIdx].cantidad = parseFloat(valor) || 0;
+    actualizarStockInfo(grupoIdx);
+}
+
+function excluirFila(filaId, grupoIdx) {
+    var card = document.getElementById(filaId);
+    if (card) {
+        card.style.opacity = '0.4';
+        card.style.textDecoration = 'line-through';
+    }
+    if (grupoIdx !== null && grupoIdx !== undefined && grupoIdx < _filas.length) {
+        _filas[grupoIdx].excluida = true;
+    }
+}
+
+// ─── Agregar extra (con fórmula) ───
+function agregarMPExtra() {
+    var sel = document.getElementById('mp-extra-select');
+    var cantInput = document.getElementById('mp-extra-cantidad');
+    agregarMPExtraComun(sel, cantInput, 'mp-extras-container');
+}
+
+// ─── Agregar extra (sin fórmula) ───
+function agregarMPExtra2() {
+    var sel = document.getElementById('mp-extra-select-2');
+    var cantInput = document.getElementById('mp-extra-cantidad-2');
+    agregarMPExtraComun(sel, cantInput, 'mp-extras-container-2');
+}
+
+function agregarMPExtraComun(sel, cantInput, containerId) {
+    if (!sel || !sel.value) return;
+    var mp_id = parseInt(sel.value);
+    var cantidad = parseFloat(cantInput.value);
+    if (!cantidad || cantidad <= 0) { cantInput.classList.add('is-invalid'); return; }
+    cantInput.classList.remove('is-invalid');
+
+    var opt = sel.options[sel.selectedIndex];
+    var nombre = opt.text;
+    var unidad = opt.getAttribute('data-unidad');
+    var stock = parseFloat(opt.getAttribute('data-stock')) || 0;
+
+    var idx = _filas.length;
+    var filaId = 'fila-extra-' + idx;
+    var stockCls = stock < cantidad ? 'text-danger' : 'text-success';
+
+    var container = document.getElementById(containerId);
+    var html = '<div class="card mb-2 border-success bg-light" id="' + filaId + '">';
+    html += '<div class="card-body py-2 px-3"><div class="row g-2 align-items-center">';
+    html += '<div class="col-md-5"><span class="fw-semibold small text-success"><i class="fas fa-plus-circle me-1"></i>' + nombre + '</span><br>';
+    html += '<small class="' + stockCls + '">Stock: ' + stock.toFixed(2) + '</small></div>';
+    html += '<div class="col-md-3"><label class="form-label small fw-semibold mb-1">Cant. (' + unidad + '):</label>';
+    html += '<input type="number" class="form-control form-control-sm" value="' + cantidad + '" step="0.001" min="0" onchange="_filas[' + idx + '].cantidad=parseFloat(this.value)||0"></div>';
+    html += '<div class="col-md-3"></div>';
+    html += '<div class="col-md-1 text-center"><button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1" onclick="excluirFila(\'' + filaId + '\',' + idx + ')" style="width:28px;height:28px;line-height:1;"><i class="fas fa-times" style="font-size:.65rem;"></i></button></div>';
+    html += '</div></div></div>';
+
+    container.innerHTML += html;
+
+    _filas.push({ filaId: filaId, mp_id: mp_id, mp_nombre: nombre, mp_unidad: unidad, cantidad: cantidad, excluida: false, esExtra: true });
+
+    sel.value = '';
+    cantInput.value = '';
+}
+
+// ─── Confirmar y enviar ───
+function confirmarProduccion() {
+    // Construir lista final
+    var mpData = _filas.map(function(f) {
+        return { mp_id: f.mp_id, cantidad: f.cantidad, excluida: f.excluida };
+    });
+
+    // Poner en campo oculto
+    var hidden = document.getElementById('materias_primas_json');
+    if (hidden) hidden.value = JSON.stringify(mpData);
+
+    // Cerrar modal y enviar form
+    var modalEl = document.getElementById('modalMateriasPrimas');
+    var modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+
+    setTimeout(function() {
+        if (_formProduccion) _formProduccion.submit();
+    }, 200);
+}
+</script>

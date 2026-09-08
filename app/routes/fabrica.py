@@ -11,11 +11,15 @@ from app.models.cliente import Cliente
 from app.models.usuario import Usuario
 from app.models.producto import Producto
 from app.models.produccion import ProduccionDiaria
+from app.models.materia_prima import MateriaPrima
+from app.models.formulacion_producto import FormulacionProducto
+from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 from app.forms.pedido_forms import ActualizarPedidoFabricaForm
 from datetime import datetime, date
 from functools import wraps
 from sqlalchemy import func
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -544,8 +548,141 @@ def diagnostico():
 
 
 # ─────────────────────────────────────────────
+# HELPER COMPARTIDO: Materias primas y producción
+# ─────────────────────────────────────────────
+
+def _preview_materias_primas(producto_id, cantidad):
+    """
+    Calcula las materias primas a descontar para una producción.
+    Devuelve una lista de grupos listos para el modal de confirmación.
+
+    Cada elemento del resultado tiene:
+      - grupo_id: None si es ingrediente único, número si hay variantes
+      - ingredientes: lista de MPs del grupo con cantidad calculada
+      - seleccionado_id: MP preseleccionada (la primera del grupo)
+    """
+    formulaciones = FormulacionProducto.query.filter_by(
+        producto_id=producto_id
+    ).all()
+
+    if not formulaciones:
+        return []
+
+    # Agrupar por grupo_alternativa
+    grupos = {}  # grupo_id -> [formulacion, ...]
+    unicos = []  # formulaciones sin grupo
+
+    for f in formulaciones:
+        if f.grupo_alternativa is None:
+            unicos.append(f)
+        else:
+            grupos.setdefault(f.grupo_alternativa, []).append(f)
+
+    resultado = []
+
+    # Ingredientes únicos (sin variantes)
+    for f in unicos:
+        mp = f.materia_prima
+        cantidad_calculada = round(float(f.cantidad_por_unidad) * cantidad, 4)
+        resultado.append({
+            'grupo_id': None,
+            'ingredientes': [{
+                'mp_id': mp.id,
+                'mp_nombre': mp.nombre,
+                'mp_unidad': mp.unidad,
+                'stock_actual': float(mp.stock_actual or 0),
+                'cantidad_calculada': cantidad_calculada,
+            }],
+            'seleccionado_id': mp.id,
+        })
+
+    # Grupos con variantes (el usuario elige cuál usó)
+    for grupo_id, formulaciones_grupo in grupos.items():
+        ingredientes = []
+        for f in formulaciones_grupo:
+            mp = f.materia_prima
+            cantidad_calculada = round(float(f.cantidad_por_unidad) * cantidad, 4)
+            ingredientes.append({
+                'mp_id': mp.id,
+                'mp_nombre': mp.nombre,
+                'mp_unidad': mp.unidad,
+                'stock_actual': float(mp.stock_actual or 0),
+                'cantidad_calculada': cantidad_calculada,
+            })
+        resultado.append({
+            'grupo_id': grupo_id,
+            'ingredientes': ingredientes,
+            'seleccionado_id': ingredientes[0]['mp_id'],
+        })
+
+    return resultado
+
+
+def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
+    """
+    Registra los movimientos de stock de materias primas para una producción.
+    materias_primas_data: lista de dicts con {mp_id, cantidad, excluida}
+    Permite stock negativo (no bloquea si faltan materias primas).
+    """
+    for item in materias_primas_data:
+        if item.get('excluida'):
+            continue
+
+        mp_id = item.get('mp_id')
+        cantidad = float(item.get('cantidad', 0))
+
+        if not mp_id or cantidad <= 0:
+            continue
+
+        mp = MateriaPrima.query.get(mp_id)
+        if not mp:
+            continue
+
+        # Descontar stock (permite negativo)
+        mp.descontar_stock(cantidad)
+
+        # Registrar movimiento
+        mov = MovimientoMateriaPrima(
+            materia_prima_id=mp_id,
+            tipo='egreso_produccion',
+            cantidad=cantidad,
+            descripcion=f'Producción #{produccion_id} - {mp.nombre}',
+            produccion_id=produccion_id,
+            usuario_id=usuario_id,
+        )
+        db.session.add(mov)
+
+
+# ─────────────────────────────────────────────
 # SECCIÓN: PRODUCCIÓN (accesible para fábrica Y administración)
 # ─────────────────────────────────────────────
+
+@fabrica_bp.route('/produccion/preview-materias')
+@fabrica_o_admin_requerido
+def preview_materias_produccion():
+    """
+    Endpoint AJAX: devuelve la lista de materias primas calculadas para
+    una producción, agrupadas por grupo_alternativa.
+    También devuelve todas las MPs disponibles para que el usuario pueda
+    agregar extras que no estén en la fórmula.
+    """
+    producto_id = request.args.get('producto_id', type=int)
+    cantidad = request.args.get('cantidad', type=float)
+
+    if not producto_id or not cantidad or cantidad <= 0:
+        return jsonify({'grupos': [], 'todas_mp': []})
+
+    grupos = _preview_materias_primas(producto_id, cantidad)
+
+    # Todas las MPs activas para el selector de "agregar extra"
+    todas_mp = MateriaPrima.query.filter_by(activo=True).order_by(MateriaPrima.nombre).all()
+
+    return jsonify({
+        'grupos': grupos,
+        'todas_mp': [{'id': mp.id, 'nombre': mp.nombre, 'unidad': mp.unidad,
+                      'stock_actual': float(mp.stock_actual or 0)} for mp in todas_mp],
+    })
+
 
 @fabrica_bp.route('/produccion', methods=['GET', 'POST'])
 @fabrica_o_admin_requerido
@@ -555,7 +692,7 @@ def produccion():
     Accesible tanto para operarios de fábrica como para administración.
     Fábrica NO puede agregar productos al catálogo (eso sigue siendo exclusivo de administración).
     GET: muestra historial filtrado por fecha.
-    POST: registra una nueva producción y suma al stock del producto.
+    POST: registra producción, suma al stock del producto y descuenta materias primas.
     """
     if request.method == 'POST':
         producto_id = request.form.get('producto_id', type=int)
@@ -563,6 +700,7 @@ def produccion():
         unidad = request.form.get('unidad', '').strip()
         fecha_str = request.form.get('fecha_produccion', '').strip()
         observaciones = request.form.get('observaciones', '').strip() or None
+        materias_primas_json = request.form.get('materias_primas_json', '').strip()
 
         # Validaciones básicas
         if not producto_id or not cantidad or not unidad:
@@ -595,8 +733,19 @@ def produccion():
         # Sumar al stock actual del producto
         producto.agregar_stock(cantidad)
 
+        # Flush para obtener prod.id antes de los movimientos
+        db.session.flush()
+
+        # Registrar movimientos de materias primas si vienen del modal
+        if materias_primas_json:
+            try:
+                mp_data = json.loads(materias_primas_json)
+                _registrar_movimientos_mp(prod.id, mp_data, current_user.id)
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f'Error procesando materias primas en produccion #{prod.id}: {e}')
+
         db.session.commit()
-        flash(f'✅ Se registraron {cantidad} {unidad} de {producto.nombre}.', 'success')
+        flash(f'Se registraron {cantidad} {unidad} de {producto.nombre} y se descontaron las materias primas.', 'success')
         return redirect(url_for('fabrica.produccion'))
 
     # GET: filtrar por fecha
@@ -636,12 +785,24 @@ def produccion():
 def eliminar_produccion(prod_id):
     """
     Eliminar un registro de producción y restar del stock del producto.
+    También revierte los movimientos de materias primas asociados.
     """
     prod = ProduccionDiaria.query.get_or_404(prod_id)
     producto = Producto.query.get(prod.producto_id)
 
     if producto:
         producto.descontar_stock(float(prod.cantidad))
+
+    # Revertir movimientos de MP asociados a esta producción
+    movimientos_mp = MovimientoMateriaPrima.query.filter_by(
+        produccion_id=prod_id,
+        tipo='egreso_produccion'
+    ).all()
+    for mov in movimientos_mp:
+        mp = MateriaPrima.query.get(mov.materia_prima_id)
+        if mp:
+            mp.agregar_stock(float(mov.cantidad))
+        db.session.delete(mov)
 
     nombre_prod = producto.nombre if producto else 'desconocido'
     cantidad = float(prod.cantidad)
@@ -650,5 +811,5 @@ def eliminar_produccion(prod_id):
     db.session.delete(prod)
     db.session.commit()
 
-    flash(f'⚠️ Se eliminó la producción de {cantidad} {unidad} de {nombre_prod} y se ajustó el stock.', 'warning')
+    flash(f'Se eliminó la producción de {cantidad} {unidad} de {nombre_prod} y se ajustó el stock.', 'warning')
     return redirect(url_for('fabrica.produccion'))

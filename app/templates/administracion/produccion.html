@@ -131,7 +131,7 @@
                     </button>
                 </div>
                 {% else %}
-                <form method="POST" action="{{ url_for('administracion.produccion') }}">
+                <form method="POST" action="{{ url_for('administracion.produccion') }}" data-produccion-form="1">
                     <!-- Producto -->
                     <div class="mb-3">
                         <label for="producto_id" class="form-label fw-semibold">
@@ -202,6 +202,7 @@
                                   placeholder="Ej: Lote 3, turno tarde..."></textarea>
                     </div>
 
+                    <input type="hidden" name="materias_primas_json" id="materias_primas_json" value="">
                     <button type="submit" class="btn btn-primary w-100 btn-lg">
                         <i class="fas fa-save"></i> Registrar Producción
                     </button>
@@ -481,4 +482,10 @@
         }
     });
 </script>
+
+{% include '_modal_mp_partial.html' %}
+<script>
+    var PREVIEW_URL = "{{ url_for('administracion.preview_materias_produccion') }}";
+</script>
+{% include '_js_mp_partial.html' %}
 {% endblock %}

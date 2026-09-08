@@ -1,0 +1,84 @@
+﻿<!-- MODAL DE CONFIRMACIÓN DE MATERIAS PRIMAS -->
+<div class="modal fade" id="modalMateriasPrimas" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #198754, #145a32);">
+                <h5 class="modal-title"><i class="fas fa-flask me-2"></i>Confirmar Materias Primas a Descontar</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modal-mp-body">
+                <div class="text-center py-4" id="mp-loading">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="mt-2 text-muted">Calculando materias primas...</p>
+                </div>
+                <div id="mp-contenido" style="display:none;">
+                    <div class="alert alert-info small mb-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Revisá las cantidades calculadas. Podés editarlas, cambiar variantes o agregar materias primas extra.
+                        El stock puede quedar negativo si no hay suficiente.
+                    </div>
+                    <!-- Tabla de MPs de la fórmula -->
+                    <div id="mp-grupos-container"></div>
+                    <!-- Sección agregar extra -->
+                    <div class="card border-dashed border-secondary mt-3">
+                        <div class="card-body py-2">
+                            <p class="fw-semibold mb-2 small text-muted"><i class="fas fa-plus-circle me-1"></i>Agregar materia prima extra (opcional)</p>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-6">
+                                    <select id="mp-extra-select" class="form-select form-select-sm">
+                                        <option value="">— Seleccionar MP —</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="number" id="mp-extra-cantidad" class="form-control form-control-sm" placeholder="Cantidad" step="0.001" min="0.001">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-sm btn-outline-success w-100" onclick="agregarMPExtra()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Contenedor filas extras -->
+                    <div id="mp-extras-container" class="mt-2"></div>
+                </div>
+                <div id="mp-sin-formula" style="display:none;">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        Este producto no tiene fórmula cargada. Podés agregar materias primas manualmente o confirmar sin descontar ninguna.
+                    </div>
+                    <div class="card border-dashed border-secondary">
+                        <div class="card-body py-2">
+                            <p class="fw-semibold mb-2 small text-muted"><i class="fas fa-plus-circle me-1"></i>Agregar materia prima manualmente (opcional)</p>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-6">
+                                    <select id="mp-extra-select-2" class="form-select form-select-sm">
+                                        <option value="">— Seleccionar MP —</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="number" id="mp-extra-cantidad-2" class="form-control form-control-sm" placeholder="Cantidad" step="0.001" min="0.001">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="button" class="btn btn-sm btn-outline-success w-100" onclick="agregarMPExtra2()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="mp-extras-container-2" class="mt-2"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Cancelar
+                </button>
+                <button type="button" class="btn btn-success" id="btn-confirmar-mp" onclick="confirmarProduccion()">
+                    <i class="fas fa-check me-1"></i>Confirmar y Registrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

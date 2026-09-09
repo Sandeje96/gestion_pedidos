@@ -1,9 +1,39 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Materias Primas{% endblock %}
 
+{% block extra_css %}
+<style>
+    .tr-sin-stock {
+        background-color: #f0f0f0 !important;
+        color: #888 !important;
+        opacity: 0.85;
+    }
+    .tr-sin-stock td { color: #888 !important; }
+    .tr-sin-stock .badge { filter: grayscale(0.6); }
+
+    .tr-stock-bajo {
+        background-color: #fff8e1 !important;
+    }
+    .search-wrapper {
+        position: relative;
+    }
+    .search-wrapper .search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+    .search-wrapper input {
+        padding-left: 2.5rem;
+        border-radius: 50px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h2><i class="fas fa-vials"></i> Materias Primas</h2>
         <p class="text-muted mb-0">Stock actual de todos los insumos</p>
@@ -14,10 +44,33 @@
 </div>
 
 {% if mps %}
+
+<!-- Buscador -->
+<div class="row mb-3">
+    <div class="col-md-5">
+        <div class="search-wrapper">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text"
+                   id="buscador-mp"
+                   class="form-control border shadow-sm"
+                   placeholder="Buscar materia prima por nombre..."
+                   autocomplete="off">
+        </div>
+    </div>
+    <div class="col-md-7 d-flex align-items-center gap-3 mt-2 mt-md-0">
+        <small class="text-muted" id="contador-mp">Mostrando <strong>{{ mps|length }}</strong> insumos</small>
+        <span class="d-flex align-items-center gap-2 ms-3">
+            <span class="d-inline-block rounded border" style="width:14px;height:14px;background:#f0f0f0;"></span><small class="text-muted">Sin stock</small>
+            <span class="d-inline-block rounded border ms-2" style="width:14px;height:14px;background:#fff8e1;"></span><small class="text-muted">Stock bajo</small>
+            <span class="d-inline-block rounded border ms-2" style="width:14px;height:14px;background:#fff;"></span><small class="text-muted">OK</small>
+        </span>
+    </div>
+</div>
+
 <div class="card shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0" id="tabla-mps">
                 <thead class="table-light">
                     <tr>
                         <th>Nombre</th>
@@ -31,7 +84,18 @@
                 </thead>
                 <tbody>
                     {% for mp in mps %}
-                    <tr class="{{ 'table-warning' if mp.stock_bajo else '' }}">
+                    {% set stock_val = mp.stock_actual|float %}
+                    {% set minimo_val = mp.stock_minimo|float %}
+                    {% if stock_val == 0 %}
+                        {% set fila_class = 'tr-sin-stock' %}
+                    {% elif mp.stock_bajo %}
+                        {% set fila_class = 'tr-stock-bajo' %}
+                    {% else %}
+                        {% set fila_class = '' %}
+                    {% endif %}
+                    <tr class="mp-row {{ fila_class }}"
+                        data-nombre="{{ mp.nombre|lower }}"
+                        data-desc="{{ (mp.descripcion or '')|lower }}">
                         <td>
                             <strong>{{ mp.nombre }}</strong>
                             {% if mp.descripcion %}
@@ -39,17 +103,26 @@
                             {% endif %}
                         </td>
                         <td><span class="badge bg-secondary">{{ mp.unidad }}</span></td>
-                        <td class="text-end fw-bold {{ 'text-danger' if mp.stock_bajo else 'text-success' }}">
-                            {{ mp.stock_actual|float|round(3) }}
+                        <td class="text-end fw-bold
+                            {% if stock_val == 0 %}text-secondary
+                            {% elif mp.stock_bajo %}text-danger
+                            {% else %}text-success{% endif %}">
+                            {{ stock_val|round(3) }}
                         </td>
-                        <td class="text-end text-muted">{{ mp.stock_minimo|float|round(3) }}</td>
+                        <td class="text-end text-muted">{{ minimo_val|round(3) }}</td>
                         <td>
-                            {% if mp.stock_bajo %}
+                            {% if stock_val == 0 %}
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-times-circle"></i> Sin stock
+                            </span>
+                            {% elif mp.stock_bajo %}
                             <span class="badge bg-warning text-dark">
                                 <i class="fas fa-exclamation-triangle"></i> Stock bajo
                             </span>
                             {% else %}
-                            <span class="badge bg-success">OK</span>
+                            <span class="badge bg-success">
+                                <i class="fas fa-check-circle"></i> OK
+                            </span>
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -83,9 +156,15 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <!-- Mensaje sin resultados -->
+            <div id="sin-resultados-mp" class="text-center py-4 text-muted" style="display:none;">
+                <i class="fas fa-search fa-2x mb-2 opacity-50"></i>
+                <p class="mb-0">No se encontraron materias primas con ese nombre.</p>
+            </div>
         </div>
     </div>
 </div>
+
 {% else %}
 <div class="text-center py-5">
     <i class="fas fa-vials fa-3x text-muted mb-3"></i>
@@ -101,4 +180,38 @@
         <i class="fas fa-arrow-left"></i> Volver al Panel
     </a>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const buscador = document.getElementById('buscador-mp');
+    const filas = document.querySelectorAll('.mp-row');
+    const contador = document.getElementById('contador-mp');
+    const sinResultados = document.getElementById('sin-resultados-mp');
+    const total = filas.length;
+
+    if (!buscador) return;
+
+    buscador.addEventListener('input', function () {
+        const q = this.value.toLowerCase().trim();
+        let visibles = 0;
+
+        filas.forEach(function (fila) {
+            const nombre = fila.getAttribute('data-nombre') || '';
+            const desc   = fila.getAttribute('data-desc') || '';
+            const match  = nombre.includes(q) || desc.includes(q);
+            fila.style.display = match ? '' : 'none';
+            if (match) visibles++;
+        });
+
+        if (contador) {
+            contador.innerHTML = 'Mostrando <strong>' + visibles + '</strong> de ' + total + ' insumos';
+        }
+        if (sinResultados) {
+            sinResultados.style.display = (visibles === 0 && total > 0) ? 'block' : 'none';
+        }
+    });
+});
+</script>
 {% endblock %}

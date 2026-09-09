@@ -1,0 +1,524 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card-gerente {
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    .stat-card-gerente:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+    }
+    .grad-purple {
+        background: linear-gradient(135deg, #6f42c1 0%, #4c2882 100%);
+    }
+    .grad-teal {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    }
+    .grad-green {
+        background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+    }
+    .grad-orange {
+        background: linear-gradient(135deg, #fd7e14 0%, #d96300 100%);
+    }
+    .search-box-container {
+        position: relative;
+    }
+    .search-box-container input {
+        padding-left: 3rem;
+        border-radius: 50px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+    .search-icon {
+        position: absolute;
+        left: 1.25rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        font-size: 1.1rem;
+    }
+    .table-stock-gerente tbody tr {
+        transition: background-color 0.2s ease;
+    }
+    .table-stock-gerente tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.04);
+    }
+    .badge-stock-positivo {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        font-weight: 700;
+    }
+    .badge-stock-cero {
+        background-color: #f8d7da;
+        color: #842029;
+        font-weight: 600;
+    }
+    .timeline-item {
+        position: relative;
+        padding-left: 2rem;
+        border-left: 2px solid #e9ecef;
+        padding-bottom: 1.5rem;
+    }
+    .timeline-item:last-child {
+        border-left: 2px solid transparent;
+        padding-bottom: 0;
+    }
+    .timeline-icon {
+        position: absolute;
+        left: -0.65rem;
+        top: 0;
+        width: 1.3rem;
+        height: 1.3rem;
+        border-radius: 50%;
+        background-color: #0d6efd;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in">
+
+    <!-- Encabezado de la Sección -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-6 fw-bold text-dark mb-1">
+                <i class="fas fa-boxes" style="color: #6f42c1;"></i> Control de Stock & Histórico de Productos
+            </h1>
+            <p class="text-muted mb-0">Vista gerencial detallada de volumen fabricado, lotes históricos y trazabilidad de productos.</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{{ url_for('gerente.dashboard') }}" class="btn btn-outline-secondary rounded-pill py-2 px-4 shadow-sm">
+                <i class="fas fa-arrow-left me-1"></i> Volver a Gerencia
+            </a>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Métricas Generales -->
+    <div class="row mb-4">
+        <!-- Total Productos -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card-gerente text-white grad-purple border-0 h-100">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 text-white-50">Catálogo Activo</h6>
+                        <i class="fas fa-box-open fa-2x opacity-50"></i>
+                    </div>
+                    <h2 class="mt-3 text-white fw-bold mb-0">{{ total_productos }}</h2>
+                    <span class="text-white-50 small mt-2"><i class="fas fa-info-circle me-1"></i> Productos disponibles</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Productos con Stock Positivo -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card-gerente text-white grad-green border-0 h-100">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 text-white-50">Con Stock Activo</h6>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                    <h2 class="mt-3 text-white fw-bold mb-0">{{ productos_con_stock }}</h2>
+                    <span class="text-white-50 small mt-2"><i class="fas fa-cubes me-1"></i> Con unidades disponibles</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Lotes Fabricados -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card-gerente text-white grad-teal border-0 h-100">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 text-white-50">Total Lotes Producidos</h6>
+                        <i class="fas fa-industry fa-2x opacity-50"></i>
+                    </div>
+                    <h2 class="mt-3 text-white fw-bold mb-0">{{ total_lotes_global }}</h2>
+                    <span class="text-white-50 small mt-2"><i class="fas fa-history me-1"></i> Lotes registrados históricamente</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Volumen Total Fabricado -->
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card stat-card-gerente text-white grad-orange border-0 h-100">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 text-white-50">Volumen Acumulado</h6>
+                        <i class="fas fa-weight-hanging fa-2x opacity-50"></i>
+                    </div>
+                    <h2 class="mt-3 text-white fw-bold mb-0">{{ "%.1f"|format(total_volumen_global) }}</h2>
+                    <span class="text-white-50 small mt-2"><i class="fas fa-chart-line me-1"></i> Suma de volumen preparado</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buscador Predictivo en Tiempo Real -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="search-box-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" 
+                       id="buscador-producto" 
+                       class="form-control form-control-lg border-0 bg-white" 
+                       placeholder="Escribí el nombre del producto para filtrar instantáneamente..." 
+                       autocomplete="off">
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2 px-3 text-muted small">
+                <span id="contador-productos">Mostrando <strong>{{ productos_detalle|length }}</strong> de {{ productos_detalle|length }} productos</span>
+                <span><i class="fas fa-bolt text-warning me-1"></i> Filtro dinámico en tiempo real</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla Detallada de Productos -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+                <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-dark fw-bold">
+                        <i class="fas fa-list text-primary me-2"></i> Estado de Stock e Histórico por Producto
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if productos_detalle %}
+                    <div class="table-responsive">
+                        <table class="table table-stock-gerente align-middle mb-0" id="tabla-productos">
+                            <thead class="table-light text-uppercase font-monospace text-muted small">
+                                <tr>
+                                    <th class="py-3 px-4">Producto</th>
+                                    <th class="py-3 text-center" style="width: 140px;">Stock Actual</th>
+                                    <th class="py-3 text-center" style="width: 160px;">Esta Semana</th>
+                                    <th class="py-3 text-center" style="width: 160px;">Total Histórico</th>
+                                    <th class="py-3 text-center" style="width: 130px;">Lotes</th>
+                                    <th class="py-3" style="width: 180px;">Última Carga</th>
+                                    <th class="py-3 text-center" style="width: 160px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in productos_detalle %}
+                                {% set p = item.producto %}
+                                <tr class="producto-row" data-nombre="{{ p.nombre|lower }}" data-unidad="{{ (p.unidad or '')|lower }}">
+                                    <td class="px-4 py-3">
+                                        <div class="d-flex align-items-center">
+                                            <div class="rounded-circle p-2 me-3 bg-light text-primary d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                                                <i class="fas fa-flask"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="mb-0 fw-bold text-dark">{{ p.nombre }}</h6>
+                                                <small class="text-muted font-monospace">
+                                                    Unidad: {{ p.unidad or 'litros' }}
+                                                    {% if p.formulaciones.count() > 0 %}
+                                                    <span class="badge bg-light text-success border border-success ms-1"><i class="fas fa-check-circle"></i> Receta activa</span>
+                                                    {% else %}
+                                                    <span class="badge bg-light text-secondary border ms-1">Sin fórmula</span>
+                                                    {% endif %}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <!-- Stock Actual -->
+                                    <td class="text-center">
+                                        {% if item.stock_actual > 0 %}
+                                        <span class="badge badge-stock-positivo px-3 py-2 fs-6 rounded-pill">
+                                            {{ "%.2f"|format(item.stock_actual) }} {{ p.unidad or '' }}
+                                        </span>
+                                        {% else %}
+                                        <span class="badge badge-stock-cero px-3 py-2 fs-6 rounded-pill">
+                                            0.00 {{ p.unidad or '' }}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <!-- Esta Semana -->
+                                    <td class="text-center">
+                                        <span class="fw-bold text-dark">{{ "%.1f"|format(item.semanal_total) }}</span>
+                                        <small class="text-muted d-block font-monospace">({{ item.semanal_lotes }} lote{{ 's' if item.semanal_lotes != 1 else '' }})</small>
+                                    </td>
+                                    <!-- Total Histórico -->
+                                    <td class="text-center">
+                                        <span class="fw-bold text-primary">{{ "%.1f"|format(item.historico_total) }}</span>
+                                        <small class="text-muted d-block font-monospace">acumulados</small>
+                                    </td>
+                                    <!-- Total Lotes -->
+                                    <td class="text-center">
+                                        <span class="badge bg-light text-dark border px-3 py-2 rounded-pill font-monospace fw-bold">
+                                            {{ item.historico_lotes }}
+                                        </span>
+                                    </td>
+                                    <!-- Última Carga -->
+                                    <td>
+                                        {% if item.ultima_produccion %}
+                                        <div class="small">
+                                            <i class="fas fa-calendar-alt text-muted me-1"></i>
+                                            <strong>{{ item.ultima_produccion.fecha_produccion.strftime('%d/%m/%Y') }}</strong>
+                                            <br>
+                                            <span class="text-muted font-monospace" style="font-size: 0.75rem;">
+                                                <i class="fas fa-clock me-1"></i>{{ item.ultima_produccion.fecha_creacion.strftime('%H:%M') }} hs
+                                            </span>
+                                        </div>
+                                        {% else %}
+                                        <span class="text-muted small font-monospace">Sin registros</span>
+                                        {% endif %}
+                                    </td>
+                                    <!-- Acciones -->
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-1">
+                                            <button type="button" 
+                                                    class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm"
+                                                    onclick="verDetalleProducto({{ p.id }})"
+                                                    title="Ver historial completo de producciones y materias primas">
+                                                <i class="fas fa-history me-1"></i> Histórico
+                                            </button>
+                                            <a href="{{ url_for('gerente.editar_formula', producto_id=p.id) }}" 
+                                               class="btn btn-outline-secondary btn-sm rounded-circle p-2"
+                                               title="Editar Fórmula">
+                                                <i class="fas fa-scroll m-0"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Mensaje cuando no hay resultados de búsqueda -->
+                    <div id="sin-resultados" class="text-center py-5 text-muted" style="display: none;">
+                        <i class="fas fa-search fa-3x mb-3 opacity-30"></i>
+                        <h5>No se encontraron productos</h5>
+                        <p class="small">Probá buscando con otro término.</p>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-box-open fa-3x mb-3 opacity-30"></i>
+                        <h5>No hay productos registrados en el catálogo</h5>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DETALLE E HISTORIAL DE PRODUCCIÓN -->
+<div class="modal fade" id="modalDetalleProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #6f42c1, #4c2882);">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-white text-purple p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; color: #6f42c1;">
+                        <i class="fas fa-history"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="modal-titulo-producto">Histórico de Producción</h5>
+                        <small class="text-white-50" id="modal-subtitulo-producto">Cargando datos...</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <div class="modal-body p-4">
+                <!-- Indicador de Carga -->
+                <div id="modal-loading" class="text-center py-5">
+                    <div class="spinner-border text-purple" role="status" style="color: #6f42c1;"></div>
+                    <p class="mt-2 text-muted small">Cargando historial de producciones e insumos descontados...</p>
+                </div>
+
+                <!-- Contenido Principal del Modal -->
+                <div id="modal-contenido" style="display: none;">
+                    <!-- Tarjeta de Resumen del Producto -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3 text-center border">
+                                <small class="text-muted d-block">Stock Actual en Fábrica</small>
+                                <strong class="fs-5 text-success" id="modal-stock-actual">0.00</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3 text-center border">
+                                <small class="text-muted d-block">Lotes Registrados</small>
+                                <strong class="fs-5 text-primary" id="modal-total-lotes">0</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded-3 text-center border">
+                                <small class="text-muted d-block">Unidad de Medida</small>
+                                <strong class="fs-5 text-dark" id="modal-unidad-medida">-</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-dark mb-3"><i class="fas fa-stream me-2 text-primary"></i>Registros de Producción (Lotes)</h6>
+
+                    <!-- Contenedor del Historial (Timeline/Lista) -->
+                    <div id="modal-historial-container">
+                        <!-- Se llena vía JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ── BUSCADOR EN TIEMPO REAL ──
+    const buscador = document.getElementById('buscador-producto');
+    const filas = document.querySelectorAll('.producto-row');
+    const sinResultados = document.getElementById('sin-resultados');
+    const contador = document.getElementById('contador-productos');
+    const totalProductos = filas.length;
+
+    if (buscador) {
+        buscador.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            let visibles = 0;
+
+            filas.forEach(function(row) {
+                const nombre = row.getAttribute('data-nombre') || '';
+                const unidad = row.getAttribute('data-unidad') || '';
+
+                if (nombre.includes(query) || unidad.includes(query)) {
+                    row.style.display = '';
+                    visibles++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (contador) {
+                contador.innerHTML = 'Mostrando <strong>' + visibles + '</strong> de ' + totalProductos + ' productos';
+            }
+
+            if (sinResultados) {
+                sinResultados.style.display = (visibles === 0 && totalProductos > 0) ? 'block' : 'none';
+            }
+        });
+    }
+});
+
+// ── MODAL DETALLE E HISTORIAL ──
+function verDetalleProducto(productoId) {
+    const modalEl = document.getElementById('modalDetalleProducto');
+    const modal = new bootstrap.Modal(modalEl);
+    
+    const loading = document.getElementById('modal-loading');
+    const contenido = document.getElementById('modal-contenido');
+    const titulo = document.getElementById('modal-titulo-producto');
+    const subtitulo = document.getElementById('modal-subtitulo-producto');
+    const stockActual = document.getElementById('modal-stock-actual');
+    const totalLotes = document.getElementById('modal-total-lotes');
+    const unidadMedida = document.getElementById('modal-unidad-medida');
+    const historialContainer = document.getElementById('modal-historial-container');
+
+    loading.style.display = 'block';
+    contenido.style.display = 'none';
+    modal.show();
+
+    fetch('/gerente/stock/producto/' + productoId + '/historial')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            const p = data.producto;
+            const hist = data.historial;
+
+            titulo.textContent = p.nombre;
+            subtitulo.textContent = 'Historial completo de producciones y materias primas';
+            stockActual.textContent = p.stock_actual.toFixed(2) + ' ' + (p.unidad || '');
+            totalLotes.textContent = p.total_lotes;
+            unidadMedida.textContent = p.unidad || 'litros';
+
+            // Renderizar la lista del historial
+            if (hist.length === 0) {
+                historialContainer.innerHTML = `
+                    <div class="text-center py-4 text-muted bg-light rounded-3">
+                        <i class="fas fa-info-circle fa-2x mb-2 opacity-50"></i>
+                        <p class="mb-0">No hay producciones registradas para este producto todavía.</p>
+                    </div>
+                `;
+            } else {
+                let html = '<div class="timeline-container">';
+                hist.forEach(function(item) {
+                    html += `
+                        <div class="timeline-item">
+                            <div class="timeline-icon">
+                                <i class="fas fa-flask"></i>
+                            </div>
+                            <div class="bg-white p-3 rounded-3 shadow-sm border">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                                    <div>
+                                        <span class="badge bg-primary fs-6 px-3 py-1 me-2">
+                                            +${item.cantidad.toFixed(2)} ${item.unidad}
+                                        </span>
+                                        <span class="text-muted small">Lote #${item.id}</span>
+                                    </div>
+                                    <div class="text-end small">
+                                        <span class="fw-bold text-dark"><i class="fas fa-calendar-day me-1 text-primary"></i>${item.fecha_produccion}</span>
+                                        <span class="text-muted ms-2"><i class="fas fa-clock me-1"></i>${item.fecha_creacion}</span>
+                                    </div>
+                                </div>
+
+                                <div class="small text-muted mb-2">
+                                    <i class="fas fa-user me-1"></i> Registrado por: <strong>${item.usuario_nombre}</strong>
+                                    ${item.observaciones ? `<span class="ms-2">| <em>"${item.observaciones}"</em></span>` : ''}
+                                </div>
+                    `;
+
+                    // Materias Primas Descontadas
+                    if (item.materias_descontadas && item.materias_descontadas.length > 0) {
+                        html += `
+                            <div class="mt-2 pt-2 border-top">
+                                <small class="fw-semibold text-muted d-block mb-1">
+                                    <i class="fas fa-vials text-success me-1"></i> Insumos / Materias primas descontadas:
+                                </small>
+                                <div class="d-flex flex-wrap gap-1">
+                        `;
+                        item.materias_descontadas.forEach(function(mp) {
+                            html += `
+                                <span class="badge bg-light text-dark border font-monospace px-2 py-1">
+                                    ${mp.nombre}: <strong>${mp.cantidad.toFixed(2)} ${mp.unidad}</strong>
+                                </span>
+                            `;
+                        });
+                        html += `</div></div>`;
+                    } else {
+                        html += `
+                            <div class="mt-2 pt-2 border-top">
+                                <small class="text-muted font-monospace"><i class="fas fa-info-circle me-1"></i> Sin materias primas asociadas</small>
+                            </div>
+                        `;
+                    }
+
+                    html += `</div></div>`;
+                });
+                html += '</div>';
+                historialContainer.innerHTML = html;
+            }
+
+            loading.style.display = 'none';
+            contenido.style.display = 'block';
+        })
+        .catch(function(err) {
+            loading.style.display = 'none';
+            alert('Error al cargar el historial del producto.');
+            console.error('Error:', err);
+        });
+}
+</script>
+{% endblock %}

@@ -3,7 +3,7 @@
 Blueprint para el panel de Gerencia.
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models.producto import Producto
@@ -11,8 +11,11 @@ from app.models.materia_prima import MateriaPrima
 from app.models.formulacion_producto import FormulacionProducto
 from app.models.formulacion_materia_prima import FormulacionMateriaPrima
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
+from app.models.produccion import ProduccionDiaria
+from datetime import datetime, date, timedelta
 from functools import wraps
 from decimal import Decimal, InvalidOperation
+from sqlalchemy import func
 
 # Crear el Blueprint
 gerente_bp = Blueprint('gerente', __name__)
@@ -462,4 +465,137 @@ def editar_formula(producto_id):
         grupos=grupos,
         mps_disponibles=mps_disponibles
     )
+
+
+# ─────────────────────────────────────────────
+# STOCK DE PRODUCTOS E HISTORIAL DE PRODUCCIÓN
+# ─────────────────────────────────────────────
+
+@gerente_bp.route('/stock')
+@gerente_requerido
+def stock():
+    """
+    Vista detallada y completa del stock de productos para Gerencia.
+    Incluye resumen estadístico, buscador dinámico en tiempo real
+    y métricas acumuladas e históricas de producción por producto.
+    """
+    productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
+
+    # Rango de la semana actual (Lunes a Viernes)
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    friday = monday + timedelta(days=4)
+
+    # Producción semanal por producto
+    producciones_semanales = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_semanal'),
+        func.count(ProduccionDiaria.id).label('lotes_semanales')
+    ).filter(
+        ProduccionDiaria.fecha_produccion >= monday,
+        ProduccionDiaria.fecha_produccion <= friday
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    semanales_dict = {r.producto_id: {'total': float(r.total_semanal or 0), 'lotes': r.lotes_semanales} for r in producciones_semanales}
+
+    # Producción histórica acumulada por producto
+    producciones_historicas = db.session.query(
+        ProduccionDiaria.producto_id,
+        func.sum(ProduccionDiaria.cantidad).label('total_historico'),
+        func.count(ProduccionDiaria.id).label('lotes_historicos')
+    ).group_by(ProduccionDiaria.producto_id).all()
+
+    historico_dict = {r.producto_id: {'total': float(r.total_historico or 0), 'lotes': r.lotes_historicos} for r in producciones_historicas}
+
+    # Construir objeto enriquecido para cada producto
+    productos_detalle = []
+    total_lotes_global = 0
+    total_volumen_global = 0.0
+
+    for p in productos:
+        h_info = historico_dict.get(p.id, {'total': 0.0, 'lotes': 0})
+        s_info = semanales_dict.get(p.id, {'total': 0.0, 'lotes': 0})
+
+        # Última producción registrada
+        ultima_prod = ProduccionDiaria.query.filter_by(producto_id=p.id).order_by(ProduccionDiaria.fecha_creacion.desc()).first()
+
+        total_lotes_global += h_info['lotes']
+        total_volumen_global += h_info['total']
+
+        productos_detalle.append({
+            'producto': p,
+            'stock_actual': float(p.stock_actual or 0),
+            'semanal_total': s_info['total'],
+            'semanal_lotes': s_info['lotes'],
+            'historico_total': h_info['total'],
+            'historico_lotes': h_info['lotes'],
+            'ultima_produccion': ultima_prod
+        })
+
+    # Estadísticas generales para las tarjetas del encabezado
+    total_productos = len(productos)
+    productos_con_stock = sum(1 for p in productos if float(p.stock_actual or 0) > 0)
+
+    return render_template(
+        'gerente/stock.html',
+        title='Stock e Historial de Productos',
+        productos_detalle=productos_detalle,
+        total_productos=total_productos,
+        productos_con_stock=productos_con_stock,
+        total_lotes_global=total_lotes_global,
+        total_volumen_global=total_volumen_global
+    )
+
+
+@gerente_bp.route('/stock/producto/<int:producto_id>/historial')
+@gerente_requerido
+def historial_producto(producto_id):
+    """
+    Endpoint AJAX: devuelve el historial completo de producciones de un producto,
+    incluyendo detalles del lote, fecha, operario y materias primas descontadas.
+    """
+    producto = Producto.query.get_or_404(producto_id)
+
+    producciones = ProduccionDiaria.query.filter_by(
+        producto_id=producto_id
+    ).order_by(ProduccionDiaria.fecha_creacion.desc()).all()
+
+    historial = []
+    for prod in producciones:
+        # Obtener movimientos de materia prima asociados a esta producción
+        movimientos = MovimientoMateriaPrima.query.filter_by(
+            produccion_id=prod.id,
+            tipo='egreso_produccion'
+        ).all()
+
+        materias_descontadas = []
+        for m in movimientos:
+            materias_descontadas.append({
+                'nombre': m.materia_prima.nombre if m.materia_prima else 'Desconocida',
+                'cantidad': float(m.cantidad or 0),
+                'unidad': m.materia_prima.unidad if m.materia_prima else ''
+            })
+
+        historial.append({
+            'id': prod.id,
+            'cantidad': float(prod.cantidad or 0),
+            'unidad': prod.unidad,
+            'fecha_produccion': prod.fecha_produccion.strftime('%d/%m/%Y') if prod.fecha_produccion else '—',
+            'fecha_creacion': prod.fecha_creacion.strftime('%d/%m/%Y %H:%M') if prod.fecha_creacion else '—',
+            'usuario_nombre': prod.usuario.nombre if prod.usuario else 'Sistema',
+            'observaciones': prod.observaciones or '',
+            'materias_descontadas': materias_descontadas
+        })
+
+    return jsonify({
+        'producto': {
+            'id': producto.id,
+            'nombre': producto.nombre,
+            'unidad': producto.unidad or '',
+            'stock_actual': float(producto.stock_actual or 0),
+            'total_lotes': len(producciones)
+        },
+        'historial': historial
+    })
+
 

@@ -78,26 +78,29 @@ def materias_primas():
 @gerente_requerido
 def nueva_materia_prima():
     """Formulario para registrar una nueva materia prima."""
+    productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
+
     if request.method == 'POST':
         nombre = request.form.get('nombre', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
         unidad = request.form.get('unidad', '').strip()
         stock_minimo_str = request.form.get('stock_minimo', '0').strip()
+        producto_id = request.form.get('producto_id', type=int) or None
 
         # Validaciones
         if not nombre or not unidad:
             flash('El nombre y la unidad son obligatorios.', 'danger')
-            return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima')
+            return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima', productos=productos)
 
         if MateriaPrima.query.filter_by(nombre=nombre).first():
             flash(f'Ya existe una materia prima con el nombre "{nombre}".', 'danger')
-            return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima')
+            return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima', productos=productos)
 
         try:
             stock_minimo = Decimal(stock_minimo_str) if stock_minimo_str else Decimal('0')
         except InvalidOperation:
             flash('El stock mínimo debe ser un número válido.', 'danger')
-            return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima')
+            return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima', productos=productos)
 
         mp = MateriaPrima(
             nombre=nombre,
@@ -105,6 +108,7 @@ def nueva_materia_prima():
             unidad=unidad,
             stock_minimo=stock_minimo,
             stock_actual=Decimal('0'),
+            producto_id=producto_id,
             activo=True
         )
         db.session.add(mp)
@@ -112,7 +116,7 @@ def nueva_materia_prima():
         flash(f'Materia prima "{nombre}" registrada correctamente.', 'success')
         return redirect(url_for('gerente.materias_primas'))
 
-    return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima')
+    return render_template('gerente/nueva_materia_prima.html', title='Nueva Materia Prima', productos=productos)
 
 
 @gerente_bp.route('/materias-primas/<int:mp_id>/ingreso', methods=['GET', 'POST'])
@@ -133,8 +137,13 @@ def ingreso_stock(mp_id):
             flash('La cantidad debe ser un número mayor a cero.', 'danger')
             return render_template('gerente/ingreso_stock.html', title='Registrar Ingreso', mp=mp)
 
-        # Sumar al stock
+        # Sumar al stock de la MP
         mp.agregar_stock(cantidad)
+
+        # Si esta MP está vinculada a un Producto, sumar también a su stock
+        prod_vinc = mp.get_producto_vinculado()
+        if prod_vinc:
+            prod_vinc.agregar_stock(cantidad)
 
         # Registrar movimiento
         movimiento = MovimientoMateriaPrima(
@@ -169,21 +178,21 @@ def movimientos_mp(mp_id):
 @gerente_bp.route('/materias-primas/<int:mp_id>/editar', methods=['GET', 'POST'])
 @gerente_requerido
 def editar_materia_prima(mp_id):
-    """Editar nombre, descripción, unidad y stock mínimo de una materia prima.
-    Al cambiar el nombre se actualiza automáticamente en todas las fórmulas
-    que la usan, ya que se relacionan por ID."""
+    """Editar nombre, descripción, unidad, stock mínimo y producto vinculado de una materia prima."""
     mp = MateriaPrima.query.get_or_404(mp_id)
+    productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
 
     if request.method == 'POST':
         nombre = request.form.get('nombre', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
         unidad = request.form.get('unidad', '').strip()
         stock_minimo_str = request.form.get('stock_minimo', '0').strip()
+        producto_id = request.form.get('producto_id', type=int) or None
 
         if not nombre or not unidad:
             flash('El nombre y la unidad son obligatorios.', 'danger')
             return render_template('gerente/editar_materia_prima.html',
-                                   title=f'Editar — {mp.nombre}', mp=mp)
+                                   title=f'Editar — {mp.nombre}', mp=mp, productos=productos)
 
         # Verificar que el nuevo nombre no lo use otra MP distinta
         duplicada = MateriaPrima.query.filter(
@@ -193,20 +202,21 @@ def editar_materia_prima(mp_id):
         if duplicada:
             flash(f'Ya existe otra materia prima con el nombre "{nombre}".', 'danger')
             return render_template('gerente/editar_materia_prima.html',
-                                   title=f'Editar — {mp.nombre}', mp=mp)
+                                   title=f'Editar — {mp.nombre}', mp=mp, productos=productos)
 
         try:
             stock_minimo = Decimal(stock_minimo_str) if stock_minimo_str else Decimal('0')
         except InvalidOperation:
             flash('El stock mínimo debe ser un número válido.', 'danger')
             return render_template('gerente/editar_materia_prima.html',
-                                   title=f'Editar — {mp.nombre}', mp=mp)
+                                   title=f'Editar — {mp.nombre}', mp=mp, productos=productos)
 
         nombre_anterior = mp.nombre
         mp.nombre = nombre
         mp.descripcion = descripcion or None
         mp.unidad = unidad
         mp.stock_minimo = stock_minimo
+        mp.producto_id = producto_id
         db.session.commit()
 
         if nombre != nombre_anterior:
@@ -218,7 +228,7 @@ def editar_materia_prima(mp_id):
         return redirect(url_for('gerente.materias_primas'))
 
     return render_template('gerente/editar_materia_prima.html',
-                           title=f'Editar — {mp.nombre}', mp=mp)
+                           title=f'Editar — {mp.nombre}', mp=mp, productos=productos)
 
 
 @gerente_bp.route('/materias-primas/<int:mp_id>/formula-propia', methods=['GET', 'POST'])

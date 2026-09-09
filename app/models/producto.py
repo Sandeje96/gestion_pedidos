@@ -50,6 +50,17 @@ class Producto(db.Model):
         """Resta cantidad del stock actual (al completar un pedido)"""
         nuevo = (self.stock_actual or Decimal('0')) - Decimal(str(cantidad))
         self.stock_actual = max(nuevo, Decimal('0'))  # No permitir stock negativo
+
+    def get_materia_prima_vinculada(self):
+        """Devuelve la materia prima vinculada explícitamente o por nombre coincidente."""
+        if hasattr(self, 'materia_prima_vinculada') and self.materia_prima_vinculada:
+            return self.materia_prima_vinculada
+        from app.models.materia_prima import MateriaPrima
+        mp = MateriaPrima.query.filter_by(producto_id=self.id).first()
+        if mp:
+            return mp
+        from sqlalchemy import func
+        return MateriaPrima.query.filter(func.lower(MateriaPrima.nombre) == func.lower(self.nombre)).first()
     
     def to_dict(self):
         """Convierte el producto a diccionario"""

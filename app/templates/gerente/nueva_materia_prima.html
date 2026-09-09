@@ -46,6 +46,23 @@
                         <div class="form-text">Cuando el stock baje de este valor, se mostrará una alerta.</div>
                     </div>
 
+                    <div class="mb-4 p-3 bg-light rounded-3 border">
+                        <label for="producto_id" class="form-label fw-bold text-dark">
+                            <i class="fas fa-link text-primary me-1"></i> Vincular con Producto del Catálogo (Opcional)
+                        </label>
+                        <select class="form-select" id="producto_id" name="producto_id">
+                            <option value="" selected>— Ninguno (Es solo materia prima externa) —</option>
+                            {% for p in productos %}
+                            <option value="{{ p.id }}">
+                                {{ p.nombre }}{% if p.unidad %} ({{ p.unidad }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small mt-2">
+                            <i class="fas fa-info-circle me-1"></i> Si seleccionás un producto, los stocks de ambos se mantendrán sincronizados automáticamente al fabricarse o consumirse.
+                        </div>
+                    </div>
+
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('gerente.materias_primas') }}" class="btn btn-outline-secondary">
                             Cancelar

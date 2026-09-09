@@ -34,11 +34,16 @@ class MateriaPrima(db.Model):
     # Para dar de baja sin eliminar
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
+    # Vinculación opcional con un Producto del catálogo (si esta MP se fabrica como producto)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True, index=True)
+
     # Timestamps
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relaciones
+    producto_vinculado = db.relationship('Producto', backref=db.backref('materia_prima_vinculada', uselist=False),
+                                         foreign_keys=[producto_id])
     formulaciones = db.relationship('FormulacionProducto', backref='materia_prima', lazy='dynamic',
                                     cascade='all, delete-orphan')
     movimientos = db.relationship('MovimientoMateriaPrima', backref='materia_prima', lazy='dynamic',
@@ -60,6 +65,17 @@ class MateriaPrima(db.Model):
         back_populates='componente',
         lazy='dynamic'
     )
+
+    def get_producto_vinculado(self):
+        """Devuelve el producto vinculado explícitamente o por nombre coincidente."""
+        if self.producto_vinculado:
+            return self.producto_vinculado
+        if self.producto_id:
+            from app.models.producto import Producto
+            return Producto.query.get(self.producto_id)
+        from app.models.producto import Producto
+        from sqlalchemy import func
+        return Producto.query.filter(func.lower(Producto.nombre) == func.lower(self.nombre)).first()
 
 
     def __repr__(self):

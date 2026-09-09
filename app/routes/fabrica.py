@@ -51,6 +51,20 @@ def _descontar_stock_pedido(pedido):
             stock_anterior = float(producto.stock_actual or 0)
             producto.descontar_stock(cantidad)
             stock_nuevo = float(producto.stock_actual or 0)
+
+            # Si el producto tiene una materia prima vinculada, descontar también su stock
+            mp_vinc = producto.get_materia_prima_vinculada()
+            if mp_vinc:
+                mp_vinc.descontar_stock(cantidad)
+                mov_mp = MovimientoMateriaPrima(
+                    materia_prima_id=mp_vinc.id,
+                    tipo='ajuste',
+                    cantidad=cantidad,
+                    descripcion=f'Despacho de Pedido #{pedido.id} ({producto.nombre})',
+                    usuario_id=getattr(pedido, 'usuario_id', 1) or 1
+                )
+                db.session.add(mov_mp)
+
             logger.info(
                 f"Stock descontado: {cantidad} de '{producto.nombre}' "
                 f"por pedido #{pedido.id}. {stock_anterior} -> {stock_nuevo}"
@@ -623,6 +637,7 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
     Registra los movimientos de stock de materias primas para una producción.
     materias_primas_data: lista de dicts con {mp_id, cantidad, excluida}
     Permite stock negativo (no bloquea si faltan materias primas).
+    Si una MP consumida está vinculada a un Producto del catálogo, descuenta también de ese Producto.
     """
     produccion = ProduccionDiaria.query.get(produccion_id)
     if produccion and produccion.producto:
@@ -647,8 +662,13 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
         if not mp:
             continue
 
-        # Descontar stock (permite negativo)
+        # Descontar stock de la Materia Prima (permite negativo)
         mp.descontar_stock(cantidad)
+
+        # Si esta MP está vinculada a un Producto, descontar también del Producto
+        prod_vinc = mp.get_producto_vinculado()
+        if prod_vinc:
+            prod_vinc.descontar_stock(cantidad)
 
         # Registrar movimiento
         mov = MovimientoMateriaPrima(
@@ -742,8 +762,25 @@ def produccion():
         # Sumar al stock actual del producto
         producto.agregar_stock(cantidad)
 
+        # Sincronizar con Materia Prima vinculada si este producto es también un insumo
+        mp_vinc = producto.get_materia_prima_vinculada()
+        if mp_vinc:
+            mp_vinc.agregar_stock(cantidad)
+
         # Flush para obtener prod.id antes de los movimientos
         db.session.flush()
+
+        # Registrar movimiento de ingreso para la MP vinculada
+        if mp_vinc:
+            mov_mp_in = MovimientoMateriaPrima(
+                materia_prima_id=mp_vinc.id,
+                tipo='ingreso',
+                cantidad=cantidad,
+                descripcion=f'Ingreso automático por Producción #{prod.id} de {producto.nombre}',
+                produccion_id=prod.id,
+                usuario_id=current_user.id
+            )
+            db.session.add(mov_mp_in)
 
         # Registrar movimientos de materias primas si vienen del modal
         if materias_primas_json:
@@ -754,7 +791,7 @@ def produccion():
                 logger.warning(f'Error procesando materias primas en produccion #{prod.id}: {e}')
 
         db.session.commit()
-        flash(f'Se registraron {cantidad} {unidad} de {producto.nombre} y se descontaron las materias primas.', 'success')
+        flash(f'Se registraron {cantidad} {unidad} de {producto.nombre} y se actualizaron los stocks.', 'success')
         return redirect(url_for('fabrica.produccion'))
 
     # GET: filtrar por fecha
@@ -801,16 +838,23 @@ def eliminar_produccion(prod_id):
 
     if producto:
         producto.descontar_stock(float(prod.cantidad))
+        # Revertir stock de MP vinculada
+        mp_vinc = producto.get_materia_prima_vinculada()
+        if mp_vinc:
+            mp_vinc.descontar_stock(float(prod.cantidad))
 
     # Revertir movimientos de MP asociados a esta producción
     movimientos_mp = MovimientoMateriaPrima.query.filter_by(
-        produccion_id=prod_id,
-        tipo='egreso_produccion'
+        produccion_id=prod_id
     ).all()
     for mov in movimientos_mp:
-        mp = MateriaPrima.query.get(mov.materia_prima_id)
-        if mp:
-            mp.agregar_stock(float(mov.cantidad))
+        if mov.tipo == 'egreso_produccion':
+            mp = MateriaPrima.query.get(mov.materia_prima_id)
+            if mp:
+                mp.agregar_stock(float(mov.cantidad))
+                prod_vinc = mp.get_producto_vinculado()
+                if prod_vinc:
+                    prod_vinc.agregar_stock(float(mov.cantidad))
         db.session.delete(mov)
 
     nombre_prod = producto.nombre if producto else 'desconocido'

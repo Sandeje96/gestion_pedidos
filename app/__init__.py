@@ -147,6 +147,35 @@ def create_app(config_name='development'):
             db.session.rollback()
             print(f"Migración: columna 'grupo_alternativa' ya existe o no se pudo agregar: {e_grupo}")
 
+        # 6. Agregar columna 'producto_id' en materias_primas
+        try:
+            db.session.execute(text("ALTER TABLE materias_primas ADD COLUMN IF NOT EXISTS producto_id INTEGER REFERENCES productos(id)"))
+            db.session.commit()
+        except Exception as e_pid:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE materias_primas ADD COLUMN producto_id INTEGER REFERENCES productos(id)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stock inicial
+        try:
+            from app.models.producto import Producto
+            from sqlalchemy import func
+            mps_sin_vinc = MateriaPrima.query.filter(MateriaPrima.producto_id.is_(None)).all()
+            for mp_item in mps_sin_vinc:
+                prod_match = Producto.query.filter(func.lower(Producto.nombre) == func.lower(mp_item.nombre)).first()
+                if prod_match:
+                    mp_item.producto_id = prod_match.id
+                    # Si el producto tiene stock acumulado pero la MP estaba en 0 o vacía, sincronizar
+                    if float(prod_match.stock_actual or 0) > float(mp_item.stock_actual or 0):
+                        mp_item.stock_actual = prod_match.stock_actual
+            db.session.commit()
+        except Exception as e_vinc:
+            db.session.rollback()
+            print(f"Auto-vinculación inicial MP-Producto: {e_vinc}")
+
 
     # ── Filtros Jinja2 personalizados ──
     def formato_peso(value, decimales=2):

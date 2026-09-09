@@ -624,6 +624,15 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
     materias_primas_data: lista de dicts con {mp_id, cantidad, excluida}
     Permite stock negativo (no bloquea si faltan materias primas).
     """
+    produccion = ProduccionDiaria.query.get(produccion_id)
+    if produccion and produccion.producto:
+        producto_nombre = produccion.producto.nombre
+        cant_prod = float(produccion.cantidad or 0)
+        unid_prod = produccion.unidad or ''
+        desc_base = f'Producción #{produccion_id} - {producto_nombre} ({cant_prod:.2f} {unid_prod})'
+    else:
+        desc_base = f'Producción #{produccion_id}'
+
     for item in materias_primas_data:
         if item.get('excluida'):
             continue
@@ -646,7 +655,7 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
             materia_prima_id=mp_id,
             tipo='egreso_produccion',
             cantidad=cantidad,
-            descripcion=f'Producción #{produccion_id} - {mp.nombre}',
+            descripcion=desc_base,
             produccion_id=produccion_id,
             usuario_id=usuario_id,
         )

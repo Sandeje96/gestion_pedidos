@@ -60,7 +60,13 @@
                         <td class="text-end fw-bold {{ 'text-success' if mov.tipo == 'ingreso' else 'text-danger' }}">
                             {{ '+' if mov.tipo == 'ingreso' else '-' }}{{ mov.cantidad|float|round(3) }} {{ mp.unidad }}
                         </td>
-                        <td>{{ mov.descripcion or '—' }}</td>
+                        <td>
+                            {% if mov.tipo == 'egreso_produccion' and mov.produccion and mov.produccion.producto %}
+                            Producción #{{ mov.produccion_id }} - <strong>{{ mov.produccion.producto.nombre }}</strong> ({{ "%.2f"|format(mov.produccion.cantidad) }} {{ mov.produccion.unidad }})
+                            {% else %}
+                            {{ mov.descripcion_completa }}
+                            {% endif %}
+                        </td>
                         <td class="text-muted small">{{ mov.usuario.nombre if mov.usuario else '—' }}</td>
                     </tr>
                     {% endfor %}

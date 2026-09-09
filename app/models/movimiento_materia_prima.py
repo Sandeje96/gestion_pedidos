@@ -48,6 +48,21 @@ class MovimientoMateriaPrima(db.Model):
 
     # Relaciones
     usuario = db.relationship('Usuario', backref='movimientos_mp_registrados', lazy='joined')
+    produccion = db.relationship('ProduccionDiaria', backref='movimientos_mp', lazy='joined')
+
+    @property
+    def descripcion_completa(self):
+        """
+        Retorna la descripción del movimiento.
+        Para egresos de producción, si existe la producción vinculada,
+        incluye el nombre del producto fabricado y la cantidad de la producción.
+        """
+        if self.tipo == 'egreso_produccion' and self.produccion and self.produccion.producto:
+            p = self.produccion.producto
+            cant = float(self.produccion.cantidad or 0)
+            unid = self.produccion.unidad or ''
+            return f"Producción #{self.produccion_id} - {p.nombre} ({cant:.2f} {unid})"
+        return self.descripcion or '—'
 
     def __repr__(self):
         return f'<MovimientoMP #{self.id} {self.tipo} {self.cantidad} mp_id={self.materia_prima_id}>'
@@ -59,7 +74,7 @@ class MovimientoMateriaPrima(db.Model):
             'materia_prima_nombre': self.materia_prima.nombre if self.materia_prima else None,
             'tipo': self.tipo,
             'cantidad': float(self.cantidad),
-            'descripcion': self.descripcion,
+            'descripcion': self.descripcion_completa,
             'produccion_id': self.produccion_id,
             'usuario_id': self.usuario_id,
             'usuario_nombre': self.usuario.nombre if self.usuario else None,

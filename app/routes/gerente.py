@@ -140,10 +140,10 @@ def ingreso_stock(mp_id):
         # Sumar al stock de la MP
         mp.agregar_stock(cantidad)
 
-        # Si esta MP está vinculada a un Producto, sumar también a su stock
+        # Si esta MP está vinculada a un Producto, mantener ambos stocks exactamente idénticos
         prod_vinc = mp.get_producto_vinculado()
         if prod_vinc:
-            prod_vinc.agregar_stock(cantidad)
+            prod_vinc.stock_actual = mp.stock_actual
 
         # Registrar movimiento
         movimiento = MovimientoMateriaPrima(
@@ -526,6 +526,15 @@ def stock():
         h_info = historico_dict.get(p.id, {'total': 0.0, 'lotes': 0})
         s_info = semanales_dict.get(p.id, {'total': 0.0, 'lotes': 0})
 
+        # Si el producto tiene una MP vinculada, tomar el stock real de la MP
+        mp_vinc = p.get_materia_prima_vinculada()
+        if mp_vinc:
+            stock_val = float(mp_vinc.stock_actual or 0)
+            if p.stock_actual != mp_vinc.stock_actual:
+                p.stock_actual = mp_vinc.stock_actual
+        else:
+            stock_val = float(p.stock_actual or 0)
+
         # Última producción registrada
         ultima_prod = ProduccionDiaria.query.filter_by(producto_id=p.id).order_by(ProduccionDiaria.fecha_creacion.desc()).first()
 
@@ -534,7 +543,7 @@ def stock():
 
         productos_detalle.append({
             'producto': p,
-            'stock_actual': float(p.stock_actual or 0),
+            'stock_actual': stock_val,
             'semanal_total': s_info['total'],
             'semanal_lotes': s_info['lotes'],
             'historico_total': h_info['total'],
@@ -544,7 +553,7 @@ def stock():
 
     # Estadísticas generales para las tarjetas del encabezado
     total_productos = len(productos)
-    productos_con_stock = sum(1 for p in productos if float(p.stock_actual or 0) > 0)
+    productos_con_stock = sum(1 for item in productos_detalle if item['stock_actual'] > 0)
 
     return render_template(
         'gerente/stock.html',
@@ -565,6 +574,8 @@ def historial_producto(producto_id):
     incluyendo detalles del lote, fecha, operario y materias primas descontadas.
     """
     producto = Producto.query.get_or_404(producto_id)
+    mp_vinc = producto.get_materia_prima_vinculada()
+    stock_actual_val = float(mp_vinc.stock_actual if mp_vinc else (producto.stock_actual or 0))
 
     producciones = ProduccionDiaria.query.filter_by(
         producto_id=producto_id
@@ -602,7 +613,7 @@ def historial_producto(producto_id):
             'id': producto.id,
             'nombre': producto.nombre,
             'unidad': producto.unidad or '',
-            'stock_actual': float(producto.stock_actual or 0),
+            'stock_actual': stock_actual_val,
             'total_lotes': len(producciones)
         },
         'historial': historial

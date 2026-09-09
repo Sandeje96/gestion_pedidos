@@ -469,6 +469,7 @@ def produccion():
         mp_vinc = producto.get_materia_prima_vinculada()
         if mp_vinc:
             mp_vinc.agregar_stock(cantidad)
+            producto.stock_actual = mp_vinc.stock_actual
 
         # Flush para obtener prod.id antes de los movimientos
         db.session.flush()

@@ -159,22 +159,22 @@ def create_app(config_name='development'):
             except Exception:
                 db.session.rollback()
 
-        # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stock inicial
+        # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stocks idénticos
         try:
             from app.models.producto import Producto
             from sqlalchemy import func
-            mps_sin_vinc = MateriaPrima.query.filter(MateriaPrima.producto_id.is_(None)).all()
-            for mp_item in mps_sin_vinc:
-                prod_match = Producto.query.filter(func.lower(Producto.nombre) == func.lower(mp_item.nombre)).first()
+            mps = MateriaPrima.query.all()
+            for mp_item in mps:
+                prod_match = mp_item.get_producto_vinculado()
                 if prod_match:
-                    mp_item.producto_id = prod_match.id
-                    # Si el producto tiene stock acumulado pero la MP estaba en 0 o vacía, sincronizar
-                    if float(prod_match.stock_actual or 0) > float(mp_item.stock_actual or 0):
-                        mp_item.stock_actual = prod_match.stock_actual
+                    if mp_item.producto_id is None:
+                        mp_item.producto_id = prod_match.id
+                    # Sincronizar el stock del Producto con el stock real de la Materia Prima
+                    prod_match.stock_actual = mp_item.stock_actual
             db.session.commit()
         except Exception as e_vinc:
             db.session.rollback()
-            print(f"Auto-vinculación inicial MP-Producto: {e_vinc}")
+            print(f"Auto-vinculación y sincronización inicial de stocks: {e_vinc}")
 
 
     # ── Filtros Jinja2 personalizados ──

@@ -35,6 +35,20 @@ def gerente_requerido(f):
     return decorated_function
 
 
+def gerente_o_admin_requerido(f):
+    """
+    Decorador para verificar que el usuario sea Gerente o Administración.
+    """
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not (current_user.es_gerente() or current_user.es_administracion()):
+            flash('No tienes permisos para acceder a esta sección', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # ─────────────────────────────────────────────
 # DASHBOARD
 # ─────────────────────────────────────────────
@@ -67,7 +81,7 @@ def dashboard():
 # ─────────────────────────────────────────────
 
 @gerente_bp.route('/materias-primas')
-@gerente_requerido
+@gerente_o_admin_requerido
 def materias_primas():
     """Lista de todas las materias primas activas."""
     mps = MateriaPrima.query.filter_by(activo=True).order_by(MateriaPrima.nombre).all()
@@ -75,7 +89,7 @@ def materias_primas():
 
 
 @gerente_bp.route('/materias-primas/nueva', methods=['GET', 'POST'])
-@gerente_requerido
+@gerente_o_admin_requerido
 def nueva_materia_prima():
     """Formulario para registrar una nueva materia prima."""
     productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
@@ -120,7 +134,7 @@ def nueva_materia_prima():
 
 
 @gerente_bp.route('/materias-primas/<int:mp_id>/ingreso', methods=['GET', 'POST'])
-@gerente_requerido
+@gerente_o_admin_requerido
 def ingreso_stock(mp_id):
     """Registrar un ingreso de stock para una materia prima (compra)."""
     mp = MateriaPrima.query.get_or_404(mp_id)
@@ -164,7 +178,7 @@ def ingreso_stock(mp_id):
 
 
 @gerente_bp.route('/materias-primas/<int:mp_id>/movimientos')
-@gerente_requerido
+@gerente_o_admin_requerido
 def movimientos_mp(mp_id):
     """Historial de movimientos de una materia prima."""
     mp = MateriaPrima.query.get_or_404(mp_id)
@@ -176,7 +190,7 @@ def movimientos_mp(mp_id):
 
 
 @gerente_bp.route('/materias-primas/<int:mp_id>/editar', methods=['GET', 'POST'])
-@gerente_requerido
+@gerente_o_admin_requerido
 def editar_materia_prima(mp_id):
     """Editar nombre, descripción, unidad, stock mínimo y producto vinculado de una materia prima."""
     mp = MateriaPrima.query.get_or_404(mp_id)
@@ -232,7 +246,7 @@ def editar_materia_prima(mp_id):
 
 
 @gerente_bp.route('/materias-primas/<int:mp_id>/formula-propia', methods=['GET', 'POST'])
-@gerente_requerido
+@gerente_o_admin_requerido
 def formula_materia_prima(mp_id):
     """
     Gestiona la fórmula propia de una Materia Prima.

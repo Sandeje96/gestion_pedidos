@@ -185,9 +185,15 @@
 {% endif %}
 
 <div class="mt-3">
+    {% if current_user.es_administracion() %}
+    <a href="{{ url_for('administracion.dashboard') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Volver al Panel
+    </a>
+    {% else %}
     <a href="{{ url_for('gerente.dashboard') }}" class="btn btn-outline-secondary">
         <i class="fas fa-arrow-left"></i> Volver al Panel
     </a>
+    {% endif %}
 </div>
 {% endblock %}
 

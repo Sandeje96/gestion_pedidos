@@ -486,6 +486,16 @@ def stock():
     # Mostrar solo productos que tienen al menos un registro de producción (cargado/manipulado por la fábrica)
     productos = Producto.query.filter(Producto.id.in_(totales_dict.keys())).order_by(Producto.nombre).all()
 
+    # Sincronizar en base de datos los productos vinculados con materias primas
+    for p in productos:
+        mp_vinc = p.get_materia_prima_vinculada()
+        if mp_vinc and p.stock_actual != mp_vinc.stock_actual:
+            p.stock_actual = mp_vinc.stock_actual
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     return render_template(
         'fabrica/stock.html',
         title='Stock Actual',

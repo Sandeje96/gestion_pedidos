@@ -382,6 +382,16 @@ def stock():
     # Mostrar todo el catálogo disponible para que puedan editarlo o eliminarlo
     productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
 
+    # Sincronizar en base de datos los productos vinculados con materias primas
+    for p in productos:
+        mp_vinc = p.get_materia_prima_vinculada()
+        if mp_vinc and p.stock_actual != mp_vinc.stock_actual:
+            p.stock_actual = mp_vinc.stock_actual
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     return render_template(
         'fabrica/stock.html',
         title='Stock Actual',
@@ -639,7 +649,12 @@ def editar_producto(prod_id):
     
     if nuevo_stock is not None:
         try:
-            producto.stock_actual = float(nuevo_stock)
+            val_stock = float(nuevo_stock)
+            producto.stock_actual = val_stock
+            # Si el producto tiene una MP vinculada, mantener ambos stocks sincronizados
+            mp_vinc = producto.get_materia_prima_vinculada()
+            if mp_vinc:
+                mp_vinc.stock_actual = val_stock
         except ValueError:
             flash('Valor de stock inválido.', 'danger')
     

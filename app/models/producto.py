@@ -61,6 +61,14 @@ class Producto(db.Model):
             return mp
         from sqlalchemy import func
         return MateriaPrima.query.filter(func.lower(MateriaPrima.nombre) == func.lower(self.nombre)).first()
+
+    @property
+    def stock_actual_real(self):
+        """Retorna el stock real: si está vinculado a una Materia Prima, devuelve el stock actual de la MP."""
+        mp = self.get_materia_prima_vinculada()
+        if mp:
+            return float(mp.stock_actual or 0)
+        return float(self.stock_actual or 0)
     
     def to_dict(self):
         """Convierte el producto a diccionario"""
@@ -72,5 +80,5 @@ class Producto(db.Model):
             'unidad': self.unidad,
             'disponible': self.disponible,
             'stock_minimo': float(self.stock_minimo) if self.stock_minimo else 0,
-            'stock_actual': float(self.stock_actual) if self.stock_actual else 0
+            'stock_actual': self.stock_actual_real
         }

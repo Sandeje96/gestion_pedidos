@@ -1,4 +1,4 @@
-﻿<!-- MODAL DE CONFIRMACIÓN DE MATERIAS PRIMAS -->
+<!-- MODAL DE CONFIRMACIÓN DE MATERIAS PRIMAS -->
 <div class="modal fade" id="modalMateriasPrimas" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg">
@@ -12,10 +12,19 @@
                     <p class="mt-2 text-muted">Calculando materias primas...</p>
                 </div>
                 <div id="mp-contenido" style="display:none;">
-                    <div class="alert alert-info small mb-3">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Revisá las cantidades calculadas. Podés editarlas, cambiar variantes o agregar materias primas extra.
-                        El stock puede quedar negativo si no hay suficiente.
+                    <div class="alert alert-primary small mb-3">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        <strong>Control estricto de stock:</strong> Todas las materias primas a consumir deben tener stock suficiente. Si alguna no tiene stock registrado, la carga no se permitirá.
+                    </div>
+                    <!-- Alerta dinámica de stock insuficiente -->
+                    <div id="alerta-stock-insuficiente" class="alert alert-danger mb-3" style="display:none;">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3 text-danger"></i>
+                            <div>
+                                <h6 class="mb-1 fw-bold text-danger">Stock Insuficiente</h6>
+                                <p class="mb-0 small" id="alerta-stock-insuficiente-texto">Hay materias primas sin stock suficiente para esta producción.</p>
+                            </div>
+                        </div>
                     </div>
                     <!-- Tabla de MPs de la fórmula -->
                     <div id="mp-grupos-container"></div>

@@ -13,7 +13,7 @@ from app.models.producto import Producto
 from app.models.produccion import ProduccionDiaria
 from app.models.materia_prima import MateriaPrima
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
-from app.routes.fabrica import _descontar_stock_pedido, _preview_materias_primas, _registrar_movimientos_mp
+from app.routes.fabrica import _descontar_stock_pedido, _preview_materias_primas, _registrar_movimientos_mp, _validar_stock_materias_primas
 from datetime import datetime, date, timedelta
 from functools import wraps
 from sqlalchemy import func
@@ -568,6 +568,19 @@ def produccion():
             return redirect(url_for('administracion.produccion'))
 
         producto = Producto.query.get_or_404(producto_id)
+
+        # Validar stock de materias primas antes de proceder
+        mp_data = []
+        if materias_primas_json:
+            try:
+                mp_data = json.loads(materias_primas_json)
+            except Exception:
+                mp_data = []
+
+        stock_valido, error_stock = _validar_stock_materias_primas(producto_id, cantidad, mp_data)
+        if not stock_valido:
+            flash(error_stock, 'danger')
+            return redirect(url_for('administracion.produccion'))
 
         # Parsear fecha
         try:

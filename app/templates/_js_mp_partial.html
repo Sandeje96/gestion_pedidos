@@ -1,4 +1,4 @@
-﻿<script>
+<script>
 // ─── Estado del modal ───
 var _todasMP = [];
 var _filas = [];   // [{id, nombre, unidad, stock, cantidad, excluida, esExtra, variantesGrupo, grupoId}]
@@ -122,6 +122,7 @@ function renderGrupos(grupos) {
             mp_id: seleccionado.mp_id,
             mp_nombre: seleccionado.mp_nombre,
             mp_unidad: seleccionado.mp_unidad,
+            stock: seleccionado.stock_actual,
             cantidad: seleccionado.cantidad_calculada,
             excluida: false,
             esExtra: false,
@@ -134,6 +135,8 @@ function renderGrupos(grupos) {
             actualizarStockInfo(gi);
         }
     });
+
+    validarStockTotal();
 }
 
 function cambiarVariante(grupoIdx, selectEl) {
@@ -146,10 +149,12 @@ function cambiarVariante(grupoIdx, selectEl) {
     _filas[grupoIdx].mp_id = mp_id;
     _filas[grupoIdx].mp_nombre = opt.text;
     _filas[grupoIdx].mp_unidad = unidad;
+    _filas[grupoIdx].stock = stock;
     _filas[grupoIdx].cantidad = cantidad;
 
     document.getElementById('cant-g' + grupoIdx).value = cantidad;
     actualizarStockInfo(grupoIdx, stock, cantidad, unidad);
+    validarStockTotal();
 }
 
 function actualizarStockInfo(grupoIdx, stock, cantidad, unidad) {
@@ -163,13 +168,25 @@ function actualizarStockInfo(grupoIdx, stock, cantidad, unidad) {
         stock = mp ? mp.stock_actual : 0;
         unidad = _filas[grupoIdx].mp_unidad;
     }
-    var cls = stock < cantidad ? 'text-danger fw-bold' : 'text-success';
-    stockCell.innerHTML = '<small class="' + cls + '">Stock: ' + stock.toFixed(2) + ' ' + (unidad||'') + '</small>';
+    _filas[grupoIdx].stock = stock;
+    var esInsuficiente = stock < cantidad || stock <= 0;
+    var cls = esInsuficiente ? 'text-danger fw-bold' : 'text-success';
+    stockCell.innerHTML = '<small class="' + cls + '"><i class="fas ' + (esInsuficiente ? 'fa-times-circle' : 'fa-check-circle') + ' me-1"></i>Stock: ' + stock.toFixed(2) + ' ' + (unidad||'') + '</small>';
+
+    var card = document.getElementById(_filas[grupoIdx].filaId);
+    if (card && !_filas[grupoIdx].excluida) {
+        if (esInsuficiente) {
+            card.classList.add('border-danger', 'bg-danger', 'bg-opacity-10');
+        } else {
+            card.classList.remove('border-danger', 'bg-danger', 'bg-opacity-10');
+        }
+    }
 }
 
 function actualizarFila(grupoIdx, valor) {
     _filas[grupoIdx].cantidad = parseFloat(valor) || 0;
     actualizarStockInfo(grupoIdx);
+    validarStockTotal();
 }
 
 function excluirFila(filaId, grupoIdx) {
@@ -177,9 +194,59 @@ function excluirFila(filaId, grupoIdx) {
     if (card) {
         card.style.opacity = '0.4';
         card.style.textDecoration = 'line-through';
+        card.classList.remove('border-danger', 'bg-danger', 'bg-opacity-10');
     }
     if (grupoIdx !== null && grupoIdx !== undefined && grupoIdx < _filas.length) {
         _filas[grupoIdx].excluida = true;
+    }
+    validarStockTotal();
+}
+
+// ─── Validación Global de Stock ───
+function validarStockTotal() {
+    var faltantes = [];
+    _filas.forEach(function(f) {
+        if (!f.excluida && f.cantidad > 0) {
+            var stockVal = (typeof f.stock === 'number') ? f.stock : 0;
+            if (stockVal < f.cantidad || stockVal <= 0) {
+                faltantes.push({
+                    nombre: f.mp_nombre,
+                    disponible: stockVal,
+                    requerido: f.cantidad,
+                    unidad: f.mp_unidad || ''
+                });
+            }
+        }
+    });
+
+    var alertaEl = document.getElementById('alerta-stock-insuficiente');
+    var alertaTexto = document.getElementById('alerta-stock-insuficiente-texto');
+    var btnConfirmar = document.getElementById('btn-confirmar-mp');
+
+    if (faltantes.length > 0) {
+        var detalle = '<ul class="mb-0 mt-1 ps-3">';
+        faltantes.forEach(function(item) {
+            detalle += '<li><strong>' + item.nombre + '</strong>: disponible ' + item.disponible.toFixed(2) + ' ' + item.unidad + ' (necesario: ' + item.requerido.toFixed(2) + ' ' + item.unidad + ')</li>';
+        });
+        detalle += '</ul>';
+
+        if (alertaTexto) {
+            alertaTexto.innerHTML = 'No se puede cargar la producción porque las siguientes materias primas no tienen stock suficiente:' + detalle + '<div class="mt-2 fw-semibold text-danger"><i class="fas fa-hand-paper me-1"></i>Actualizá el stock de materias primas para desbloquear el registro.</div>';
+        }
+        if (alertaEl) alertaEl.style.display = 'block';
+
+        if (btnConfirmar) {
+            btnConfirmar.disabled = true;
+            btnConfirmar.className = 'btn btn-danger';
+            btnConfirmar.innerHTML = '<i class="fas fa-ban me-1"></i>Bloqueado por Falta de Stock';
+        }
+    } else {
+        if (alertaEl) alertaEl.style.display = 'none';
+        if (btnConfirmar) {
+            btnConfirmar.disabled = false;
+            btnConfirmar.className = 'btn btn-success';
+            btnConfirmar.innerHTML = '<i class="fas fa-check me-1"></i>Confirmar y Registrar';
+        }
     }
 }
 
@@ -211,29 +278,38 @@ function agregarMPExtraComun(sel, cantInput, containerId) {
 
     var idx = _filas.length;
     var filaId = 'fila-extra-' + idx;
-    var stockCls = stock < cantidad ? 'text-danger' : 'text-success';
+    var esInsuficiente = stock < cantidad || stock <= 0;
+    var stockCls = esInsuficiente ? 'text-danger fw-bold' : 'text-success';
 
     var container = document.getElementById(containerId);
-    var html = '<div class="card mb-2 border-success bg-light" id="' + filaId + '">';
+    var cardCls = esInsuficiente ? 'border-danger bg-danger bg-opacity-10' : 'border-success bg-light';
+    var html = '<div class="card mb-2 ' + cardCls + '" id="' + filaId + '">';
     html += '<div class="card-body py-2 px-3"><div class="row g-2 align-items-center">';
-    html += '<div class="col-md-5"><span class="fw-semibold small text-success"><i class="fas fa-plus-circle me-1"></i>' + nombre + '</span><br>';
-    html += '<small class="' + stockCls + '">Stock: ' + stock.toFixed(2) + '</small></div>';
+    html += '<div class="col-md-5"><span class="fw-semibold small text-dark"><i class="fas fa-plus-circle text-success me-1"></i>' + nombre + '</span><br>';
+    html += '<small class="' + stockCls + '"><i class="fas ' + (esInsuficiente ? 'fa-times-circle' : 'fa-check-circle') + ' me-1"></i>Stock: ' + stock.toFixed(2) + ' ' + (unidad||'') + '</small></div>';
     html += '<div class="col-md-3"><label class="form-label small fw-semibold mb-1">Cant. (' + unidad + '):</label>';
-    html += '<input type="number" class="form-control form-control-sm" value="' + cantidad + '" step="0.001" min="0" onchange="_filas[' + idx + '].cantidad=parseFloat(this.value)||0"></div>';
+    html += '<input type="number" class="form-control form-control-sm" value="' + cantidad + '" step="0.001" min="0" onchange="_filas[' + idx + '].cantidad=parseFloat(this.value)||0; validarStockTotal();"></div>';
     html += '<div class="col-md-3"></div>';
     html += '<div class="col-md-1 text-center"><button type="button" class="btn btn-sm btn-outline-danger rounded-circle p-1" onclick="excluirFila(\'' + filaId + '\',' + idx + ')" style="width:28px;height:28px;line-height:1;"><i class="fas fa-times" style="font-size:.65rem;"></i></button></div>';
     html += '</div></div></div>';
 
     container.innerHTML += html;
 
-    _filas.push({ filaId: filaId, mp_id: mp_id, mp_nombre: nombre, mp_unidad: unidad, cantidad: cantidad, excluida: false, esExtra: true });
+    _filas.push({ filaId: filaId, mp_id: mp_id, mp_nombre: nombre, mp_unidad: unidad, stock: stock, cantidad: cantidad, excluida: false, esExtra: true });
 
     sel.value = '';
     cantInput.value = '';
+    validarStockTotal();
 }
 
 // ─── Confirmar y enviar ───
 function confirmarProduccion() {
+    validarStockTotal();
+    var btnConfirmar = document.getElementById('btn-confirmar-mp');
+    if (btnConfirmar && btnConfirmar.disabled) {
+        return;
+    }
+
     // Construir lista final
     var mpData = _filas.map(function(f) {
         return { mp_id: f.mp_id, cantidad: f.cantidad, excluida: f.excluida };
@@ -253,3 +329,4 @@ function confirmarProduccion() {
     }, 200);
 }
 </script>
+

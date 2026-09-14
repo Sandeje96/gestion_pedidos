@@ -779,11 +779,62 @@ def _preview_materias_primas(producto_id, cantidad):
     return resultado
 
 
+def _validar_stock_materias_primas(producto_id, cantidad, materias_primas_data=None):
+    """
+    Valida que todas las materias primas necesarias para la producción tengan stock suficiente.
+    Retorna (True, None) si todo el stock es suficiente, o (False, mensaje_error) si falta stock.
+    """
+    if materias_primas_data:
+        for item in materias_primas_data:
+            if item.get('excluida'):
+                continue
+
+            mp_id = item.get('mp_id')
+            cant_consumir = float(item.get('cantidad', 0))
+
+            if not mp_id or cant_consumir <= 0:
+                continue
+
+            mp = MateriaPrima.query.get(mp_id)
+            if not mp:
+                continue
+
+            stock_actual = float(mp.stock_actual or 0)
+            if stock_actual < cant_consumir or stock_actual <= 0:
+                return False, (
+                    f"No se puede registrar la producción: La materia prima '{mp.nombre}' no tiene stock suficiente. "
+                    f"Stock disponible: {stock_actual:.2f} {mp.unidad}, requerido: {cant_consumir:.2f} {mp.unidad}. "
+                    f"Por favor, actualicen el stock de materia prima antes de registrar la producción."
+                )
+    else:
+        formulaciones = FormulacionProducto.query.filter_by(producto_id=producto_id).all()
+        grupos_vistos = set()
+        for f in formulaciones:
+            if f.grupo_alternativa is not None:
+                if f.grupo_alternativa in grupos_vistos:
+                    continue
+                grupos_vistos.add(f.grupo_alternativa)
+
+            mp = f.materia_prima
+            if not mp:
+                continue
+
+            cant_necesaria = float(f.cantidad_por_unidad) * float(cantidad)
+            stock_actual = float(mp.stock_actual or 0)
+            if stock_actual < cant_necesaria or stock_actual <= 0:
+                return False, (
+                    f"No se puede registrar la producción: La materia prima '{mp.nombre}' no tiene stock suficiente. "
+                    f"Stock disponible: {stock_actual:.2f} {mp.unidad}, requerido: {cant_necesaria:.2f} {mp.unidad}. "
+                    f"Por favor, actualicen el stock de materia prima antes de registrar la producción."
+                )
+
+    return True, None
+
+
 def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
     """
     Registra los movimientos de stock de materias primas para una producción.
     materias_primas_data: lista de dicts con {mp_id, cantidad, excluida}
-    Permite stock negativo (no bloquea si faltan materias primas).
     Si una MP consumida está vinculada a un Producto del catálogo, descuenta también de ese Producto.
     """
     produccion = ProduccionDiaria.query.get(produccion_id)
@@ -809,7 +860,7 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
         if not mp:
             continue
 
-        # Descontar stock de la Materia Prima (permite negativo)
+        # Descontar stock de la Materia Prima
         mp.descontar_stock(cantidad)
 
         # Si esta MP está vinculada a un Producto, descontar también del Producto
@@ -888,6 +939,19 @@ def produccion():
             return redirect(url_for('fabrica.produccion'))
 
         producto = Producto.query.get_or_404(producto_id)
+
+        # Validar stock de materias primas antes de proceder
+        mp_data = []
+        if materias_primas_json:
+            try:
+                mp_data = json.loads(materias_primas_json)
+            except Exception:
+                mp_data = []
+
+        stock_valido, error_stock = _validar_stock_materias_primas(producto_id, cantidad, mp_data)
+        if not stock_valido:
+            flash(error_stock, 'danger')
+            return redirect(url_for('fabrica.produccion'))
 
         # Parsear fecha
         try:

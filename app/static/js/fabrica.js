@@ -193,8 +193,11 @@ function actualizarEstadoRapido(pedidoId, nuevoEstado) {
             if (selectEstado && estadoAnterior) {
                 selectEstado.value = estadoAnterior;
                 selectEstado.setAttribute('data-estado-actual', estadoAnterior);
+                if (typeof colorEstadoSelect === 'function') {
+                    colorEstadoSelect(selectEstado);
+                }
             }
-            mostrarToast(`Error: ${data.error || 'No se pudo actualizar el estado'}`, 'danger');
+            mostrarToast(data.error || 'No se pudo actualizar el estado', 'danger');
         }
     })
     .catch(error => {
@@ -203,6 +206,9 @@ function actualizarEstadoRapido(pedidoId, nuevoEstado) {
         if (selectEstado && estadoAnterior) {
             selectEstado.value = estadoAnterior;
             selectEstado.setAttribute('data-estado-actual', estadoAnterior);
+            if (typeof colorEstadoSelect === 'function') {
+                colorEstadoSelect(selectEstado);
+            }
         }
         mostrarToast('Error de conexión al actualizar estado', 'danger');
     })

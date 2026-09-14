@@ -24,6 +24,56 @@ import json
 logger = logging.getLogger(__name__)
 
 
+def _verificar_stock_disponible_pedido(pedido):
+    """
+    Verifica si hay stock suficiente en el catálogo (o materia prima vinculada)
+    para poder marcar el pedido como completado.
+    Retorna: (es_valido: bool, mensaje_error: str | None, stock_disponible: float, producto: Producto | None)
+    """
+    producto = None
+
+    # Primero: buscar por ID (pedidos nuevos)
+    if pedido.producto_id:
+        producto = Producto.query.get(pedido.producto_id)
+
+    # Fallback: buscar por nombre (pedidos creados antes del nuevo sistema)
+    if not producto and pedido.producto_nombre:
+        producto = Producto.query.filter(
+            func.lower(Producto.nombre) == pedido.producto_nombre.strip().lower()
+        ).first()
+        if producto:
+            pedido.producto_id = producto.id
+
+    if not producto:
+        return (
+            False,
+            f"El producto '{pedido.producto_nombre}' no está registrado en el catálogo. No se puede completar el pedido sin stock registrado.",
+            0.0,
+            None
+        )
+
+    cantidad_requerida = float(pedido.cantidad or 0)
+    stock_disponible = float(producto.stock_actual_real or 0)
+
+    if stock_disponible <= 0:
+        return (
+            False,
+            f"Stock insuficiente: '{producto.nombre}' no tiene stock disponible (Stock actual: 0 {producto.unidad or ''}). Registrá la producción correspondiente o proponé un ajuste de cantidad.",
+            stock_disponible,
+            producto
+        )
+
+    if stock_disponible < cantidad_requerida:
+        return (
+            False,
+            f"Stock insuficiente para '{producto.nombre}'. Stock disponible: {stock_disponible:g} {producto.unidad or ''}, pero el pedido requiere {cantidad_requerida:g} {producto.unidad or ''}. Registrá la producción o proponé un ajuste parcial.",
+            stock_disponible,
+            producto
+        )
+
+    return (True, None, stock_disponible, producto)
+
+
 def _descontar_stock_pedido(pedido):
     """
     Intenta descontar el stock del producto asociado a un pedido.
@@ -350,8 +400,17 @@ def actualizar_pedido(pedido_id):
         pedido.operario_id = form.operario_id.data if form.operario_id.data else None
         pedido.observaciones_fabrica = form.observaciones_fabrica.data
         
-        # Si se completó, registrar fecha
+        # Si se completó, validar stock disponible y registrar fecha
         if pedido.estado == 'completado' and not pedido.fecha_completado:
+            valido, err_msg, _, _ = _verificar_stock_disponible_pedido(pedido)
+            if not valido:
+                flash(err_msg, 'danger')
+                return render_template(
+                    'fabrica/actualizar_pedido.html',
+                    form=form,
+                    pedido=pedido,
+                    title='Actualizar Pedido'
+                )
             pedido.marcar_como_completado()
             # Descontar stock con fallback por nombre
             try:
@@ -546,8 +605,16 @@ def actualizar_estado_rapido(pedido_id):
         # Inicializar info_stock siempre para evitar UnboundLocalError
         info_stock = None
 
-        # Si se completó, registrar fecha
+        # Si se completó, validar stock disponible y registrar fecha
         if nuevo_estado == 'completado' and not pedido.fecha_completado:
+            valido, err_msg, _, _ = _verificar_stock_disponible_pedido(pedido)
+            if not valido:
+                return jsonify({
+                    'success': False,
+                    'error': err_msg,
+                    'bloqueado_por_stock': True
+                }), 400
+
             pedido.marcar_como_completado()
             # Descontar stock con fallback por nombre
             try:

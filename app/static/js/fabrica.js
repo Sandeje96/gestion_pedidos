@@ -256,14 +256,15 @@ function marcarComoVisto(pedidoId) {
         if (data.success) {
             const pedidoRow = document.querySelector(`[data-pedido-id="${pedidoId}"]`);
             if (pedidoRow) {
-                // Remover fondo rojo y animación
-                pedidoRow.classList.remove('table-danger', 'animate-highlight');
+                // Remover fondo verde/rojo y bordes
+                pedidoRow.classList.remove('table-success', 'table-danger', 'border-2', 'border-success', 'animate-highlight');
                 
-                // Remover badge "¡MODIFICADO!"
-                const badge = pedidoRow.querySelector('.badge.bg-danger');
-                if (badge && badge.textContent.includes('¡MODIFICADO!')) {
-                    badge.remove();
-                }
+                // Remover badges de modificado / respuesta
+                pedidoRow.querySelectorAll('.badge.bg-danger, .badge.bg-success').forEach(b => {
+                    if (b.textContent.includes('MODIFICADO') || b.textContent.includes('Respuesta') || b.textContent.includes('Desbloqueado')) {
+                        b.remove();
+                    }
+                });
                 
                 // Remover botón de marcar visto
                 const botonVisto = pedidoRow.querySelector('.btn-success[onclick*="marcarComoVisto"]');
@@ -276,7 +277,7 @@ function marcarComoVisto(pedidoId) {
                 actualizarBadgesClientes();
             }
             
-            mostrarToast('Pedido marcado como visto', 'success');
+            mostrarToast('Confirmación recibida: pedido listo para operar', 'success');
         }
     })
     .catch(error => {

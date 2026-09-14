@@ -312,6 +312,7 @@
                                                                     data-ruta="{{ cliente.ruta }}"
                                                                     data-operario-id="{{ pedido.operario_id or '' }}"
                                                                     data-cantidad="{{ pedido.cantidad|float }}"
+                                                                    data-producto-id="{{ pedido.producto_id }}"
                                                                     data-unidad="{{ pedido.unidad or '' }}">
                                                                     
                                                                     <td><strong>#{{ pedido.id }}</strong></td>
@@ -319,8 +320,9 @@
                                                                     <td>
                                                                         <strong>{{ pedido.producto_nombre }}</strong>
                                                                         {% if pedido.modificado and not pedido.visto_por_fabrica %}
-                                                                            <span class="badge bg-danger">
-                                                                                <i class="fas fa-exclamation-triangle"></i> ¡MODIFICADO!
+                                                                            <br>
+                                                                            <span class="badge bg-success animate-pulse mt-1">
+                                                                                <i class="fas fa-check-circle"></i> ¡Respuesta recibida!
                                                                             </span>
                                                                         {% endif %}
                                                                         {% if pedido.notas_vendedor %}
@@ -361,6 +363,9 @@
                                                                                 <i class="fas fa-reply"></i> Esperando contestación
                                                                             </span>
                                                                         {% else %}
+                                                                            {% if pedido.modificado and not pedido.visto_por_fabrica %}
+                                                                                <span class="badge bg-success d-block mb-1"><i class="fas fa-unlock me-1"></i> Desbloqueado</span>
+                                                                            {% endif %}
                                                                             <select class="form-select form-select-sm estado-select" 
                                                                                     data-pedido-id="{{ pedido.id }}"
                                                                                     data-estado-actual="{{ pedido.estado }}"
@@ -422,10 +427,10 @@
                                                                             </a>
                                                                             
                                                                             {% if pedido.modificado and not pedido.visto_por_fabrica %}
-                                                                                <button class="btn btn-sm btn-success"
+                                                                                <button class="btn btn-sm btn-success fw-bold shadow-sm animate-pulse"
                                                                                         onclick="marcarComoVisto({{ pedido.id }})"
-                                                                                        title="Marcar como visto">
-                                                                                    <i class="fas fa-check"></i>
+                                                                                        title="Dar el OK y confirmar que viste la respuesta">
+                                                                                    <i class="fas fa-check me-1"></i> Dar OK
                                                                                 </button>
                                                                             {% endif %}
 

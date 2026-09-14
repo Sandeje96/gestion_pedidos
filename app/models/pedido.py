@@ -134,6 +134,7 @@ class Pedido(db.Model):
         self.cantidad_propuesta = None
         self.ajuste_nota_fabrica = None
         self.esperando_contestacion = False
+        self.modificado = True
         self.visto_por_fabrica = False
         self.fecha_actualizacion = datetime.utcnow()
 
@@ -146,6 +147,7 @@ class Pedido(db.Model):
         self.cantidad_propuesta = None
         self.ajuste_nota_fabrica = None
         self.esperando_contestacion = False
+        self.modificado = True
         self.visto_por_fabrica = False
         self.fecha_actualizacion = datetime.utcnow()
 

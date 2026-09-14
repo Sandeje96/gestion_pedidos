@@ -159,6 +159,42 @@ def create_app(config_name='development'):
             except Exception:
                 db.session.rollback()
 
+        # 8. Agregar columna 'ajuste_pendiente' en pedidos
+        try:
+            db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ajuste_pendiente BOOLEAN DEFAULT FALSE NOT NULL"))
+            db.session.commit()
+        except Exception as e_ajuste_pend:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE pedidos ADD COLUMN ajuste_pendiente BOOLEAN DEFAULT FALSE NOT NULL"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # 9. Agregar columna 'cantidad_propuesta' en pedidos
+        try:
+            db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS cantidad_propuesta NUMERIC(10,2)"))
+            db.session.commit()
+        except Exception as e_cant_prop:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE pedidos ADD COLUMN cantidad_propuesta NUMERIC(10,2)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # 10. Agregar columna 'ajuste_nota_fabrica' en pedidos
+        try:
+            db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS ajuste_nota_fabrica TEXT"))
+            db.session.commit()
+        except Exception as e_nota_fab:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE pedidos ADD COLUMN ajuste_nota_fabrica TEXT"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
         # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stocks idénticos
         try:
             from app.models.producto import Producto

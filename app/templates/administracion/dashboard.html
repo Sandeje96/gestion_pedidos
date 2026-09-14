@@ -127,6 +127,28 @@
         </div>
     </div>
 
+    <!-- ── ALERTA DE PROPUESTAS DE AJUSTE PENDIENTES DE FÁBRICA ── -->
+    {% if total_ajustes > 0 %}
+    <div class="alert alert-danger border-0 shadow-sm d-flex align-items-center justify-content-between p-3 rounded-4 mb-4 animate-pulse">
+        <div class="d-flex align-items-center">
+            <div class="me-3 p-2 bg-danger text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 46px; height: 46px;">
+                <i class="fas fa-exchange-alt fa-lg"></i>
+            </div>
+            <div>
+                <h5 class="mb-0 fw-bold text-danger">
+                    <i class="fas fa-bell me-1"></i> Fábrica solicitó ajuste parcial en {{ total_ajustes }} pedido(s)
+                </h5>
+                <p class="mb-0 text-muted small">
+                    Fábrica no cuenta con el stock completo y propuso una cantidad menor para pedidos de sucursales. Debes <strong>Aprobar</strong> o <strong>Rechazar</strong> la propuesta para desbloquear el pedido.
+                </p>
+            </div>
+        </div>
+        <button class="btn btn-danger fw-bold rounded-pill px-4 shadow-sm" onclick="document.getElementById('fabrica-tab').click(); window.location.hash='#accordionFabrica';">
+            <i class="fas fa-arrow-down me-1"></i> Ver en Pedidos de Fábrica ({{ ajustes_fabrica }})
+        </button>
+    </div>
+    {% endif %}
+
     <!-- Tarjetas de Estadísticas Administrativas -->
     <div class="row mb-4">
         <!-- Minoristas -->
@@ -210,18 +232,27 @@
                     <button class="nav-link active shadow-sm" id="minoristas-tab" data-bs-toggle="tab" data-bs-target="#minoristas-panel" type="button" role="tab">
                         <i class="fas fa-shopping-bag me-2 text-primary"></i> PEDIDOS MINORISTAS
                         <span class="badge bg-secondary ms-2" id="badge-count-minoristas">{{ total_minoristas }}</span>
+                        {% if ajustes_minoristas > 0 %}
+                        <span class="badge bg-danger ms-1 animate-pulse" title="Ajustes pendientes de fábrica"><i class="fas fa-exchange-alt"></i> {{ ajustes_minoristas }}</span>
+                        {% endif %}
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link shadow-sm" id="mayoristas-tab" data-bs-toggle="tab" data-bs-target="#mayoristas-panel" type="button" role="tab">
                         <i class="fas fa-warehouse me-2 text-success"></i> PEDIDOS MAYORISTAS
                         <span class="badge bg-secondary ms-2" id="badge-count-mayoristas">{{ total_mayoristas }}</span>
+                        {% if ajustes_mayoristas > 0 %}
+                        <span class="badge bg-danger ms-1 animate-pulse" title="Ajustes pendientes de fábrica"><i class="fas fa-exchange-alt"></i> {{ ajustes_mayoristas }}</span>
+                        {% endif %}
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link shadow-sm" id="fabrica-tab" data-bs-toggle="tab" data-bs-target="#fabrica-panel" type="button" role="tab">
+                    <button class="nav-link shadow-sm position-relative" id="fabrica-tab" data-bs-toggle="tab" data-bs-target="#fabrica-panel" type="button" role="tab">
                         <i class="fas fa-industry me-2 text-info"></i> PEDIDOS DE FÁBRICA
                         <span class="badge bg-secondary ms-2" id="badge-count-fabrica">{{ total_fabrica + total_ventas_fabrica }}</span>
+                        {% if ajustes_fabrica > 0 %}
+                        <span class="badge bg-danger ms-1 animate-pulse" title="Fábrica propuso cambios pendientes de aprobación"><i class="fas fa-exchange-alt me-1"></i>{{ ajustes_fabrica }} ajuste(s)</span>
+                        {% endif %}
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -232,6 +263,7 @@
             </ul>
         </div>
     </div>
+
 
     <!-- Contenido de las Pestañas -->
     <div class="tab-content" id="adminTabsContent">
@@ -405,13 +437,16 @@
                 <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionMayoristas">
                     {% for group in pedidos_mayoristas|groupby('cliente.nombre') %}
                     {% set loop_index = loop.index %}
-                    {% set ns = namespace(pendientes=0, sin_despachar=0) %}
+                    {% set ns = namespace(pendientes=0, sin_despachar=0, ajustes=0) %}
                     {% for p in group.list %}
                         {% if p.estado == 'pendiente' %}
                             {% set ns.pendientes = ns.pendientes + 1 %}
                         {% endif %}
                         {% if not p.despachado %}
                             {% set ns.sin_despachar = ns.sin_despachar + 1 %}
+                        {% endif %}
+                        {% if p.ajuste_pendiente %}
+                            {% set ns.ajustes = ns.ajustes + 1 %}
                         {% endif %}
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
@@ -427,6 +462,9 @@
                                 <span class="badge bg-success rounded-pill ms-3 font-monospace" title="Total de pedidos en este lote">{{ group.list|length }} pedido(s)</span>
                                 {% if ns.pendientes > 0 %}
                                 <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace" title="Pedidos con estado Pendiente"><i class="fas fa-clock"></i> {{ ns.pendientes }} pendientes</span>
+                                {% endif %}
+                                {% if ns.ajustes > 0 %}
+                                <span class="badge bg-danger rounded-pill ms-2 font-monospace animate-pulse" title="Propuestas de ajuste de Fábrica pendientes"><i class="fas fa-exchange-alt"></i> {{ ns.ajustes }} ajuste(s) de Fábrica</span>
                                 {% endif %}
                                 {% if ns.sin_despachar > 0 %}
                                 <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace" title="Pedidos pendientes de despacho"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
@@ -457,11 +495,21 @@
                                         </thead>
                                         <tbody id="lista-pedidos-mayoristas-{{ loop_index }}">
                                             {% for pedido in group.list %}
-                                            <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
+                                            <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.ajuste_pendiente %}table-warning{% elif pedido.modificado %}table-warning{% endif %}">
                                                 <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
                                                 <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
-                                                <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
-                                                <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                <td class="fw-semibold">
+                                                    {{ pedido.producto_nombre }}
+                                                    {% if pedido.ajuste_pendiente %}
+                                                        <br><span class="badge bg-danger animate-pulse mt-1"><i class="fas fa-exchange-alt"></i> Ajuste de Fábrica</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center fw-bold text-primary">
+                                                    {{ "%.2f"|format(pedido.cantidad) }}
+                                                    {% if pedido.ajuste_pendiente and pedido.cantidad_propuesta %}
+                                                        <br><small class="text-danger fw-bold">Prop: {{ pedido.cantidad_propuesta|float|round(2) }}</small>
+                                                    {% endif %}
+                                                </td>
                                                 <td>{{ pedido.unidad or 'unidades' }}</td>
                                                 <td class="text-center" id="estado-badge-{{ pedido.id }}">
                                                     {% if pedido.estado == 'pendiente' %}
@@ -494,25 +542,43 @@
                                                     {% if pedido.observaciones_fabrica %}
                                                     <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
                                                     {% endif %}
-                                                    {% if pedido.notes_vendedor %}
+                                                    {% if pedido.notas_vendedor %}
                                                     <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
                                                     {% endif %}
-                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                    {% if pedido.ajuste_nota_fabrica %}
+                                                    <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
+                                                    {% endif %}
+                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                     <span class="text-muted small font-monospace">-</span>
                                                     {% endif %}
                                                 </td>
                                                 <td class="text-center">
-                                                    <div class="d-flex gap-2 justify-content-center">
+                                                    <div class="d-flex gap-2 justify-content-center flex-wrap">
                                                         <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
                                                         <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
                                                             <i class="fas fa-comments m-0"></i>
                                                         </a>
+                                                        {% if pedido.ajuste_pendiente %}
+                                                        <button class="btn btn-danger btn-sm rounded-pill px-3 animate-pulse fw-bold"
+                                                                onclick="abrirModalResolverAjuste(
+                                                                    {{ pedido.id }},
+                                                                    {{ pedido.cantidad|float }},
+                                                                    {{ pedido.cantidad_propuesta|float }},
+                                                                    '{{ pedido.unidad or '' }}',
+                                                                    '{{ pedido.producto_nombre|e }}',
+                                                                    '{{ (pedido.ajuste_nota_fabrica or '')|e }}',
+                                                                    'administracion'
+                                                                )">
+                                                            <i class="fas fa-exchange-alt"></i> Resolver
+                                                        </button>
+                                                        {% endif %}
                                                     </div>
                                                 </td>
                                             </tr>
                                             {% endfor %}
+
                                         </tbody>
                                     </table>
                                 </div>
@@ -535,13 +601,16 @@
                 <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionFabrica">
                     {% for group in pedidos_fabrica|groupby('cliente.nombre') %}
                     {% set loop_index = loop.index %}
-                    {% set ns = namespace(pendientes=0, sin_despachar=0) %}
+                    {% set ns = namespace(pendientes=0, sin_despachar=0, ajustes=0) %}
                     {% for p in group.list %}
                         {% if p.estado == 'pendiente' or p.estado == 'en_proceso' %}
                             {% set ns.pendientes = ns.pendientes + 1 %}
                         {% endif %}
                         {% if not p.despachado %}
                             {% set ns.sin_despachar = ns.sin_despachar + 1 %}
+                        {% endif %}
+                        {% if p.ajuste_pendiente %}
+                            {% set ns.ajustes = ns.ajustes + 1 %}
                         {% endif %}
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
@@ -555,6 +624,9 @@
                                     style="background-color: #f8f9fa; color: #212529;">
                                  <i class="fas fa-store text-info me-2"></i> Lote {{ group.grouper }} 
                                 <span class="badge bg-info text-white rounded-pill ms-3 font-monospace" title="Total de pedidos en este lote">{{ group.list|length }} pedido(s)</span>
+                                {% if ns.ajustes > 0 %}
+                                <span class="badge bg-danger rounded-pill ms-2 font-monospace animate-pulse" title="Fábrica propuso cambios pendientes de aprobación"><i class="fas fa-exchange-alt"></i> {{ ns.ajustes }} ajuste(s) de Fábrica</span>
+                                {% endif %}
                                 {% if ns.pendientes > 0 %}
                                 <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace" title="Pedidos pendientes o en proceso"><i class="fas fa-clock"></i> {{ ns.pendientes }} en preparación</span>
                                 {% endif %}
@@ -582,16 +654,26 @@
                                                  <th class="py-3 text-center" style="width: 160px;">Estado</th>
                                                  <th class="py-3 text-center" style="width: 180px;">Despachado</th>
                                                  <th class="py-3">Observaciones / Notas</th>
-                                                 <th class="py-3 text-center" style="width: 120px;">Acciones</th>
+                                                 <th class="py-3 text-center" style="width: 160px;">Acciones</th>
                                              </tr>
                                          </thead>
                                          <tbody id="lista-pedidos-fabrica-{{ loop_index }}">
                                              {% for pedido in group.list %}
-                                             <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
+                                             <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.ajuste_pendiente %}table-warning{% elif pedido.modificado %}table-warning{% endif %}">
                                                  <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
                                                  <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
-                                                 <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
-                                                 <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                 <td class="fw-semibold">
+                                                     {{ pedido.producto_nombre }}
+                                                     {% if pedido.ajuste_pendiente %}
+                                                         <br><span class="badge bg-danger animate-pulse mt-1"><i class="fas fa-exchange-alt"></i> Ajuste de Fábrica</span>
+                                                     {% endif %}
+                                                 </td>
+                                                 <td class="text-center fw-bold text-primary">
+                                                     {{ "%.2f"|format(pedido.cantidad) }}
+                                                     {% if pedido.ajuste_pendiente and pedido.cantidad_propuesta %}
+                                                         <br><small class="text-danger fw-bold">Prop: {{ pedido.cantidad_propuesta|float|round(2) }}</small>
+                                                     {% endif %}
+                                                 </td>
                                                  <td>{{ pedido.unidad or 'unidades' }}</td>
                                                  <td class="text-center" id="estado-badge-{{ pedido.id }}">
                                                      {% if pedido.estado == 'pendiente' %}
@@ -627,19 +709,41 @@
                                                      {% if pedido.notas_vendedor %}
                                                      <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
                                                      {% endif %}
-                                                     {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                     {% if pedido.ajuste_nota_fabrica %}
+                                                     <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
+                                                     {% endif %}
+                                                     {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                      <span class="text-muted small font-monospace">-</span>
                                                      {% endif %}
                                                  </td>
                                                  <td class="text-center">
-                                                     <div class="d-flex gap-2 justify-content-center">
+                                                     <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                                         <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3" title="Editar Pedido">
+                                                             <i class="fas fa-edit"></i>
+                                                         </a>
                                                          <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2" title="Chat y Mensajes">
                                                              <i class="fas fa-comments m-0"></i>
                                                          </a>
+                                                         {% if pedido.ajuste_pendiente %}
+                                                         <button class="btn btn-danger btn-sm rounded-pill px-3 animate-pulse fw-bold"
+                                                                 title="Aceptar o rechazar ajuste propuesto por Fábrica"
+                                                                 onclick="abrirModalResolverAjuste(
+                                                                     {{ pedido.id }},
+                                                                     {{ pedido.cantidad|float }},
+                                                                     {{ pedido.cantidad_propuesta|float }},
+                                                                     '{{ pedido.unidad or '' }}',
+                                                                     '{{ pedido.producto_nombre|e }}',
+                                                                     '{{ (pedido.ajuste_nota_fabrica or '')|e }}',
+                                                                     'administracion'
+                                                                 )">
+                                                             <i class="fas fa-exchange-alt"></i> Resolver
+                                                         </button>
+                                                         {% endif %}
                                                      </div>
                                                  </td>
                                              </tr>
                                              {% endfor %}
+
                                          </tbody>
                                      </table>
                                  </div>

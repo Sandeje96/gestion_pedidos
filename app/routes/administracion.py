@@ -224,6 +224,12 @@ def dashboard():
     despachados_fabrica = sum(1 for p in pedidos_fabrica if p.despachado)
     despachados_ventas_fabrica = sum(1 for p in pedidos_ventas_fabrica if p.despachado)
 
+    # Ajustes pendientes solicitados por fábrica
+    ajustes_fabrica = sum(1 for p in pedidos_fabrica if p.ajuste_pendiente)
+    ajustes_minoristas = sum(1 for p in pedidos_minoristas if p.ajuste_pendiente)
+    ajustes_mayoristas = sum(1 for p in pedidos_mayoristas if p.ajuste_pendiente)
+    total_ajustes = ajustes_fabrica + ajustes_minoristas + ajustes_mayoristas
+
     return render_template(
         'administracion/dashboard.html',
         title='Panel de Administración',
@@ -248,6 +254,10 @@ def dashboard():
         despachados_mayoristas=despachados_mayoristas,
         despachados_fabrica=despachados_fabrica,
         despachados_ventas_fabrica=despachados_ventas_fabrica,
+        ajustes_fabrica=ajustes_fabrica,
+        ajustes_minoristas=ajustes_minoristas,
+        ajustes_mayoristas=ajustes_mayoristas,
+        total_ajustes=total_ajustes,
         Pedido=Pedido
     )
 

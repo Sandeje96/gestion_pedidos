@@ -145,6 +145,17 @@
                                         </span>
                                     {% endif %}
 
+                                    {# Badge de ajuste parcial pendiente en esta ruta #}
+                                    {% set ajuste_ruta = namespace(count=0) %}
+                                    {% for cliente in clientes %}
+                                        {% set ajuste_ruta.count = ajuste_ruta.count + cliente.pedidos.filter_by(archivado=False, ajuste_pendiente=True).count() %}
+                                    {% endfor %}
+                                    {% if ajuste_ruta.count > 0 %}
+                                        <span class="badge bg-danger ms-2 animate-pulse">
+                                            <i class="fas fa-exchange-alt"></i> {{ ajuste_ruta.count }} ajuste(s) de fábrica
+                                        </span>
+                                    {% endif %}
+
                                     {# Badge de litros totales en esta ruta #}
                                     {% set litros_ruta = litros_por_ruta.get(ruta, 0) %}
                                     {% if litros_ruta > 0 %}
@@ -233,6 +244,14 @@
                                                             <i class="fas fa-bell"></i> Respuestas nuevas
                                                         </span>
                                                     {% endif %}
+
+                                                    {# Badge de ajuste parcial pendiente por cliente #}
+                                                    {% set ajuste_cliente = cliente.pedidos.filter_by(archivado=False, ajuste_pendiente=True).count() %}
+                                                    {% if ajuste_cliente > 0 %}
+                                                        <span class="badge bg-danger ms-2 animate-pulse">
+                                                            <i class="fas fa-exchange-alt"></i> {{ ajuste_cliente }} ajuste(s)
+                                                        </span>
+                                                    {% endif %}
                                                 </button>
                                             </h2>
                                             <div id="collapseCliente{{ cliente.id }}" 
@@ -294,7 +313,7 @@
                                                                 </thead>
                                                                 <tbody>
                                                                     {% for pedido in cliente.pedidos.filter_by(archivado=False).order_by(Pedido.fecha_creacion.desc()) %}
-                                                                    <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado %}table-danger{% endif %}" 
+                                                                    <tr class="pedido-row estado-{{ pedido.estado }} {% if pedido.modificado %}table-danger{% elif pedido.ajuste_pendiente %}table-warning{% endif %}" 
                                                                         id="pedido-{{ pedido.id }}"
                                                                         data-estado="{{ pedido.estado }}">
                                                                         <td>
@@ -304,8 +323,22 @@
                                                                                     <i class="fas fa-exclamation-circle"></i> Modificado
                                                                                 </span>
                                                                             {% endif %}
+                                                                            {% if pedido.ajuste_pendiente %}
+                                                                                <br>
+                                                                                <span class="badge bg-danger animate-pulse mt-1">
+                                                                                    <i class="fas fa-exchange-alt"></i> Fábrica propone ajuste
+                                                                                </span>
+                                                                            {% endif %}
                                                                         </td>
-                                                                        <td>{{ pedido.cantidad }} {{ pedido.unidad or '' }}</td>
+                                                                        <td>
+                                                                            {{ pedido.cantidad }} {{ pedido.unidad or '' }}
+                                                                            {% if pedido.ajuste_pendiente and pedido.cantidad_propuesta %}
+                                                                                <br>
+                                                                                <small class="text-danger fw-bold">
+                                                                                    Fábrica: {{ pedido.cantidad_propuesta|float|round(2) }} {{ pedido.unidad or '' }}
+                                                                                </small>
+                                                                            {% endif %}
+                                                                        </td>
                                                                         <td>
                                                                             {% if pedido.estado == 'pendiente' %}
                                                                                 <span class="badge bg-secondary">Pendiente</span>
@@ -361,29 +394,46 @@
                                                                             {% endif %}
                                                                         </td>
                                                                         <td class="text-nowrap">
-                                                                            <a href="{{ url_for('ventas.ver_mensajes_pedido', pedido_id=pedido.id) }}"
-                                                                               class="btn btn-sm btn-info"
-                                                                               title="Ver conversación">
-                                                                                <i class="fas fa-comments"></i>
-                                                                            </a>
-                                                                            <a href="{{ url_for('ventas.editar_pedido', pedido_id=pedido.id) }}"
-                                                                               class="btn btn-sm btn-warning">
-                                                                                <i class="fas fa-edit"></i>
-                                                                            </a>
-                                                                            <button class="btn btn-sm {% if pedido.despachado %}btn-success{% else %}btn-outline-success{% endif %}"
-                                                                                    id="btn-desp-{{ pedido.id }}"
-                                                                                    onclick="despacharPedido({{ pedido.id }})"
-                                                                                    title="{% if pedido.despachado %}Marcar como NO despachado{% else %}Marcar como despachado{% endif %}">
-                                                                                <i class="fas fa-truck"></i>
-                                                                            </button>
-                                                                            <form method="POST"
-                                                                                  action="{{ url_for('ventas.eliminar_pedido', pedido_id=pedido.id) }}"
-                                                                                  style="display: inline;"
-                                                                                  onsubmit="return confirm('¿Eliminar este pedido?');">
-                                                                                <button type="submit" class="btn btn-sm btn-danger">
-                                                                                    <i class="fas fa-trash"></i>
+                                                                            <div class="d-flex flex-wrap gap-1">
+                                                                                <a href="{{ url_for('ventas.ver_mensajes_pedido', pedido_id=pedido.id) }}"
+                                                                                   class="btn btn-sm btn-info"
+                                                                                   title="Ver conversación">
+                                                                                    <i class="fas fa-comments"></i>
+                                                                                </a>
+                                                                                <a href="{{ url_for('ventas.editar_pedido', pedido_id=pedido.id) }}"
+                                                                                   class="btn btn-sm btn-warning">
+                                                                                    <i class="fas fa-edit"></i>
+                                                                                </a>
+                                                                                <button class="btn btn-sm {% if pedido.despachado %}btn-success{% else %}btn-outline-success{% endif %}"
+                                                                                        id="btn-desp-{{ pedido.id }}"
+                                                                                        onclick="despacharPedido({{ pedido.id }})"
+                                                                                        title="{% if pedido.despachado %}Marcar como NO despachado{% else %}Marcar como despachado{% endif %}">
+                                                                                    <i class="fas fa-truck"></i>
                                                                                 </button>
-                                                                            </form>
+                                                                                <form method="POST"
+                                                                                      action="{{ url_for('ventas.eliminar_pedido', pedido_id=pedido.id) }}"
+                                                                                      style="display: inline;"
+                                                                                      onsubmit="return confirm('¿Eliminar este pedido?');">
+                                                                                    <button type="submit" class="btn btn-sm btn-danger">
+                                                                                        <i class="fas fa-trash"></i>
+                                                                                    </button>
+                                                                                </form>
+                                                                                {% if pedido.ajuste_pendiente %}
+                                                                                    <button class="btn btn-sm btn-danger fw-bold animate-pulse"
+                                                                                            title="Resolver propuesta de ajuste de Fábrica"
+                                                                                            onclick="abrirModalResolverAjuste(
+                                                                                                {{ pedido.id }},
+                                                                                                {{ pedido.cantidad|float }},
+                                                                                                {{ pedido.cantidad_propuesta|float }},
+                                                                                                '{{ pedido.unidad or '' }}',
+                                                                                                '{{ pedido.producto_nombre|e }}',
+                                                                                                '{{ (pedido.ajuste_nota_fabrica or '')|e }}',
+                                                                                                'ventas'
+                                                                                            )">
+                                                                                        <i class="fas fa-exchange-alt"></i> Resolver
+                                                                                    </button>
+                                                                                {% endif %}
+                                                                            </div>
                                                                         </td>
                                                                     </tr>
                                                                     {% endfor %}
@@ -420,6 +470,87 @@
         </div>
     </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: Resolver propuesta de ajuste de Fábrica (Ventas)
+     ══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalResolverAjuste" tabindex="-1" aria-labelledby="modalResolverLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="modalResolverLabel">
+                    <i class="fas fa-exchange-alt me-2"></i> Propuesta de Ajuste de Fábrica
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary">
+                    <strong>Producto:</strong> <span id="resolver-producto" class="fw-bold"></span>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card border-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Cantidad Original</h6>
+                                <h3 class="fw-bold text-dark" id="resolver-cantidad-original"></h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-warning bg-warning bg-opacity-10">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Fábrica Propone Enviar</h6>
+                                <h3 class="fw-bold text-warning" id="resolver-cantidad-propuesta"></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3" id="resolver-nota-container">
+                    <label class="form-label fw-semibold">Nota de Fábrica</label>
+                    <div class="p-2 bg-light rounded" id="resolver-nota"></div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <label class="fw-semibold mb-2">Tu respuesta:</label>
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <button class="btn btn-success" onclick="seleccionarRespuesta('aprobar')">
+                            <i class="fas fa-check me-1"></i> Aprobar propuesta de Fábrica
+                        </button>
+                        <button class="btn btn-warning" onclick="seleccionarRespuesta('contraproponer')">
+                            <i class="fas fa-edit me-1"></i> Contraproponerr cantidad distinta
+                        </button>
+                        <button class="btn btn-danger" onclick="seleccionarRespuesta('rechazar')">
+                            <i class="fas fa-times me-1"></i> Rechazar
+                        </button>
+                    </div>
+                    <!-- Panel de contraproposición -->
+                    <div id="panel-contraproponer" class="d-none mb-3">
+                        <label class="form-label fw-semibold">Nueva cantidad aprobada</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="resolver-nueva-cantidad"
+                                   min="0.01" step="0.01" placeholder="Ej: 4">
+                            <span class="input-group-text" id="resolver-unidad"></span>
+                        </div>
+                        <small class="text-muted">Dejá vacío para usar la cantidad propuesta por Fábrica.</small>
+                    </div>
+                    <div id="panel-nota-respuesta" class="d-none">
+                        <label class="form-label">Nota / Motivo (opcional)</label>
+                        <textarea class="form-control" id="resolver-nota-respuesta" rows="2"
+                                  placeholder="Ej: Está bien, envien lo que tienen..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary fw-bold" id="btn-confirmar-resolver" 
+                        onclick="confirmarResolucionAjuste()" disabled>
+                    <i class="fas fa-paper-plane me-1"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

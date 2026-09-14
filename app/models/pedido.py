@@ -34,7 +34,11 @@ class Pedido(db.Model):
     cantidad_envases = db.Column(db.Numeric(10, 2), nullable=True) # Cantidad de envases pedidos
     litros_por_presentacion = db.Column(db.Numeric(10, 4), nullable=True)  # Factor de conversión guardado
 
-    
+    # ── Ajuste parcial de cantidad (propuesto por Fábrica) ──
+    ajuste_pendiente = db.Column(db.Boolean, default=False, nullable=False)  # Hay una propuesta en vuelo
+    cantidad_propuesta = db.Column(db.Numeric(10, 2), nullable=True)          # Cantidad que Fábrica propone enviar
+    ajuste_nota_fabrica = db.Column(db.Text, nullable=True)                   # Nota/motivo de la propuesta
+
     # Estado del pedido
     estado = db.Column(
         db.String(20), 
@@ -96,6 +100,55 @@ class Pedido(db.Model):
     def marcar_como_visto_por_vendedor(self):
         """Marca que el vendedor ya vió la actualización de fábrica"""
         self.visto_por_vendedor = True
+
+    # ── Métodos de ajuste parcial de cantidad ──
+
+    def solicitar_ajuste(self, cantidad_propuesta, nota=None):
+        """
+        Fábrica propone enviar una cantidad menor a la pedida.
+        El pedido queda bloqueado hasta que el receptor resuelva.
+        """
+        self.ajuste_pendiente = True
+        self.cantidad_propuesta = cantidad_propuesta
+        self.ajuste_nota_fabrica = nota
+        self.visto_por_vendedor = False
+        self.esperando_contestacion = True
+        self.fecha_actualizacion = datetime.utcnow()
+
+    def aprobar_ajuste(self, nueva_cantidad=None):
+        """
+        Ventas/Admin aprueba la propuesta de Fábrica.
+        Si se pasa `nueva_cantidad` (contraproposición), se usa esa.
+        De lo contrario se usa la propuesta original de Fábrica.
+        Actualiza `cantidad` y limpia el estado de ajuste.
+        """
+        cantidad_final = nueva_cantidad if nueva_cantidad is not None else self.cantidad_propuesta
+        self.cantidad = cantidad_final
+        # Si tenía envases, los limpiamos para evitar inconsistencia
+        if self.presentacion and self.litros_por_presentacion:
+            from decimal import Decimal
+            lpp = float(self.litros_por_presentacion)
+            if lpp > 0:
+                self.cantidad_envases = float(cantidad_final) / lpp
+        self.ajuste_pendiente = False
+        self.cantidad_propuesta = None
+        self.ajuste_nota_fabrica = None
+        self.esperando_contestacion = False
+        self.visto_por_fabrica = False
+        self.fecha_actualizacion = datetime.utcnow()
+
+    def rechazar_ajuste(self):
+        """
+        Ventas/Admin rechaza la propuesta. La cantidad original NO cambia.
+        El pedido vuelve a estado normal (pendiente), Fábrica recibe notificación.
+        """
+        self.ajuste_pendiente = False
+        self.cantidad_propuesta = None
+        self.ajuste_nota_fabrica = None
+        self.esperando_contestacion = False
+        self.visto_por_fabrica = False
+        self.fecha_actualizacion = datetime.utcnow()
+
     
     def to_dict(self):
         """Convierte el pedido a diccionario"""
@@ -123,8 +176,13 @@ class Pedido(db.Model):
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
             'fecha_actualizacion': self.fecha_actualizacion.isoformat() if self.fecha_actualizacion else None,
             'fecha_completado': self.fecha_completado.isoformat() if self.fecha_completado else None,
-            'esperando_contestacion': self.esperando_contestacion
+            'esperando_contestacion': self.esperando_contestacion,
+            # Ajuste parcial de cantidad
+            'ajuste_pendiente': self.ajuste_pendiente,
+            'cantidad_propuesta': float(self.cantidad_propuesta) if self.cantidad_propuesta is not None else None,
+            'ajuste_nota_fabrica': self.ajuste_nota_fabrica,
         }
+
     
     def archivar(self, semana):
         """

@@ -118,6 +118,143 @@ def fabrica_o_admin_requerido(f):
     return decorated_function
 
 
+# ─────────────────────────────────────────────
+# SECCIÓN: AJUSTE PARCIAL DE CANTIDAD
+# ─────────────────────────────────────────────
+
+@fabrica_bp.route('/pedido/<int:pedido_id>/solicitar-ajuste', methods=['POST'])
+@operario_requerido
+def solicitar_ajuste(pedido_id):
+    """
+    Fábrica propone enviar una cantidad menor a la pedida.
+    El pedido queda bloqueado (ajuste_pendiente=True) hasta que el receptor resuelva.
+    La solicitud llega a Ventas (si el cliente no es SUCURSALES) o a Administración.
+    """
+    from app.models.mensaje_pedido import MensajePedido
+    from app.models.cliente import Cliente
+
+    pedido = Pedido.query.get_or_404(pedido_id)
+
+    if pedido.destinatario != 'fabrica':
+        return jsonify({'success': False, 'error': 'Pedido no pertenece a fábrica'}), 403
+
+    if pedido.archivado:
+        return jsonify({'success': False, 'error': 'El pedido está archivado'}), 400
+
+    if pedido.estado in ['completado', 'cancelado']:
+        return jsonify({'success': False, 'error': 'No se puede solicitar ajuste en un pedido completado o cancelado'}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    cantidad_propuesta = data.get('cantidad_propuesta')
+    nota = data.get('nota', '').strip() or None
+
+    # Validaciones
+    try:
+        cantidad_propuesta = float(cantidad_propuesta)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'Cantidad propuesta inválida'}), 400
+
+    if cantidad_propuesta <= 0:
+        return jsonify({'success': False, 'error': 'La cantidad propuesta debe ser mayor a cero'}), 400
+
+    cantidad_original = float(pedido.cantidad)
+    if cantidad_propuesta >= cantidad_original:
+        return jsonify({'success': False, 'error': f'La cantidad propuesta ({cantidad_propuesta}) debe ser menor a la original ({cantidad_original})'}), 400
+
+    try:
+        pedido.solicitar_ajuste(cantidad_propuesta, nota)
+
+        # Mensaje en el historial de chat
+        texto_mensaje = (
+            f"📦 PROPUESTA DE AJUSTE DE CANTIDAD\n"
+            f"• Cantidad original: {cantidad_original:g} {pedido.unidad or ''}\n"
+            f"• Cantidad que podemos enviar: {cantidad_propuesta:g} {pedido.unidad or ''}"
+        )
+        if nota:
+            texto_mensaje += f"\n• Motivo: {nota}"
+
+        mensaje = MensajePedido(
+            pedido_id=pedido.id,
+            usuario_id=current_user.id,
+            mensaje=texto_mensaje,
+            tipo='solicitud_ajuste',
+            leido=False
+        )
+        db.session.add(mensaje)
+        db.session.commit()
+
+        # Emitir WebSocket
+        socketio.emit('pedido_ajuste_solicitado', {
+            'pedido': pedido.to_dict(),
+            'cantidad_propuesta': cantidad_propuesta,
+            'cantidad_original': cantidad_original,
+            'nota': nota,
+            'operario': current_user.nombre,
+        }, namespace='/')
+
+        logger.info(
+            f"Ajuste solicitado: pedido #{pedido.id} — "
+            f"original={cantidad_original}, propuesta={cantidad_propuesta} — por {current_user.username}"
+        )
+
+        return jsonify({
+            'success': True,
+            'message': 'Solicitud de ajuste enviada correctamente',
+            'pedido': pedido.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error en solicitar_ajuste pedido #{pedido_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@fabrica_bp.route('/pedido/<int:pedido_id>/cancelar-ajuste', methods=['POST'])
+@operario_requerido
+def cancelar_ajuste(pedido_id):
+    """
+    Fábrica retira su propuesta de ajuste.
+    El pedido vuelve al estado normal (sin ajuste pendiente).
+    """
+    from app.models.mensaje_pedido import MensajePedido
+
+    pedido = Pedido.query.get_or_404(pedido_id)
+
+    if pedido.destinatario != 'fabrica':
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+
+    if not pedido.ajuste_pendiente:
+        return jsonify({'success': False, 'error': 'No hay ajuste pendiente en este pedido'}), 400
+
+    try:
+        cantidad_propuesta_anterior = float(pedido.cantidad_propuesta) if pedido.cantidad_propuesta else None
+        pedido.rechazar_ajuste()  # Reutilizamos la misma lógica de limpieza
+
+        mensaje = MensajePedido(
+            pedido_id=pedido.id,
+            usuario_id=current_user.id,
+            mensaje=f"🔄 Fábrica retiró la propuesta de ajuste (cantidad propuesta era: {cantidad_propuesta_anterior:g} {pedido.unidad or ''}).",
+            tipo='ajuste_cancelado',
+            leido=False
+        )
+        db.session.add(mensaje)
+        db.session.commit()
+
+        socketio.emit('pedido_ajuste_cancelado', {
+            'pedido': pedido.to_dict(),
+        }, namespace='/')
+
+        return jsonify({
+            'success': True,
+            'message': 'Propuesta de ajuste retirada',
+            'pedido': pedido.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @fabrica_bp.route('/dashboard')
 @operario_requerido
 def dashboard():

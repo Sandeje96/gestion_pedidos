@@ -772,3 +772,160 @@ socket.on('pedido_modificado', function(data) {
         mostrarToast(`Pedido #${pedido.id} modificado`, 'warning');
     }
 });
+
+
+// ══════════════════════════════════════════════════════════════════════
+// SECCIÓN: AJUSTE PARCIAL DE CANTIDAD (Fábrica)
+// ══════════════════════════════════════════════════════════════════════
+
+// Estado interno del modal de ajuste
+let _ajustePedidoId = null;
+let _ajusteCantidadOriginal = 0;
+
+/**
+ * Abre el modal de propuesta de cantidad parcial.
+ * Llamado desde el botón naranja en cada fila de pedido.
+ */
+function abrirModalAjuste(pedidoId, cantidadOriginal, unidad, productoNombre) {
+    _ajustePedidoId = pedidoId;
+    _ajusteCantidadOriginal = cantidadOriginal;
+
+    document.getElementById('ajuste-producto-nombre').textContent = productoNombre;
+    document.getElementById('ajuste-cantidad-original').value = cantidadOriginal;
+    document.getElementById('ajuste-unidad-original').textContent = unidad;
+    document.getElementById('ajuste-unidad-propuesta').textContent = unidad;
+    document.getElementById('ajuste-cantidad-propuesta').value = '';
+    document.getElementById('ajuste-nota').value = '';
+    document.getElementById('ajuste-cantidad-error').classList.add('d-none');
+    document.getElementById('btn-enviar-ajuste').disabled = false;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalAjusteParcial'));
+    modal.show();
+}
+
+/**
+ * Valida que la cantidad propuesta sea válida (> 0 y < original).
+ */
+function validarCantidadAjuste() {
+    const input = document.getElementById('ajuste-cantidad-propuesta');
+    const errorDiv = document.getElementById('ajuste-cantidad-error');
+    const val = parseFloat(input.value);
+
+    if (isNaN(val) || val <= 0) {
+        errorDiv.textContent = 'Ingresá una cantidad mayor a cero.';
+        errorDiv.classList.remove('d-none');
+        return false;
+    }
+    if (val >= _ajusteCantidadOriginal) {
+        errorDiv.textContent = `La cantidad propuesta debe ser menor a la original (${_ajusteCantidadOriginal}).`;
+        errorDiv.classList.remove('d-none');
+        return false;
+    }
+    errorDiv.classList.add('d-none');
+    return true;
+}
+
+/**
+ * Envía la solicitud de ajuste al backend.
+ */
+async function enviarSolicitudAjuste() {
+    if (!validarCantidadAjuste()) return;
+
+    const cantidadPropuesta = parseFloat(document.getElementById('ajuste-cantidad-propuesta').value);
+    const nota = document.getElementById('ajuste-nota').value.trim();
+    const btnEnviar = document.getElementById('btn-enviar-ajuste');
+
+    btnEnviar.disabled = true;
+    btnEnviar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Enviando...';
+
+    try {
+        const resp = await fetch(`/fabrica/pedido/${_ajustePedidoId}/solicitar-ajuste`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cantidad_propuesta: cantidadPropuesta, nota })
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalAjusteParcial')).hide();
+            mostrarToast(`Propuesta enviada: ${cantidadPropuesta} unidades`, 'warning');
+            // Recargar para reflejar el nuevo estado de la fila
+            setTimeout(() => location.reload(), 800);
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo enviar la propuesta'));
+            btnEnviar.disabled = false;
+            btnEnviar.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Enviar Propuesta';
+        }
+    } catch (e) {
+        alert('Error de conexión al enviar la propuesta.');
+        btnEnviar.disabled = false;
+        btnEnviar.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Enviar Propuesta';
+    }
+}
+
+/**
+ * Fábrica retira su propuesta de ajuste.
+ */
+async function cancelarAjuste(pedidoId) {
+    if (!confirm('¿Deseas retirar tu propuesta de ajuste? El pedido volverá al estado normal.')) return;
+
+    try {
+        const resp = await fetch(`/fabrica/pedido/${pedidoId}/cancelar-ajuste`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            mostrarToast('Propuesta de ajuste retirada', 'info');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo retirar la propuesta'));
+        }
+    } catch (e) {
+        alert('Error de conexión.');
+    }
+}
+
+// ── Listener WebSocket: Fábrica recibe resolución del ajuste ──
+socket.on('pedido_ajuste_resuelto', function(data) {
+    const pedido = data.pedido;
+    const accion = data.accion;
+    const resuelto_por = data.resuelto_por;
+
+    // Mostrar modal de notificación
+    const header = document.getElementById('modalRespuestaHeader');
+    const titulo = document.getElementById('modalRespuestaTitulo');
+    const body = document.getElementById('modalRespuestaBody');
+
+    if (accion === 'aprobar') {
+        header.className = 'modal-header bg-success text-white';
+        titulo.innerHTML = '<i class="fas fa-check-circle me-2"></i> ¡Ajuste Aprobado!';
+        body.innerHTML = `
+            <div class="alert alert-success">
+                <strong>${resuelto_por}</strong> aprobó tu propuesta de ajuste para el pedido #${pedido.id}.
+            </div>
+            <p class="mb-1"><strong>Producto:</strong> ${pedido.producto_nombre}</p>
+            <p class="mb-0"><strong>Nueva cantidad aprobada:</strong> <span class="fw-bold text-success">${pedido.cantidad} ${pedido.unidad || ''}</span></p>
+            <p class="mt-2 text-muted small">Ya podés marcar el pedido como completado.</p>
+        `;
+    } else {
+        header.className = 'modal-header bg-danger text-white';
+        titulo.innerHTML = '<i class="fas fa-times-circle me-2"></i> Propuesta Rechazada';
+        body.innerHTML = `
+            <div class="alert alert-danger">
+                <strong>${resuelto_por}</strong> rechazó tu propuesta de ajuste para el pedido #${pedido.id}.
+            </div>
+            <p class="mb-1"><strong>Producto:</strong> ${pedido.producto_nombre}</p>
+            <p class="mb-0"><strong>Cantidad original mantiene:</strong> <span class="fw-bold">${pedido.cantidad} ${pedido.unidad || ''}</span></p>
+            <p class="mt-2 text-muted small">Podés hacer una nueva propuesta o comunicarte con ventas/administración.</p>
+        `;
+    }
+
+    const modal = new bootstrap.Modal(document.getElementById('modalRespuestaAjuste'));
+    modal.show();
+
+    // También reproducir sonido si existe
+    const audio = document.getElementById('notification-sound');
+    if (audio) audio.play().catch(() => {});
+});

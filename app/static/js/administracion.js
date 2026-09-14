@@ -235,3 +235,123 @@ socket.on('pedido_actualizado', function(data) {
         }
     }
 });
+
+
+// ══════════════════════════════════════════════════════════════════════
+// SECCIÓN: AJUSTE PARCIAL DE CANTIDAD (Administración — Resolución)
+// ══════════════════════════════════════════════════════════════════════
+
+let _resolverPedidoId = null;
+let _resolverAccion = null;
+let _resolverBlueprint = null;
+
+function abrirModalResolverAjuste(pedidoId, cantidadOriginal, cantidadPropuesta, unidad, producto, notaFabrica, blueprint) {
+    _resolverPedidoId = pedidoId;
+    _resolverAccion = null;
+    _resolverBlueprint = blueprint;
+
+    document.getElementById('resolver-producto').textContent = producto;
+    document.getElementById('resolver-cantidad-original').textContent = `${cantidadOriginal} ${unidad}`;
+    document.getElementById('resolver-cantidad-propuesta').textContent = `${cantidadPropuesta} ${unidad}`;
+    document.getElementById('resolver-unidad').textContent = unidad;
+
+    const notaDiv = document.getElementById('resolver-nota');
+    const notaContainer = document.getElementById('resolver-nota-container');
+    if (notaFabrica && notaFabrica.trim()) {
+        notaDiv.textContent = notaFabrica;
+        notaContainer.classList.remove('d-none');
+    } else {
+        notaContainer.classList.add('d-none');
+    }
+
+    document.getElementById('panel-contraproponer').classList.add('d-none');
+    document.getElementById('panel-nota-respuesta').classList.add('d-none');
+    document.getElementById('resolver-nueva-cantidad').value = '';
+    document.getElementById('resolver-nota-respuesta').value = '';
+    document.getElementById('btn-confirmar-resolver').disabled = true;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalResolverAjuste'));
+    modal.show();
+}
+
+function seleccionarRespuesta(accion) {
+    _resolverAccion = accion;
+
+    const panelContraproponer = document.getElementById('panel-contraproponer');
+    const panelNota = document.getElementById('panel-nota-respuesta');
+
+    if (accion === 'contraproponer') {
+        panelContraproponer.classList.remove('d-none');
+        panelNota.classList.remove('d-none');
+    } else if (accion === 'rechazar') {
+        panelContraproponer.classList.add('d-none');
+        panelNota.classList.remove('d-none');
+    } else {
+        panelContraproponer.classList.add('d-none');
+        panelNota.classList.add('d-none');
+    }
+
+    document.getElementById('btn-confirmar-resolver').disabled = false;
+}
+
+async function confirmarResolucionAjuste() {
+    if (!_resolverAccion || !_resolverPedidoId) return;
+
+    const btnConfirmar = document.getElementById('btn-confirmar-resolver');
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Procesando...';
+
+    const nota = document.getElementById('resolver-nota-respuesta').value.trim();
+    let accion = _resolverAccion === 'contraproponer' ? 'aprobar' : _resolverAccion;
+    let nuevaCantidad = null;
+
+    if (_resolverAccion === 'contraproponer') {
+        const val = parseFloat(document.getElementById('resolver-nueva-cantidad').value);
+        if (!isNaN(val) && val > 0) nuevaCantidad = val;
+    }
+
+    const url = `/${_resolverBlueprint}/pedido/${_resolverPedidoId}/resolver-ajuste`;
+    const body = { accion, nota };
+    if (nuevaCantidad !== null) body.nueva_cantidad = nuevaCantidad;
+
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalResolverAjuste')).hide();
+            showAdminToast(accion === 'aprobar' ? 'Ajuste aprobado' : 'Propuesta rechazada', 'success');
+            setTimeout(() => location.reload(), 800);
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo resolver el ajuste'));
+            btnConfirmar.disabled = false;
+            btnConfirmar.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Confirmar';
+        }
+    } catch (e) {
+        alert('Error de conexión.');
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Confirmar';
+    }
+}
+
+// ── Listener WebSocket: Admin recibe solicitud de ajuste de Fábrica ──
+socket.on('pedido_ajuste_solicitado', function(data) {
+    const pedido = data.pedido;
+    const cantidadPropuesta = data.cantidad_propuesta;
+    const cantidadOriginal = data.cantidad_original;
+    const operario = data.operario;
+
+    const row = document.getElementById(`pedido-row-${pedido.id}`);
+    if (row) row.classList.add('table-warning');
+
+    showAdminToast(
+        `⚠️ Fábrica propone ajuste — Pedido #${pedido.id}: ${cantidadPropuesta} en lugar de ${cantidadOriginal}`,
+        'warning'
+    );
+    playNotifSound();
+});
+

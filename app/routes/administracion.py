@@ -37,6 +37,110 @@ def administracion_requerido(f):
     return decorated_function
 
 
+# ─────────────────────────────────────────────
+# SECCIÓN: AJUSTE PARCIAL DE CANTIDAD
+# ─────────────────────────────────────────────
+
+@administracion_bp.route('/pedido/<int:pedido_id>/resolver-ajuste', methods=['POST'])
+@administracion_requerido
+def resolver_ajuste(pedido_id):
+    """
+    Administración resuelve una solicitud de ajuste de cantidad propuesta por Fábrica.
+    Acciones posibles:
+      - 'aprobar': acepta la cantidad propuesta por Fábrica (o una cantidad nueva si contraproponemos).
+      - 'rechazar': rechaza la propuesta; la cantidad original queda intacta.
+    """
+    pedido = Pedido.query.get_or_404(pedido_id)
+
+    # Solo pedidos de fábrica con ajuste pendiente
+    if pedido.destinatario not in ['fabrica', 'admin_minorista', 'admin_mayorista']:
+        return jsonify({'success': False, 'error': 'Pedido no elegible para resolución de ajuste'}), 403
+
+    if not pedido.ajuste_pendiente:
+        return jsonify({'success': False, 'error': 'No hay ajuste pendiente en este pedido'}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    accion = data.get('accion')  # 'aprobar' | 'rechazar'
+    nueva_cantidad_raw = data.get('nueva_cantidad')
+    nota_respuesta = data.get('nota', '').strip() or None
+
+    if accion not in ['aprobar', 'rechazar']:
+        return jsonify({'success': False, 'error': 'Acción inválida. Use "aprobar" o "rechazar"'}), 400
+
+    try:
+        cantidad_original = float(pedido.cantidad)
+        cantidad_propuesta_fab = float(pedido.cantidad_propuesta) if pedido.cantidad_propuesta else None
+
+        if accion == 'aprobar':
+            # Determinar cantidad final: contraproposición o la de Fábrica
+            if nueva_cantidad_raw is not None:
+                try:
+                    nueva_cantidad = float(nueva_cantidad_raw)
+                    if nueva_cantidad <= 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    return jsonify({'success': False, 'error': 'Nueva cantidad inválida'}), 400
+            else:
+                nueva_cantidad = None  # Usar la propuesta de Fábrica
+
+            cantidad_final = nueva_cantidad if nueva_cantidad is not None else cantidad_propuesta_fab
+            pedido.aprobar_ajuste(nueva_cantidad)
+
+            texto_mensaje = (
+                f"✅ AJUSTE APROBADO por Administración\n"
+                f"• Cantidad original: {cantidad_original:g} {pedido.unidad or ''}\n"
+                f"• Cantidad propuesta por Fábrica: {cantidad_propuesta_fab:g} {pedido.unidad or ''}\n"
+                f"• Cantidad APROBADA: {cantidad_final:g} {pedido.unidad or ''}"
+            )
+            if nota_respuesta:
+                texto_mensaje += f"\n• Nota: {nota_respuesta}"
+
+            tipo_mensaje = 'ajuste_aprobado'
+            evento_ws = 'pedido_ajuste_resuelto'
+
+        else:  # rechazar
+            pedido.rechazar_ajuste()
+            texto_mensaje = (
+                f"❌ AJUSTE RECHAZADO por Administración\n"
+                f"• Cantidad original mantiene: {cantidad_original:g} {pedido.unidad or ''}\n"
+                f"• Propuesta de Fábrica ({cantidad_propuesta_fab:g}) fue rechazada"
+            )
+            if nota_respuesta:
+                texto_mensaje += f"\n• Motivo: {nota_respuesta}"
+
+            tipo_mensaje = 'ajuste_rechazado'
+            evento_ws = 'pedido_ajuste_resuelto'
+
+        # Notificar a Fábrica
+        pedido.visto_por_fabrica = False
+
+        from app.models.mensaje_pedido import MensajePedido
+        mensaje = MensajePedido(
+            pedido_id=pedido.id,
+            usuario_id=current_user.id,
+            mensaje=texto_mensaje,
+            tipo=tipo_mensaje,
+            leido=False
+        )
+        db.session.add(mensaje)
+        db.session.commit()
+
+        socketio.emit(evento_ws, {
+            'pedido': pedido.to_dict(),
+            'accion': accion,
+            'resuelto_por': current_user.nombre,
+        }, namespace='/')
+
+        return jsonify({
+            'success': True,
+            'message': f'Ajuste {"aprobado" if accion == "aprobar" else "rechazado"} correctamente',
+            'pedido': pedido.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @administracion_bp.route('/dashboard')
 @administracion_requerido
 def dashboard():

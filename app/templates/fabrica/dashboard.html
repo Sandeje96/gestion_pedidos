@@ -182,6 +182,17 @@
                                             </span>
                                         {% endif %}
 
+                                        <!-- Badge de ajuste parcial pendiente en esta ruta -->
+                                        {% set ajuste_ruta = namespace(count=0) %}
+                                        {% for cliente in clientes %}
+                                            {% set ajuste_ruta.count = ajuste_ruta.count + cliente.pedidos.filter_by(archivado=False, ajuste_pendiente=True, destinatario='fabrica').count() %}
+                                        {% endfor %}
+                                        {% if ajuste_ruta.count > 0 %}
+                                            <span class="badge bg-warning text-dark ms-2 animate-pulse">
+                                                <i class="fas fa-exchange-alt"></i> {{ ajuste_ruta.count }} ajuste(s) pendiente(s)
+                                            </span>
+                                        {% endif %}
+
                                         <!-- Badge de litros totales en esta ruta -->
                                         {% set litros_ruta = litros_por_ruta.get(ruta, 0) %}
                                         {% if litros_ruta > 0 %}
@@ -227,6 +238,14 @@
                                                         {% if esperando_count > 0 %}
                                                             <span class="badge bg-info ms-2">
                                                                 <i class="fas fa-reply"></i> {{ esperando_count }} esperando
+                                                            </span>
+                                                        {% endif %}
+
+                                                        <!-- Badge de ajuste parcial pendiente -->
+                                                        {% set ajuste_count = cliente.pedidos.filter_by(archivado=False, ajuste_pendiente=True, destinatario='fabrica').count() %}
+                                                        {% if ajuste_count > 0 %}
+                                                            <span class="badge bg-warning text-dark ms-2 animate-pulse">
+                                                                <i class="fas fa-exchange-alt"></i> {{ ajuste_count }} ajuste(s)
                                                             </span>
                                                         {% endif %}
                                                         
@@ -324,16 +343,27 @@
                                                                         {% else %}
                                                                             <strong>{{ "%.2f"|format(pedido.cantidad|float) }}</strong> {{ pedido.unidad or '' }}
                                                                         {% endif %}
+                                                                        {% if pedido.ajuste_pendiente %}
+                                                                            <br>
+                                                                            <span class="badge bg-warning text-dark mt-1">
+                                                                                <i class="fas fa-exchange-alt"></i> Prop: {{ pedido.cantidad_propuesta|float|round(2) }} {{ pedido.unidad or '' }}
+                                                                            </span>
+                                                                        {% endif %}
                                                                     </td>
                                                                     
                                                                     <td>
-                                                                        {% if pedido.esperando_contestacion %}
+                                                                        {% if pedido.ajuste_pendiente %}
+                                                                            <span class="badge bg-warning text-dark">
+                                                                                <i class="fas fa-hourglass-half"></i> Esperando aprobación de ajuste
+                                                                            </span>
+                                                                        {% elif pedido.esperando_contestacion %}
                                                                             <span class="badge bg-info">
                                                                                 <i class="fas fa-reply"></i> Esperando contestación
                                                                             </span>
                                                                         {% else %}
                                                                             <select class="form-select form-select-sm estado-select" 
                                                                                     data-pedido-id="{{ pedido.id }}"
+                                                                                    data-estado-actual="{{ pedido.estado }}"
                                                                                     onchange="actualizarEstadoRapido({{ pedido.id }}, this.value)">
                                                                                 <option value="pendiente" {% if pedido.estado == 'pendiente' %}selected{% endif %}>
                                                                                     Pendiente
@@ -379,24 +409,42 @@
                                                                     </td>
                                                                     
                                                                     <td>
-                                                                        <a href="{{ url_for('fabrica.ver_mensajes_pedido', pedido_id=pedido.id) }}" 
-                                                                           class="btn btn-sm btn-info"
-                                                                           title="Ver conversación">
-                                                                            <i class="fas fa-comments"></i>
-                                                                        </a>
-                                                                        <a href="{{ url_for('fabrica.actualizar_pedido', pedido_id=pedido.id) }}" 
-                                                                           class="btn btn-sm btn-primary"
-                                                                           title="Actualizar pedido">
-                                                                            <i class="fas fa-edit"></i>
-                                                                        </a>
-                                                                        
-                                                                        {% if pedido.modificado and not pedido.visto_por_fabrica %}
-                                                                            <button class="btn btn-sm btn-success"
-                                                                                    onclick="marcarComoVisto({{ pedido.id }})"
-                                                                                    title="Marcar como visto">
-                                                                                <i class="fas fa-check"></i>
-                                                                            </button>
-                                                                        {% endif %}
+                                                                        <div class="d-flex flex-wrap gap-1">
+                                                                            <a href="{{ url_for('fabrica.ver_mensajes_pedido', pedido_id=pedido.id) }}" 
+                                                                               class="btn btn-sm btn-info"
+                                                                               title="Ver conversación">
+                                                                                <i class="fas fa-comments"></i>
+                                                                            </a>
+                                                                            <a href="{{ url_for('fabrica.actualizar_pedido', pedido_id=pedido.id) }}" 
+                                                                               class="btn btn-sm btn-primary"
+                                                                               title="Actualizar pedido">
+                                                                                <i class="fas fa-edit"></i>
+                                                                            </a>
+                                                                            
+                                                                            {% if pedido.modificado and not pedido.visto_por_fabrica %}
+                                                                                <button class="btn btn-sm btn-success"
+                                                                                        onclick="marcarComoVisto({{ pedido.id }})"
+                                                                                        title="Marcar como visto">
+                                                                                    <i class="fas fa-check"></i>
+                                                                                </button>
+                                                                            {% endif %}
+
+                                                                            {% if not pedido.ajuste_pendiente and pedido.estado == 'pendiente' %}
+                                                                                <!-- Botón para proponer cantidad parcial -->
+                                                                                <button class="btn btn-sm btn-warning"
+                                                                                        title="Proponer cantidad parcial"
+                                                                                        onclick="abrirModalAjuste({{ pedido.id }}, {{ pedido.cantidad|float }}, '{{ pedido.unidad or '' }}', '{{ pedido.producto_nombre|e }}')">
+                                                                                    <i class="fas fa-exchange-alt"></i>
+                                                                                </button>
+                                                                            {% elif pedido.ajuste_pendiente %}
+                                                                                <!-- Botón para retirar la propuesta -->
+                                                                                <button class="btn btn-sm btn-outline-warning"
+                                                                                        title="Retirar propuesta de ajuste"
+                                                                                        onclick="cancelarAjuste({{ pedido.id }})">
+                                                                                    <i class="fas fa-times"></i> Retirar
+                                                                                </button>
+                                                                            {% endif %}
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                                 {% endfor %}
@@ -431,6 +479,78 @@
 <audio id="notification-sound" preload="auto">
     <source src="{{ url_for('static', filename='sounds/notification.mp3') }}" type="audio/mpeg">
 </audio>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: Proponer cantidad parcial (Fábrica)
+     ══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalAjusteParcial" tabindex="-1" aria-labelledby="modalAjusteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="modalAjusteLabel">
+                    <i class="fas fa-exchange-alt me-2"></i> Proponer Cantidad Parcial
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning mb-3">
+                    <strong><i class="fas fa-info-circle"></i> Pedido:</strong>
+                    <span id="ajuste-producto-nombre" class="fw-bold"></span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Cantidad original pedida</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control bg-light" id="ajuste-cantidad-original" readonly>
+                        <span class="input-group-text" id="ajuste-unidad-original"></span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold text-danger">
+                        <i class="fas fa-arrow-down me-1"></i> Cantidad que podemos enviar <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="ajuste-cantidad-propuesta" 
+                               min="0.01" step="0.01" placeholder="Ej: 3"
+                               oninput="validarCantidadAjuste()">
+                        <span class="input-group-text" id="ajuste-unidad-propuesta"></span>
+                    </div>
+                    <div id="ajuste-cantidad-error" class="text-danger small mt-1 d-none"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Motivo / Nota (opcional)</label>
+                    <textarea class="form-control" id="ajuste-nota" rows="2" 
+                              placeholder="Ej: No hay materia prima suficiente, podemos enviar lo disponible..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning fw-bold" id="btn-enviar-ajuste" onclick="enviarSolicitudAjuste()">
+                    <i class="fas fa-paper-plane me-1"></i> Enviar Propuesta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: Notificación de respuesta al ajuste (Fábrica recibe)
+     ══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalRespuestaAjuste" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" id="modalRespuestaHeader">
+                <h5 class="modal-title" id="modalRespuestaTitulo"></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalRespuestaBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="location.reload()">
+                    <i class="fas fa-sync-alt me-1"></i> Actualizar Vista
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 {% endblock %}
 

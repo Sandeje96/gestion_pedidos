@@ -242,13 +242,16 @@
                 <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionMinoristas">
                     {% for group in pedidos_minoristas|groupby('cliente.nombre') %}
                     {% set loop_index = loop.index %}
-                    {% set ns = namespace(pendientes=0, sin_despachar=0) %}
+                    {% set ns = namespace(pendientes=0, sin_despachar=0, ajustes=0) %}
                     {% for p in group.list %}
                         {% if p.estado == 'pendiente' %}
                             {% set ns.pendientes = ns.pendientes + 1 %}
                         {% endif %}
                         {% if not p.despachado %}
                             {% set ns.sin_despachar = ns.sin_despachar + 1 %}
+                        {% endif %}
+                        {% if p.ajuste_pendiente %}
+                            {% set ns.ajustes = ns.ajustes + 1 %}
                         {% endif %}
                     {% endfor %}
                     <div class="accordion-item border-0 border-bottom">
@@ -264,6 +267,9 @@
                                 <span class="badge bg-primary rounded-pill ms-3 font-monospace" title="Total de pedidos en este lote">{{ group.list|length }} pedido(s)</span>
                                 {% if ns.pendientes > 0 %}
                                 <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace" title="Pedidos con estado Pendiente"><i class="fas fa-clock"></i> {{ ns.pendientes }} pendientes</span>
+                                {% endif %}
+                                {% if ns.ajustes > 0 %}
+                                <span class="badge bg-danger rounded-pill ms-2 font-monospace animate-pulse" title="Propuestas de ajuste de Fábrica pendientes"><i class="fas fa-exchange-alt"></i> {{ ns.ajustes }} ajuste(s) de Fábrica</span>
                                 {% endif %}
                                 {% if ns.sin_despachar > 0 %}
                                 <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace" title="Pedidos pendientes de despacho"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
@@ -294,11 +300,21 @@
                                         </thead>
                                         <tbody id="lista-pedidos-minoristas-{{ loop_index }}">
                                             {% for pedido in group.list %}
-                                            <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
+                                            <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.ajuste_pendiente %}table-warning{% elif pedido.modificado %}table-warning{% endif %}">
                                                 <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
                                                 <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
-                                                <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
-                                                <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
+                                                <td class="fw-semibold">
+                                                    {{ pedido.producto_nombre }}
+                                                    {% if pedido.ajuste_pendiente %}
+                                                        <br><span class="badge bg-danger animate-pulse mt-1"><i class="fas fa-exchange-alt"></i> Ajuste de Fábrica</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-center fw-bold text-primary">
+                                                    {{ "%.2f"|format(pedido.cantidad) }}
+                                                    {% if pedido.ajuste_pendiente and pedido.cantidad_propuesta %}
+                                                        <br><small class="text-danger fw-bold">Prop: {{ pedido.cantidad_propuesta|float|round(2) }}</small>
+                                                    {% endif %}
+                                                </td>
                                                 <td>{{ pedido.unidad or 'unidades' }}</td>
                                                 <td class="text-center" id="estado-badge-{{ pedido.id }}">
                                                     {% if pedido.estado == 'pendiente' %}
@@ -334,18 +350,35 @@
                                                     {% if pedido.notas_vendedor %}
                                                     <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
                                                     {% endif %}
-                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
+                                                    {% if pedido.ajuste_nota_fabrica %}
+                                                    <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
+                                                    {% endif %}
+                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                     <span class="text-muted small font-monospace">-</span>
                                                     {% endif %}
                                                 </td>
                                                 <td class="text-center">
-                                                    <div class="d-flex gap-2 justify-content-center">
+                                                    <div class="d-flex gap-2 justify-content-center flex-wrap">
                                                         <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
                                                         <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2">
                                                             <i class="fas fa-comments m-0"></i>
                                                         </a>
+                                                        {% if pedido.ajuste_pendiente %}
+                                                        <button class="btn btn-danger btn-sm rounded-pill px-3 animate-pulse fw-bold"
+                                                                onclick="abrirModalResolverAjuste(
+                                                                    {{ pedido.id }},
+                                                                    {{ pedido.cantidad|float }},
+                                                                    {{ pedido.cantidad_propuesta|float }},
+                                                                    '{{ pedido.unidad or '' }}',
+                                                                    '{{ pedido.producto_nombre|e }}',
+                                                                    '{{ (pedido.ajuste_nota_fabrica or '')|e }}',
+                                                                    'administracion'
+                                                                )">
+                                                            <i class="fas fa-exchange-alt"></i> Resolver
+                                                        </button>
+                                                        {% endif %}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -763,6 +796,86 @@
 
     </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL: Resolver propuesta de ajuste de Fábrica (Admin)
+     ══════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalResolverAjuste" tabindex="-1" aria-labelledby="modalResolverAdminLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="modalResolverAdminLabel">
+                    <i class="fas fa-exchange-alt me-2"></i> Propuesta de Ajuste de Fábrica
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary">
+                    <strong>Producto:</strong> <span id="resolver-producto" class="fw-bold"></span>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card border-secondary">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Cantidad Original</h6>
+                                <h3 class="fw-bold text-dark" id="resolver-cantidad-original"></h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card border-warning bg-warning bg-opacity-10">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Fábrica Propone Enviar</h6>
+                                <h3 class="fw-bold text-warning" id="resolver-cantidad-propuesta"></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3" id="resolver-nota-container">
+                    <label class="form-label fw-semibold">Nota de Fábrica</label>
+                    <div class="p-2 bg-light rounded" id="resolver-nota"></div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <label class="fw-semibold mb-2">Tu respuesta:</label>
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <button class="btn btn-success" onclick="seleccionarRespuesta('aprobar')">
+                            <i class="fas fa-check me-1"></i> Aprobar propuesta de Fábrica
+                        </button>
+                        <button class="btn btn-warning" onclick="seleccionarRespuesta('contraproponer')">
+                            <i class="fas fa-edit me-1"></i> Contraproponer cantidad distinta
+                        </button>
+                        <button class="btn btn-danger" onclick="seleccionarRespuesta('rechazar')">
+                            <i class="fas fa-times me-1"></i> Rechazar
+                        </button>
+                    </div>
+                    <div id="panel-contraproponer" class="d-none mb-3">
+                        <label class="form-label fw-semibold">Nueva cantidad aprobada</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="resolver-nueva-cantidad"
+                                   min="0.01" step="0.01" placeholder="Ej: 4">
+                            <span class="input-group-text" id="resolver-unidad"></span>
+                        </div>
+                        <small class="text-muted">Dejá vacío para usar la cantidad propuesta por Fábrica.</small>
+                    </div>
+                    <div id="panel-nota-respuesta" class="d-none">
+                        <label class="form-label">Nota / Motivo (opcional)</label>
+                        <textarea class="form-control" id="resolver-nota-respuesta" rows="2"
+                                  placeholder="Ej: Está bien, envíen lo que tienen..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary fw-bold" id="btn-confirmar-resolver" 
+                        onclick="confirmarResolucionAjuste()" disabled>
+                    <i class="fas fa-paper-plane me-1"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}

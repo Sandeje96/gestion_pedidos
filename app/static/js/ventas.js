@@ -523,3 +523,149 @@ document.head.appendChild(style);
 
 
 console.log('✅ Script de ventas cargado correctamente');
+
+
+// ══════════════════════════════════════════════════════════════════════
+// SECCIÓN: AJUSTE PARCIAL DE CANTIDAD (Ventas — Resolución)
+// ══════════════════════════════════════════════════════════════════════
+
+let _resolverPedidoId = null;
+let _resolverAccion = null;   // 'aprobar' | 'rechazar' | 'contraproponer'
+let _resolverBlueprint = null; // 'ventas' | 'administracion'
+
+/**
+ * Abre el modal de resolución de ajuste propuesto por Fábrica.
+ */
+function abrirModalResolverAjuste(pedidoId, cantidadOriginal, cantidadPropuesta, unidad, producto, notaFabrica, blueprint) {
+    _resolverPedidoId = pedidoId;
+    _resolverAccion = null;
+    _resolverBlueprint = blueprint;
+
+    document.getElementById('resolver-producto').textContent = producto;
+    document.getElementById('resolver-cantidad-original').textContent = `${cantidadOriginal} ${unidad}`;
+    document.getElementById('resolver-cantidad-propuesta').textContent = `${cantidadPropuesta} ${unidad}`;
+    document.getElementById('resolver-unidad').textContent = unidad;
+
+    const notaDiv = document.getElementById('resolver-nota');
+    const notaContainer = document.getElementById('resolver-nota-container');
+    if (notaFabrica && notaFabrica.trim()) {
+        notaDiv.textContent = notaFabrica;
+        notaContainer.classList.remove('d-none');
+    } else {
+        notaContainer.classList.add('d-none');
+    }
+
+    // Reset state
+    document.getElementById('panel-contraproponer').classList.add('d-none');
+    document.getElementById('panel-nota-respuesta').classList.add('d-none');
+    document.getElementById('resolver-nueva-cantidad').value = '';
+    document.getElementById('resolver-nota-respuesta').value = '';
+    document.getElementById('btn-confirmar-resolver').disabled = true;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalResolverAjuste'));
+    modal.show();
+}
+
+/**
+ * Selecciona la acción del usuario en el modal de resolución.
+ */
+function seleccionarRespuesta(accion) {
+    _resolverAccion = accion;
+
+    const panelContraproponer = document.getElementById('panel-contraproponer');
+    const panelNota = document.getElementById('panel-nota-respuesta');
+
+    if (accion === 'contraproponer') {
+        panelContraproponer.classList.remove('d-none');
+        panelNota.classList.remove('d-none');
+    } else if (accion === 'rechazar') {
+        panelContraproponer.classList.add('d-none');
+        panelNota.classList.remove('d-none');
+    } else {
+        // aprobar
+        panelContraproponer.classList.add('d-none');
+        panelNota.classList.add('d-none');
+    }
+
+    document.getElementById('btn-confirmar-resolver').disabled = false;
+}
+
+/**
+ * Confirma la resolución del ajuste (aprobación, contraproposición o rechazo).
+ */
+async function confirmarResolucionAjuste() {
+    if (!_resolverAccion || !_resolverPedidoId) return;
+
+    const btnConfirmar = document.getElementById('btn-confirmar-resolver');
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Procesando...';
+
+    const nota = document.getElementById('resolver-nota-respuesta').value.trim();
+    let accion = _resolverAccion === 'contraproponer' ? 'aprobar' : _resolverAccion;
+    let nuevaCantidad = null;
+
+    if (_resolverAccion === 'contraproponer') {
+        const val = parseFloat(document.getElementById('resolver-nueva-cantidad').value);
+        if (!isNaN(val) && val > 0) {
+            nuevaCantidad = val;
+        }
+    }
+
+    const url = `/${_resolverBlueprint}/pedido/${_resolverPedidoId}/resolver-ajuste`;
+    const body = { accion, nota };
+    if (nuevaCantidad !== null) body.nueva_cantidad = nuevaCantidad;
+
+    try {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('modalResolverAjuste')).hide();
+            const msg = accion === 'aprobar' ? 'Ajuste aprobado correctamente' : 'Propuesta rechazada';
+            console.log(`✅ ${msg}`);
+            setTimeout(() => location.reload(), 800);
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo resolver el ajuste'));
+            btnConfirmar.disabled = false;
+            btnConfirmar.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Confirmar';
+        }
+    } catch (e) {
+        alert('Error de conexión.');
+        btnConfirmar.disabled = false;
+        btnConfirmar.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Confirmar';
+    }
+}
+
+// ── Listener WebSocket: Ventas recibe solicitud de ajuste de Fábrica ──
+socket.on('pedido_ajuste_solicitado', function(data) {
+    const pedido = data.pedido;
+    const cantidadPropuesta = data.cantidad_propuesta;
+    const cantidadOriginal = data.cantidad_original;
+    const operario = data.operario;
+
+    // Marcar fila del pedido con clase de alerta
+    const pedidoRow = document.getElementById(`pedido-${pedido.id}`);
+    if (pedidoRow) {
+        pedidoRow.classList.add('table-warning');
+    }
+
+    // Toast de notificación
+    const toast = document.createElement('div');
+    toast.className = 'toast align-items-center text-white bg-danger border-0 show position-fixed';
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 320px;';
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <strong>⚠️ Fábrica propone ajuste:</strong><br>
+                Pedido #${pedido.id} — ${operario} propone enviar <strong>${cantidadPropuesta}</strong> en lugar de <strong>${cantidadOriginal}</strong>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.closest('.toast').remove()"></button>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 8000);
+});

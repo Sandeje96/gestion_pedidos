@@ -84,7 +84,19 @@ def dashboard():
 @gerente_o_admin_requerido
 def materias_primas():
     """Lista de todas las materias primas activas."""
-    mps = MateriaPrima.query.filter_by(activo=True).order_by(MateriaPrima.nombre).all()
+    mps_raw = MateriaPrima.query.filter_by(activo=True).order_by(MateriaPrima.nombre).all()
+
+    def orden_stock(mp):
+        stock = float(mp.stock_actual or 0)
+        minimo = float(mp.stock_minimo or 0)
+        if stock > 0 and stock < minimo:
+            return 0  # Stock bajo (naranja/rojo)
+        elif stock == 0:
+            return 1  # Sin stock (cero)
+        else:
+            return 2  # Stock OK (verde)
+
+    mps = sorted(mps_raw, key=orden_stock)
     return render_template('gerente/materias_primas.html', title='Materias Primas', mps=mps)
 
 
@@ -632,5 +644,49 @@ def historial_producto(producto_id):
         },
         'historial': historial
     })
+
+
+@gerente_bp.route('/stock/producto/<int:producto_id>/editar-stock', methods=['POST'])
+@gerente_requerido
+def editar_stock_producto(producto_id):
+    """
+    Permite al Gerente corregir o editar directamente el stock actual de un producto.
+    Si el producto tiene una materia prima vinculada, sincroniza su stock y genera un movimiento de ajuste.
+    """
+    producto = Producto.query.get_or_404(producto_id)
+    nuevo_stock_str = request.form.get('nuevo_stock', '').strip()
+    motivo = request.form.get('motivo', '').strip()
+
+    try:
+        nuevo_stock = Decimal(nuevo_stock_str)
+        if nuevo_stock < 0:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        flash('El stock debe ser un número válido mayor o igual a cero.', 'danger')
+        return redirect(url_for('gerente.stock'))
+
+    stock_anterior = producto.stock_actual or Decimal('0')
+    diferencia = nuevo_stock - stock_anterior
+
+    producto.stock_actual = nuevo_stock
+
+    # Sincronizar MP vinculada si existe
+    mp_vinc = producto.get_materia_prima_vinculada()
+    if mp_vinc:
+        mp_vinc.stock_actual = nuevo_stock
+        if diferencia != 0:
+            movimiento = MovimientoMateriaPrima(
+                materia_prima_id=mp_vinc.id,
+                tipo='ajuste',
+                cantidad=abs(diferencia),
+                descripcion=motivo or f"Ajuste manual de stock ({'+' if diferencia > 0 else '-'}{abs(diferencia)} {producto.unidad or ''})",
+                usuario_id=current_user.id
+            )
+            db.session.add(movimiento)
+
+    db.session.commit()
+    flash(f'Stock de "{producto.nombre}" actualizado correctamente a {nuevo_stock} {producto.unidad or ""}.', 'success')
+    return redirect(url_for('gerente.stock'))
+
 
 

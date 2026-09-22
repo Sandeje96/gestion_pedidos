@@ -72,6 +72,7 @@ class MovimientoMateriaPrima(db.Model):
             'id': self.id,
             'materia_prima_id': self.materia_prima_id,
             'materia_prima_nombre': self.materia_prima.nombre if self.materia_prima else None,
+            'materia_prima_unidad': self.materia_prima.unidad if self.materia_prima else None,
             'tipo': self.tipo,
             'cantidad': float(self.cantidad),
             'descripcion': self.descripcion_completa,

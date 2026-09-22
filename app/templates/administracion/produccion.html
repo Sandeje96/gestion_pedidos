@@ -577,10 +577,11 @@ document.addEventListener('DOMContentLoaded', function () {
         movs.forEach(function (m) {
             const mpNombre = m.materia_prima_nombre || ('MP #' + m.materia_prima_id);
             const cant     = parseFloat(m.cantidad).toFixed(3);
+            const unidadMP = m.materia_prima_unidad ? `<span class="text-muted small ms-1">${m.materia_prima_unidad}</span>` : '';
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><i class="fas fa-vial text-secondary me-1"></i> ${mpNombre}</td>
-                <td class="text-end fw-semibold">${cant}</td>
+                <td class="text-end fw-semibold">${cant} ${unidadMP}</td>
             `;
             tbody.appendChild(tr);
         });

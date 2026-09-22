@@ -306,14 +306,36 @@
                                     </small>
                                 </td>
                                 <td><small class="text-muted">{{ p.observaciones or '—' }}</small></td>
-                                <td>
-                                    <form method="POST"
-                                          action="{{ url_for('administracion.eliminar_produccion', prod_id=p.id) }}"
-                                          onsubmit="return confirm('¿Eliminar este registro? El stock se ajustará.')">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
-                                            <i class="fas fa-trash"></i>
+                                <td class="text-end">
+                                    <div class="d-flex gap-1 justify-content-end">
+                                        {# Botón Materias Primas — solo si hay movimientos registrados #}
+                                        {% set movs = p.movimientos_mp | selectattr('tipo', 'equalto', 'egreso_produccion') | list %}
+                                        {% if movs %}
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary"
+                                                title="Ver materias primas usadas"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#modalMPProduccion"
+                                                data-prod-id="{{ p.id }}"
+                                                data-prod-nombre="{{ p.producto.nombre if p.producto else 'Producción #' ~ p.id }}"
+                                                data-prod-cantidad="{{ '%.2f' | format(p.cantidad | float) }}"
+                                                data-prod-unidad="{{ p.unidad }}"
+                                                data-movs="{{ movs | map(attribute='to_dict') | list | tojson | e }}">
+                                            <i class="fas fa-vials"></i>
                                         </button>
-                                    </form>
+                                        {% else %}
+                                        <button type="button" class="btn btn-sm btn-outline-light text-muted" disabled title="Sin materias primas registradas">
+                                            <i class="fas fa-vials"></i>
+                                        </button>
+                                        {% endif %}
+                                        <form method="POST"
+                                              action="{{ url_for('administracion.eliminar_produccion', prod_id=p.id) }}"
+                                              onsubmit="return confirm('¿Eliminar este registro? El stock se ajustará.')">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -334,6 +356,37 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- MODAL: MATERIAS PRIMAS DE UNA PRODUCCIÓN -->
+<div class="modal fade" id="modalMPProduccion" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #6f42c1, #4a2c8f);">
+                <h5 class="modal-title">
+                    <i class="fas fa-vials"></i> Materias Primas Usadas
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="mp-modal-info" class="alert alert-light border mb-3 py-2"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>Materia Prima</th>
+                                <th class="text-end">Cantidad usada</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mp-modal-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -488,4 +541,51 @@
     var PREVIEW_URL = "{{ url_for('administracion.preview_materias_produccion') }}";
 </script>
 {% include '_js_mp_partial.html' %}
+
+<script>
+// ── Modal: Materias Primas Usadas en una producción ──
+document.addEventListener('DOMContentLoaded', function () {
+    const modalEl = document.getElementById('modalMPProduccion');
+    if (!modalEl) return;
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        const btn = event.relatedTarget;
+        const nombre   = btn.getAttribute('data-prod-nombre');
+        const cantidad = btn.getAttribute('data-prod-cantidad');
+        const unidad   = btn.getAttribute('data-prod-unidad');
+        const movsRaw  = btn.getAttribute('data-movs');
+
+        // Info header
+        const infoDiv = document.getElementById('mp-modal-info');
+        infoDiv.innerHTML = `
+            <i class="fas fa-industry text-primary me-1"></i>
+            <strong>${nombre}</strong>
+            <span class="text-muted ms-2">→ ${cantidad} ${unidad}</span>
+        `;
+
+        // Llenar tabla
+        const tbody = document.getElementById('mp-modal-body');
+        tbody.innerHTML = '';
+        let movs = [];
+        try { movs = JSON.parse(movsRaw); } catch(e) {}
+
+        if (!movs.length) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center text-muted">Sin materias primas registradas.</td></tr>';
+            return;
+        }
+
+        movs.forEach(function (m) {
+            const mpNombre = m.materia_prima_nombre || ('MP #' + m.materia_prima_id);
+            const cant     = parseFloat(m.cantidad).toFixed(3);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><i class="fas fa-vial text-secondary me-1"></i> ${mpNombre}</td>
+                <td class="text-end fw-semibold">${cant}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    });
+});
+</script>
 {% endblock %}
+

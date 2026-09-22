@@ -320,7 +320,7 @@
                                                 data-prod-nombre="{{ p.producto.nombre if p.producto else 'Producción #' ~ p.id }}"
                                                 data-prod-cantidad="{{ '%.2f' | format(p.cantidad | float) }}"
                                                 data-prod-unidad="{{ p.unidad }}"
-                                                data-movs="{{ movs_data | tojson | e }}">
+                                                data-movs="{{ movs_data | tojson | forceescape }}">
                                             <i class="fas fa-vials"></i>
                                         </button>
                                         {% else %}

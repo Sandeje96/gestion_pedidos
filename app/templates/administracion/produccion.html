@@ -311,6 +311,9 @@
                                         {# Botón Materias Primas — solo si hay movimientos registrados #}
                                         {% set movs = p.movimientos_mp | selectattr('tipo', 'equalto', 'egreso_produccion') | list %}
                                         {% if movs %}
+                                        {# Llamar to_dict() manualmente porque map(attribute=) no invoca métodos #}
+                                        {% set ns = namespace(movs_data=[]) %}
+                                        {% for m in movs %}{% set ns.movs_data = ns.movs_data + [m.to_dict()] %}{% endfor %}
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-secondary"
                                                 title="Ver materias primas usadas"
@@ -320,7 +323,7 @@
                                                 data-prod-nombre="{{ p.producto.nombre if p.producto else 'Producción #' ~ p.id }}"
                                                 data-prod-cantidad="{{ '%.2f' | format(p.cantidad | float) }}"
                                                 data-prod-unidad="{{ p.unidad }}"
-                                                data-movs="{{ movs | map(attribute='to_dict') | list | tojson | e }}">
+                                                data-movs="{{ ns.movs_data | tojson | e }}">
                                             <i class="fas fa-vials"></i>
                                         </button>
                                         {% else %}

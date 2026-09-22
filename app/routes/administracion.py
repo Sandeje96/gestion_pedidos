@@ -670,6 +670,18 @@ def produccion():
 
     productos = Producto.query.filter_by(disponible=True).order_by(Producto.nombre).all()
 
+    # Precargar movimientos de MP por producción para mostrar en la tabla
+    # (evita problemas de lazy loading en el template)
+    prod_ids = [p.id for p in producciones]
+    movimientos_por_produccion = {}
+    if prod_ids:
+        movs = MovimientoMateriaPrima.query.filter(
+            MovimientoMateriaPrima.produccion_id.in_(prod_ids),
+            MovimientoMateriaPrima.tipo == 'egreso_produccion'
+        ).all()
+        for m in movs:
+            movimientos_por_produccion.setdefault(m.produccion_id, []).append(m.to_dict())
+
     return render_template(
         'administracion/produccion.html',
         title='Carga de Producción',
@@ -677,7 +689,8 @@ def produccion():
         productos=productos,
         fecha_filtro=fecha_filtro,
         hoy=date.today(),
-        totales_dia=totales_dia
+        totales_dia=totales_dia,
+        movimientos_por_produccion=movimientos_por_produccion
     )
 
 

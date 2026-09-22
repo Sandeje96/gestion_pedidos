@@ -308,12 +308,9 @@
                                 <td><small class="text-muted">{{ p.observaciones or '—' }}</small></td>
                                 <td class="text-end">
                                     <div class="d-flex gap-1 justify-content-end">
-                                        {# Botón Materias Primas — solo si hay movimientos registrados #}
-                                        {% set movs = p.movimientos_mp | selectattr('tipo', 'equalto', 'egreso_produccion') | list %}
-                                        {% if movs %}
-                                        {# Llamar to_dict() manualmente porque map(attribute=) no invoca métodos #}
-                                        {% set ns = namespace(movs_data=[]) %}
-                                        {% for m in movs %}{% set ns.movs_data = ns.movs_data + [m.to_dict()] %}{% endfor %}
+                                        {# Botón Materias Primas — datos precargados desde la ruta #}
+                                        {% set movs_data = movimientos_por_produccion.get(p.id, []) %}
+                                        {% if movs_data %}
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-secondary"
                                                 title="Ver materias primas usadas"
@@ -323,7 +320,7 @@
                                                 data-prod-nombre="{{ p.producto.nombre if p.producto else 'Producción #' ~ p.id }}"
                                                 data-prod-cantidad="{{ '%.2f' | format(p.cantidad | float) }}"
                                                 data-prod-unidad="{{ p.unidad }}"
-                                                data-movs="{{ ns.movs_data | tojson | e }}">
+                                                data-movs="{{ movs_data | tojson | e }}">
                                             <i class="fas fa-vials"></i>
                                         </button>
                                         {% else %}

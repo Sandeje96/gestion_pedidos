@@ -37,6 +37,20 @@ def administracion_requerido(f):
     return decorated_function
 
 
+def administracion_o_gerente_requerido(f):
+    """
+    Decorador para verificar que el usuario sea del área de Administración de Fábrica o Gerente.
+    """
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not (current_user.es_administracion() or current_user.es_gerente()):
+            flash('No tienes permisos para acceder a esta sección', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # ─────────────────────────────────────────────
 # SECCIÓN: AJUSTE PARCIAL DE CANTIDAD
 # ─────────────────────────────────────────────
@@ -519,7 +533,7 @@ def stock():
 # ─────────────────────────────────────────────
 
 @administracion_bp.route('/produccion/preview-materias')
-@administracion_requerido
+@administracion_o_gerente_requerido
 def preview_materias_produccion():
     """
     Endpoint AJAX: devuelve la lista de materias primas calculadas para
@@ -543,7 +557,7 @@ def preview_materias_produccion():
 
 
 @administracion_bp.route('/produccion', methods=['GET', 'POST'])
-@administracion_requerido
+@administracion_o_gerente_requerido
 def produccion():
     """
     Ver y cargar producción diaria.
@@ -668,7 +682,7 @@ def produccion():
 
 
 @administracion_bp.route('/produccion/<int:prod_id>/eliminar', methods=['POST'])
-@administracion_requerido
+@administracion_o_gerente_requerido
 def eliminar_produccion(prod_id):
     """
     Eliminar un registro de producción y restar del stock del producto.

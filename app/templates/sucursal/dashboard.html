@@ -208,8 +208,15 @@
                                                     <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
                                                     <td class="small text-muted">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') if pedido.fecha_creacion else '-' }}</td>
                                                     <td class="fw-semibold text-dark">{{ pedido.producto_nombre }}</td>
-                                                    <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
-                                                    <td>{{ pedido.unidad or 'unidades' }}</td>
+                                                    <td class="text-center fw-bold text-primary">
+                                                        {{ "%.2f"|format(pedido.cantidad) }}
+                                                        {% if pedido.presentacion and pedido.cantidad_envases %}
+                                                        <div class="fw-normal text-muted small mt-1">
+                                                            {{ pedido.cantidad_envases|int }} env. × {{ pedido.presentacion }}
+                                                        </div>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ pedido.unidad or 'litros' }}</td>
                                                     <td class="text-center">
                                                         {% if pedido.destinatario == 'fabrica' %}
                                                         <span class="badge badge-dest-fabrica px-3 py-2 rounded-pill"><i class="fas fa-industry me-1"></i> Fábrica</span>

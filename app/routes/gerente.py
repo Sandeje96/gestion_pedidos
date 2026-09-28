@@ -12,6 +12,8 @@ from app.models.formulacion_producto import FormulacionProducto
 from app.models.formulacion_materia_prima import FormulacionMateriaPrima
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 from app.models.produccion import ProduccionDiaria
+from app.models.cierre_ruta import CierreRuta
+from app.models.usuario import Usuario
 from datetime import datetime, date, timedelta
 from functools import wraps
 from decimal import Decimal, InvalidOperation
@@ -689,4 +691,85 @@ def editar_stock_producto(producto_id):
     return redirect(url_for('gerente.stock'))
 
 
+# ─────────────────────────────────────────────
+# HISTORIAL DE BILLETERA DE REPARTIDORES
+# ─────────────────────────────────────────────
 
+@gerente_bp.route('/repartidores/billetera')
+@gerente_requerido
+def historial_repartidores():
+    """
+    Panel exclusivo de Gerencia para consultar cuánto tenía cada repartidor
+    en su billetera al momento de cerrar ruta, filtrado por fecha.
+
+    Filtros disponibles (parámetros GET):
+        - fecha_desde : date  (default: últimos 30 días)
+        - fecha_hasta : date  (default: hoy)
+        - repartidor_id : int (default: todos)
+    """
+    OFFSET_ARG = timedelta(hours=3)
+    hoy = (datetime.utcnow() - OFFSET_ARG).date()
+    hace_30 = hoy - timedelta(days=30)
+
+    # ── Leer filtros ──
+    fecha_desde_str = request.args.get('fecha_desde', '')
+    fecha_hasta_str = request.args.get('fecha_hasta', '')
+    repartidor_id_str = request.args.get('repartidor_id', '')
+
+    try:
+        fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d').date() if fecha_desde_str else hace_30
+    except ValueError:
+        fecha_desde = hace_30
+
+    try:
+        fecha_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d').date() if fecha_hasta_str else hoy
+    except ValueError:
+        fecha_hasta = hoy
+
+    repartidor_id = int(repartidor_id_str) if repartidor_id_str.isdigit() else None
+
+    # ── Consulta principal ──
+    # Convertimos las fechas a datetime UTC para comparar con fecha_cierre (DateTime UTC)
+    desde_utc = datetime(fecha_desde.year, fecha_desde.month, fecha_desde.day, 0, 0, 0)
+    hasta_utc = datetime(fecha_hasta.year, fecha_hasta.month, fecha_hasta.day, 23, 59, 59)
+
+    query = CierreRuta.query.filter(
+        CierreRuta.fecha_cierre >= desde_utc,
+        CierreRuta.fecha_cierre <= hasta_utc
+    )
+
+    if repartidor_id:
+        query = query.filter(CierreRuta.repartidor_id == repartidor_id)
+
+    cierres = query.order_by(CierreRuta.fecha_cierre.desc()).all()
+
+    # ── Totales del período ──
+    total_efectivo_periodo      = sum(float(c.total_efectivo)      for c in cierres)
+    total_transferencia_periodo = sum(float(c.total_transferencia)  for c in cierres)
+    total_cheque_periodo        = sum(float(c.total_cheque)         for c in cierres)
+    total_gastos_periodo        = sum(float(c.total_gastos)         for c in cierres)
+    total_neto_periodo          = sum(float(c.neto_efectivo)        for c in cierres)
+    cantidad_cierres            = len(cierres)
+
+    # ── Lista de repartidores para el filtro ──
+    repartidores = Usuario.query.filter_by(rol='repartidor', activo=True).order_by(Usuario.nombre).all()
+
+    return render_template(
+        'gerente/historial_repartidores.html',
+        title='Historial de Billetera — Repartidores',
+        cierres=cierres,
+        repartidores=repartidores,
+        # Filtros aplicados
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        repartidor_id_filtro=repartidor_id,
+        # Totales del período
+        total_efectivo_periodo=total_efectivo_periodo,
+        total_transferencia_periodo=total_transferencia_periodo,
+        total_cheque_periodo=total_cheque_periodo,
+        total_gastos_periodo=total_gastos_periodo,
+        total_neto_periodo=total_neto_periodo,
+        cantidad_cierres=cantidad_cierres,
+        hoy=hoy,
+        timedelta=timedelta,
+    )

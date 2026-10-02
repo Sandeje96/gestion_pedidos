@@ -691,6 +691,71 @@ def editar_stock_producto(producto_id):
     return redirect(url_for('gerente.stock'))
 
 
+@gerente_bp.route('/stock/producto/<int:producto_id>/reajuste-stock', methods=['POST'])
+@gerente_o_admin_requerido
+def reajuste_stock_producto(producto_id):
+    """
+    Permite al Gerente o Administración registrar un reajuste formal de stock.
+    A diferencia del ajuste manual, este registro exige una descripción del problema
+    y un motivo del reajuste, y queda registrado como tipo 'reajuste' en los movimientos.
+    """
+    producto = Producto.query.get_or_404(producto_id)
+    nuevo_stock_str = request.form.get('nuevo_stock', '').strip()
+    descripcion_problema = request.form.get('descripcion_problema', '').strip()
+    motivo_reajuste = request.form.get('motivo_reajuste', '').strip()
+
+    # Validar stock
+    try:
+        nuevo_stock = Decimal(nuevo_stock_str)
+        if nuevo_stock < 0:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        flash('El stock debe ser un número válido mayor o igual a cero.', 'danger')
+        return redirect(url_for('gerente.stock'))
+
+    # Validar campos obligatorios
+    if not descripcion_problema:
+        flash('La descripción del problema es obligatoria para registrar un reajuste.', 'danger')
+        return redirect(url_for('gerente.stock'))
+    if not motivo_reajuste:
+        flash('El motivo del reajuste es obligatorio.', 'danger')
+        return redirect(url_for('gerente.stock'))
+
+    stock_anterior = producto.stock_actual or Decimal('0')
+    diferencia = nuevo_stock - stock_anterior
+    signo = '+' if diferencia >= 0 else ''
+
+    # Descripción completa del movimiento
+    descripcion_movimiento = (
+        f"[REAJUSTE] Problema: {descripcion_problema} | "
+        f"Motivo: {motivo_reajuste} | "
+        f"Diferencia: {signo}{float(diferencia):.2f} {producto.unidad or ''}"
+    )
+
+    # Actualizar stock del producto
+    producto.stock_actual = nuevo_stock
+
+    # Sincronizar MP vinculada y registrar movimiento
+    mp_vinc = producto.get_materia_prima_vinculada()
+    if mp_vinc:
+        mp_vinc.stock_actual = nuevo_stock
+        movimiento = MovimientoMateriaPrima(
+            materia_prima_id=mp_vinc.id,
+            tipo='reajuste',
+            cantidad=abs(diferencia) if diferencia != 0 else nuevo_stock,
+            descripcion=descripcion_movimiento,
+            usuario_id=current_user.id
+        )
+        db.session.add(movimiento)
+
+    db.session.commit()
+    flash(
+        f'Reajuste de stock de "{producto.nombre}" registrado: '
+        f'{float(stock_anterior):.2f} → {float(nuevo_stock):.2f} {producto.unidad or ""}.',
+        'success'
+    )
+    return redirect(url_for('gerente.stock'))
+
 # ─────────────────────────────────────────────
 # HISTORIAL DE BILLETERA DE REPARTIDORES
 # ─────────────────────────────────────────────

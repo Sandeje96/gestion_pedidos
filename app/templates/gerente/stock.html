@@ -197,6 +197,24 @@
                                                     title="Ver historial completo de producciones y materias primas">
                                                 <i class="fas fa-history me-1"></i> Histórico
                                             </button>
+                                            <button type="button" 
+                                                    class="btn btn-outline-warning btn-sm rounded-circle p-2 btn-editar-stock"
+                                                    data-id="{{ p.id }}"
+                                                    data-nombre="{{ p.nombre }}"
+                                                    data-stock="{{ item.stock_actual }}"
+                                                    data-unidad="{{ p.unidad or '' }}"
+                                                    title="Editar / Corregir Stock">
+                                                <i class="fas fa-edit m-0"></i>
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm rounded-circle p-2 btn-reajuste-stock"
+                                                    data-id="{{ p.id }}"
+                                                    data-nombre="{{ p.nombre }}"
+                                                    data-stock="{{ item.stock_actual }}"
+                                                    data-unidad="{{ p.unidad or '' }}"
+                                                    title="Reajuste de Stock">
+                                                <i class="fas fa-balance-scale m-0"></i>
+                                            </button>
                                             <a href="{{ url_for('gerente.editar_formula', producto_id=p.id) }}" 
                                                class="btn btn-outline-secondary btn-sm rounded-circle p-2"
                                                title="Editar Fórmula">
@@ -291,6 +309,159 @@
         </div>
     </div>
 </div>
+
+<!-- MODAL EDITAR STOCK DE PRODUCTO -->
+<div class="modal fade" id="modalEditarStock" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-warning text-dark">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-edit fs-5"></i>
+                    <h5 class="modal-title fw-bold mb-0">Corregir Stock de Producto</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <form id="formEditarStock" method="POST" action="">
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border mb-3">
+                        <div class="fw-bold text-dark fs-6" id="modal-stock-producto-nombre">—</div>
+                        <small class="text-muted">Stock actual registrado: <strong class="text-primary" id="modal-stock-actual-span">—</strong></small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="input-nuevo-stock" class="form-label fw-bold">
+                            Nuevo Stock Físico <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="number" 
+                                   class="form-control form-control-lg fw-bold" 
+                                   id="input-nuevo-stock" 
+                                   name="nuevo_stock" 
+                                   step="0.01" 
+                                   min="0" 
+                                   placeholder="0.00" 
+                                   required>
+                            <span class="input-group-text fw-semibold text-muted" id="addon-unidad-stock">litros</span>
+                        </div>
+                        <div class="form-text small text-muted">
+                            Ingresá la cantidad física real. Si el producto tiene una materia prima vinculada, ambos stocks se mantendrán sincronizados.
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="input-motivo" class="form-label fw-bold">Motivo del ajuste (opcional)</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="input-motivo" 
+                               name="motivo" 
+                               placeholder="Ej: Recuento de inventario, merma, rotura...">
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Guardar nuevo stock
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL REAJUSTE DE STOCK -->
+<div class="modal fade" id="modalReajusteStock" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #dc3545, #a71d2a);">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white d-flex align-items-center justify-content-center" style="width:38px;height:38px;color:#dc3545;">
+                        <i class="fas fa-balance-scale fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0">Reajuste de Stock</h5>
+                        <small class="text-white-50">Corrección formal con registro de movimiento</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <form id="formReajusteStock" method="POST" action="">
+                <div class="modal-body p-4">
+
+                    <!-- Info del producto -->
+                    <div class="alert alert-light border mb-4">
+                        <div class="fw-bold text-dark fs-6" id="reajuste-producto-nombre">—</div>
+                        <small class="text-muted">
+                            Stock actual registrado: <strong class="text-primary" id="reajuste-stock-actual-span">—</strong>
+                        </small>
+                    </div>
+
+                    <!-- Nuevo stock -->
+                    <div class="mb-3">
+                        <label for="reajuste-input-stock" class="form-label fw-bold">
+                            Stock contado físicamente <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="number"
+                                   class="form-control form-control-lg fw-bold"
+                                   id="reajuste-input-stock"
+                                   name="nuevo_stock"
+                                   step="0.01"
+                                   min="0"
+                                   placeholder="0.00"
+                                   required>
+                            <span class="input-group-text fw-semibold text-muted" id="reajuste-addon-unidad">unidades</span>
+                        </div>
+                        <!-- Indicador de diferencia en tiempo real -->
+                        <div id="reajuste-diferencia-container" class="mt-2" style="display:none;">
+                            <span class="small fw-bold">Diferencia: </span>
+                            <span id="reajuste-diferencia-badge" class="badge fs-6 px-3 py-1 rounded-pill"></span>
+                        </div>
+                    </div>
+
+                    <!-- Descripción del problema -->
+                    <div class="mb-3">
+                        <label for="reajuste-input-problema" class="form-label fw-bold">
+                            Descripción del problema <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control"
+                                  id="reajuste-input-problema"
+                                  name="descripcion_problema"
+                                  rows="2"
+                                  maxlength="300"
+                                  placeholder="Ej: Se detectó diferencia entre el sistema y el conteo físico del almacén..."
+                                  required></textarea>
+                        <div class="form-text small text-muted">Describí qué pasó con el stock. Máx. 300 caracteres.</div>
+                    </div>
+
+                    <!-- Motivo del reajuste -->
+                    <div class="mb-2">
+                        <label for="reajuste-input-motivo" class="form-label fw-bold">
+                            Motivo del reajuste <span class="text-danger">*</span>
+                        </label>
+                        <input type="text"
+                               class="form-control"
+                               id="reajuste-input-motivo"
+                               name="motivo_reajuste"
+                               maxlength="200"
+                               placeholder="Ej: Error de carga anterior, merma por evaporación, rotura de envase..."
+                               required>
+                        <div class="form-text small text-muted">Por qué se hace este reajuste. Máx. 200 caracteres.</div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                        <i class="fas fa-check-circle me-1"></i> Confirmar Reajuste
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -326,6 +497,87 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (sinResultados) {
                 sinResultados.style.display = (visibles === 0 && totalProductos > 0) ? 'block' : 'none';
+            }
+        });
+    }
+
+    // ── MODAL EDITAR STOCK ──
+    const modalEditarStockEl = document.getElementById('modalEditarStock');
+    let modalEditarStockInstance = null;
+    if (modalEditarStockEl) {
+        modalEditarStockInstance = new bootstrap.Modal(modalEditarStockEl);
+    }
+
+    document.querySelectorAll('.btn-editar-stock').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const nombre = this.getAttribute('data-nombre');
+            const stock = parseFloat(this.getAttribute('data-stock') || '0');
+            const unidad = this.getAttribute('data-unidad') || '';
+
+            document.getElementById('formEditarStock').action = '/gerente/stock/producto/' + id + '/editar-stock';
+            document.getElementById('modal-stock-producto-nombre').textContent = nombre;
+            document.getElementById('modal-stock-actual-span').textContent = stock.toFixed(2) + ' ' + (unidad || '');
+            document.getElementById('input-nuevo-stock').value = stock.toFixed(2);
+            document.getElementById('addon-unidad-stock').textContent = unidad || 'unidades';
+            document.getElementById('input-motivo').value = '';
+
+            if (modalEditarStockInstance) {
+                modalEditarStockInstance.show();
+            }
+        });
+    });
+
+    // ── MODAL REAJUSTE DE STOCK ──
+    const modalReajusteEl = document.getElementById('modalReajusteStock');
+    let modalReajusteInstance = null;
+    if (modalReajusteEl) {
+        modalReajusteInstance = new bootstrap.Modal(modalReajusteEl);
+    }
+
+    let stockAnteriorReajuste = 0;
+
+    document.querySelectorAll('.btn-reajuste-stock').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const id = this.getAttribute('data-id');
+            const nombre = this.getAttribute('data-nombre');
+            const stock = parseFloat(this.getAttribute('data-stock') || '0');
+            const unidad = this.getAttribute('data-unidad') || '';
+
+            stockAnteriorReajuste = stock;
+
+            document.getElementById('formReajusteStock').action = '/gerente/stock/producto/' + id + '/reajuste-stock';
+            document.getElementById('reajuste-producto-nombre').textContent = nombre;
+            document.getElementById('reajuste-stock-actual-span').textContent = stock.toFixed(2) + ' ' + (unidad || '');
+            document.getElementById('reajuste-input-stock').value = stock.toFixed(2);
+            document.getElementById('reajuste-addon-unidad').textContent = unidad || 'unidades';
+            document.getElementById('reajuste-input-problema').value = '';
+            document.getElementById('reajuste-input-motivo').value = '';
+            document.getElementById('reajuste-diferencia-container').style.display = 'none';
+
+            if (modalReajusteInstance) {
+                modalReajusteInstance.show();
+            }
+        });
+    });
+
+    // Indicador de diferencia en tiempo real
+    const reajusteInputStock = document.getElementById('reajuste-input-stock');
+    if (reajusteInputStock) {
+        reajusteInputStock.addEventListener('input', function() {
+            const nuevoValor = parseFloat(this.value);
+            const contenedor = document.getElementById('reajuste-diferencia-container');
+            const badge = document.getElementById('reajuste-diferencia-badge');
+
+            if (!isNaN(nuevoValor)) {
+                const diferencia = nuevoValor - stockAnteriorReajuste;
+                const signo = diferencia >= 0 ? '+' : '';
+                badge.textContent = signo + diferencia.toFixed(2);
+                badge.className = 'badge fs-6 px-3 py-1 rounded-pill ' +
+                    (diferencia > 0 ? 'bg-success' : diferencia < 0 ? 'bg-danger' : 'bg-secondary');
+                contenedor.style.display = 'block';
+            } else {
+                contenedor.style.display = 'none';
             }
         });
     }

@@ -17,6 +17,7 @@ class MovimientoMateriaPrima(db.Model):
         - 'ingreso'           : Compra / entrada de stock (registrada por gerente)
         - 'egreso_produccion' : Consumo por producción (registrado automáticamente)
         - 'ajuste'            : Ajuste manual de inventario
+        - 'reajuste'          : Reajuste formal de stock con descripción y motivo obligatorios
     """
 
     __tablename__ = 'movimientos_materia_prima'

@@ -203,6 +203,73 @@ def movimientos_mp(mp_id):
                            title=f'Movimientos — {mp.nombre}', mp=mp, movimientos=movimientos)
 
 
+@gerente_bp.route('/materias-primas/<int:mp_id>/reajuste-stock', methods=['POST'])
+@gerente_o_admin_requerido
+def reajuste_stock_mp(mp_id):
+    """
+    Registra un reajuste formal de stock de una materia prima.
+    Requiere el stock contado, una descripción del problema y un motivo obligatorios.
+    Si la MP tiene un Producto vinculado, sincroniza su stock también.
+    """
+    mp = MateriaPrima.query.get_or_404(mp_id)
+    nuevo_stock_str = request.form.get('nuevo_stock', '').strip()
+    descripcion_problema = request.form.get('descripcion_problema', '').strip()
+    motivo_reajuste = request.form.get('motivo_reajuste', '').strip()
+
+    # Validar stock
+    try:
+        nuevo_stock = Decimal(nuevo_stock_str)
+        if nuevo_stock < 0:
+            raise ValueError
+    except (InvalidOperation, ValueError):
+        flash('El stock debe ser un número válido mayor o igual a cero.', 'danger')
+        return redirect(url_for('gerente.movimientos_mp', mp_id=mp_id))
+
+    # Validar campos obligatorios
+    if not descripcion_problema:
+        flash('La descripción del problema es obligatoria para registrar un reajuste.', 'danger')
+        return redirect(url_for('gerente.movimientos_mp', mp_id=mp_id))
+    if not motivo_reajuste:
+        flash('El motivo del reajuste es obligatorio.', 'danger')
+        return redirect(url_for('gerente.movimientos_mp', mp_id=mp_id))
+
+    stock_anterior = mp.stock_actual or Decimal('0')
+    diferencia = nuevo_stock - stock_anterior
+    signo = '+' if diferencia >= 0 else ''
+
+    descripcion_movimiento = (
+        f"[REAJUSTE] Problema: {descripcion_problema} | "
+        f"Motivo: {motivo_reajuste} | "
+        f"Diferencia: {signo}{float(diferencia):.3f} {mp.unidad}"
+    )
+
+    # Actualizar stock de la MP
+    mp.stock_actual = nuevo_stock
+
+    # Sincronizar Producto vinculado si existe
+    prod_vinc = mp.get_producto_vinculado()
+    if prod_vinc:
+        prod_vinc.stock_actual = nuevo_stock
+
+    # Registrar movimiento
+    movimiento = MovimientoMateriaPrima(
+        materia_prima_id=mp.id,
+        tipo='reajuste',
+        cantidad=abs(diferencia) if diferencia != 0 else nuevo_stock,
+        descripcion=descripcion_movimiento,
+        usuario_id=current_user.id
+    )
+    db.session.add(movimiento)
+    db.session.commit()
+
+    flash(
+        f'Reajuste de "{mp.nombre}" registrado: '
+        f'{float(stock_anterior):.3f} → {float(nuevo_stock):.3f} {mp.unidad}.',
+        'success'
+    )
+    return redirect(url_for('gerente.movimientos_mp', mp_id=mp_id))
+
+
 @gerente_bp.route('/materias-primas/<int:mp_id>/editar', methods=['GET', 'POST'])
 @gerente_o_admin_requerido
 def editar_materia_prima(mp_id):

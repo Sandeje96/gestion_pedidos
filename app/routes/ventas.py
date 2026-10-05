@@ -13,6 +13,7 @@ from app.models.boleta import Boleta, PagoBoleta
 from app.forms.cliente_forms import ClienteForm
 from app.forms.pedido_forms import PedidoForm, EditarPedidoForm
 from datetime import datetime, date, timedelta
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 from sqlalchemy import func
 
@@ -43,6 +44,20 @@ def vendedor_o_gerente_requerido(f):
     def decorated_function(*args, **kwargs):
         if not (current_user.es_vendedor() or current_user.es_gerente()):
             flash('No tienes permisos para acceder a esta sección', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def gerente_requerido(f):
+    """
+    Decorador para verificar que el usuario sea exclusivamente Gerente.
+    """
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.es_gerente():
+            flash('Solo el usuario Gerente tiene permisos para realizar esta acción.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
@@ -1326,6 +1341,254 @@ def cargar_saldo_inicial(cliente_id):
         
     return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
 
+
+# ─────────────────────────────────────────────────────────
+# SECCIÓN: ACCIONES EXCLUSIVAS DE GERENCIA EN BOLETAS Y CC
+# ─────────────────────────────────────────────────────────
+
+@ventas_bp.route('/cliente/<int:cliente_id>/pago_gerente', methods=['POST'])
+@gerente_requerido
+def registrar_pago_gerente(cliente_id):
+    """
+    Permite exclusivamente al Gerente registrar un cobro o pago para el cliente.
+    Aplica primero a la boleta del día y el remanente a la cuenta corriente.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+    hoy = date.today()
+
+    def parse_decimal(field_name, default=Decimal('0')):
+        raw = request.form.get(field_name, '').strip().replace(',', '.')
+        if not raw:
+            return default
+        try:
+            val = Decimal(raw)
+            return val if val >= 0 else default
+        except (InvalidOperation, ValueError):
+            return default
+
+    efectivo = parse_decimal('efectivo')
+    transferencia = parse_decimal('transferencia')
+    cheque_monto = parse_decimal('cheque')
+    fecha_cheque_str = request.form.get('fecha_cobro_cheque', '').strip()
+    notas = request.form.get('notas', '').strip() or None
+
+    fecha_cobro_cheque = None
+    if cheque_monto > 0 and fecha_cheque_str:
+        try:
+            fecha_cobro_cheque = datetime.strptime(fecha_cheque_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('La fecha de cobro del cheque no es válida.', 'danger')
+            return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+    total_recibido = efectivo + transferencia + cheque_monto
+    if total_recibido <= 0:
+        flash('El total recibido debe ser mayor a $0.', 'warning')
+        return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+    # Boleta actual del día
+    boleta_actual = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega == hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_creacion.desc())
+        .first()
+    )
+
+    # Boletas de CC pendientes (más antiguas primero)
+    boletas_cc = (
+        Boleta.query
+        .filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.fecha_entrega < hoy,
+            Boleta.estado.in_(['pendiente', 'parcial'])
+        )
+        .order_by(Boleta.fecha_entrega.asc())
+        .all()
+    )
+
+    remanente = total_recibido
+    aplicado_boleta = Decimal('0')
+    aplicado_cc = Decimal('0')
+
+    # 1. Aplicar a boleta actual
+    if boleta_actual and remanente > 0:
+        saldo = Decimal(str(boleta_actual.saldo_pendiente))
+        a_aplicar = min(remanente, saldo)
+        boleta_actual.saldo_pendiente = saldo - a_aplicar
+        boleta_actual.estado = 'cobrada' if boleta_actual.saldo_pendiente == 0 else 'parcial'
+        boleta_actual.fecha_actualizacion = datetime.utcnow()
+        aplicado_boleta = a_aplicar
+        remanente -= a_aplicar
+
+    # 2. Aplicar a CC (más antigua a más nueva)
+    for b in boletas_cc:
+        if remanente <= 0:
+            break
+        saldo = Decimal(str(b.saldo_pendiente))
+        a_aplicar = min(remanente, saldo)
+        b.saldo_pendiente = saldo - a_aplicar
+        b.estado = 'cobrada' if b.saldo_pendiente == 0 else 'parcial'
+        b.fecha_actualizacion = datetime.utcnow()
+        aplicado_cc += a_aplicar
+        remanente -= a_aplicar
+
+    saldo_favor = remanente
+    boleta_ref_id = boleta_actual.id if boleta_actual else (boletas_cc[0].id if boletas_cc else None)
+
+    pago = PagoBoleta(
+        boleta_id=boleta_ref_id,
+        cliente_id=cliente_id,
+        efectivo=efectivo,
+        transferencia=transferencia,
+        cheque=cheque_monto,
+        fecha_cobro_cheque=fecha_cobro_cheque,
+        total_recibido=total_recibido,
+        aplicado_boleta=aplicado_boleta,
+        aplicado_cc=aplicado_cc,
+        saldo_favor=saldo_favor,
+        cobrado_por_id=current_user.id,
+        notas=notas
+    )
+    db.session.add(pago)
+
+    try:
+        db.session.commit()
+        flash(f'✅ Pago de ${float(total_recibido):,.2f} registrado correctamente por Gerencia.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al registrar el pago: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+@ventas_bp.route('/boleta/<int:boleta_id>/editar_cc', methods=['POST'])
+@gerente_requerido
+def editar_boleta_cc(boleta_id):
+    """
+    Permite al Gerente modificar directamente los datos de una boleta de Cuenta Corriente
+    (monto, saldo pendiente, estado, descripción, fecha) por errores o devoluciones.
+    """
+    boleta = Boleta.query.get_or_404(boleta_id)
+    cliente_id = boleta.cliente_id
+
+    try:
+        monto_str = request.form.get('monto_boleta', '').strip().replace(',', '.')
+        saldo_str = request.form.get('saldo_pendiente', '').strip().replace(',', '.')
+        descripcion = request.form.get('descripcion', '').strip() or None
+        fecha_str = request.form.get('fecha_entrega', '').strip()
+
+        if monto_str:
+            monto = float(monto_str)
+            if monto < 0:
+                raise ValueError('El monto original no puede ser negativo.')
+            boleta.monto_boleta = monto
+
+        if saldo_str:
+            saldo = float(saldo_str)
+            if saldo < 0:
+                raise ValueError('El saldo pendiente no puede ser negativo.')
+            boleta.saldo_pendiente = saldo
+            if saldo == 0:
+                boleta.estado = 'cobrada'
+            elif saldo < float(boleta.monto_boleta):
+                boleta.estado = 'parcial'
+            else:
+                boleta.estado = 'pendiente'
+
+        if fecha_str:
+            boleta.fecha_entrega = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+
+        boleta.descripcion = descripcion
+        boleta.fecha_actualizacion = datetime.utcnow()
+
+        db.session.commit()
+        flash(f'Boleta de Cuenta Corriente ({boleta.fecha_entrega.strftime("%d/%m/%Y")}) modificada correctamente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al modificar la boleta: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+@ventas_bp.route('/boleta/<int:boleta_id>/eliminar_cc', methods=['POST'])
+@gerente_requerido
+def eliminar_boleta_cc(boleta_id):
+    """
+    Permite al Gerente eliminar una boleta de Cuenta Corriente (por error de carga o anulación).
+    """
+    boleta = Boleta.query.get_or_404(boleta_id)
+    cliente_id = boleta.cliente_id
+
+    try:
+        # Desvincular cualquier pago que referenciara directamente esta boleta
+        PagoBoleta.query.filter_by(boleta_id=boleta.id).update({'boleta_id': None})
+        db.session.delete(boleta)
+        db.session.commit()
+        flash(f'Boleta eliminada correctamente de Cuenta Corriente.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al eliminar la boleta: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
+@ventas_bp.route('/pago/<int:pago_id>/anular_gerente', methods=['POST'])
+@gerente_requerido
+def anular_pago_gerente(pago_id):
+    """
+    Permite al Gerente anular/revertir un cobro registrado erróneamente,
+    restableciendo los saldos pendientes en la boleta del día y/o cuenta corriente.
+    """
+    pago = PagoBoleta.query.get_or_404(pago_id)
+    cliente_id = pago.cliente_id
+    hoy = date.today()
+
+    try:
+        # Revertir lo aplicado a la boleta del día
+        remanente_boleta = Decimal(str(pago.aplicado_boleta or 0))
+        if remanente_boleta > 0 and pago.boleta_id:
+            b_ref = Boleta.query.get(pago.boleta_id)
+            if b_ref:
+                b_ref.saldo_pendiente = Decimal(str(b_ref.saldo_pendiente)) + remanente_boleta
+                b_ref.estado = 'pendiente' if b_ref.saldo_pendiente >= b_ref.monto_boleta else 'parcial'
+                b_ref.fecha_actualizacion = datetime.utcnow()
+
+        # Revertir lo aplicado a cuenta corriente
+        remanente_cc = Decimal(str(pago.aplicado_cc or 0))
+        if remanente_cc > 0:
+            boletas_cc = (
+                Boleta.query
+                .filter(
+                    Boleta.cliente_id == cliente_id,
+                    Boleta.fecha_entrega < hoy,
+                    Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
+                )
+                .order_by(Boleta.fecha_entrega.desc())
+                .all()
+            )
+            for b in boletas_cc:
+                if remanente_cc <= 0:
+                    break
+                pagado = Decimal(str(b.monto_boleta)) - Decimal(str(b.saldo_pendiente))
+                if pagado > 0:
+                    a_rev = min(remanente_cc, pagado)
+                    b.saldo_pendiente = Decimal(str(b.saldo_pendiente)) + a_rev
+                    b.estado = 'pendiente' if b.saldo_pendiente >= b.monto_boleta else 'parcial'
+                    b.fecha_actualizacion = datetime.utcnow()
+                    remanente_cc -= a_rev
+
+        total_recibido = float(pago.total_recibido or 0)
+        db.session.delete(pago)
+        db.session.commit()
+        flash(f'Cobro de ${total_recibido:,.2f} anulado correctamente y saldos restablecidos.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al anular el cobro: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
 
 
 @ventas_bp.route('/boleta/<int:boleta_id>/anular', methods=['POST'])

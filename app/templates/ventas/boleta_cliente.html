@@ -97,8 +97,11 @@
 
         <!-- CUENTA CORRIENTE -->
         <div class="card mb-3 {% if saldo_cc > 0 %}border-warning{% else %}border-success{% endif %}">
-            <div class="card-header {% if saldo_cc > 0 %}bg-warning text-dark{% else %}bg-success text-white{% endif %}">
-                <i class="fas fa-history"></i> Cuenta Corriente
+            <div class="card-header {% if saldo_cc > 0 %}bg-warning text-dark{% else %}bg-success text-white{% endif %} d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-history"></i> Cuenta Corriente</span>
+                {% if current_user.es_gerente() %}
+                <span class="badge bg-dark text-light small"><i class="fas fa-user-shield me-1"></i>Edición habilitada</span>
+                {% endif %}
             </div>
             <div class="card-body">
                 {% if boletas_cc %}
@@ -106,12 +109,15 @@
                         <div class="display-6 fw-bold text-warning">${{ "%.2f"|format(saldo_cc) }}</div>
                         <div class="text-muted small">Deuda acumulada de días anteriores</div>
                     </div>
-                    <table class="table table-sm">
+                    <table class="table table-sm align-middle">
                         <thead><tr>
                             <th>Fecha</th>
-                            <th>Monto original</th>
-                            <th>Saldo pendiente</th>
+                            <th>Monto</th>
+                            <th>Saldo</th>
                             <th>Estado</th>
+                            {% if current_user.es_gerente() %}
+                            <th class="text-end">Acciones</th>
+                            {% endif %}
                         </tr></thead>
                         <tbody>
                         {% for b in boletas_cc %}
@@ -122,6 +128,18 @@
                             <td>
                                 <span class="badge bg-warning text-dark">{{ b.estado|capitalize }}</span>
                             </td>
+                            {% if current_user.es_gerente() %}
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" title="Modificar boleta" data-bs-toggle="modal" data-bs-target="#modalEditarCC{{ b.id }}">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                                <form method="POST" action="{{ url_for('ventas.eliminar_boleta_cc', boleta_id=b.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar esta boleta de Cuenta Corriente?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Eliminar boleta">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                            </td>
+                            {% endif %}
                         </tr>
                         {% endfor %}
                         </tbody>
@@ -177,9 +195,59 @@
     </div>
 
     <!-- ══════════════════════════════════
-         COLUMNA DERECHA — HISTORIAL DE COBROS
+         COLUMNA DERECHA — COBROS
          ══════════════════════════════════ -->
     <div class="col-12 col-md-6">
+
+        {% if current_user.es_gerente() %}
+        <!-- ── REGISTRAR COBRO / PAGO (EXCLUSIVO GERENCIA) ── -->
+        <div class="card mb-3 border-success shadow-sm">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-hand-holding-usd me-1"></i> Registrar Cobro / Pago</span>
+                <span class="badge bg-light text-success fw-bold"><i class="fas fa-lock me-1"></i>Gerencia</span>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('ventas.registrar_pago_gerente', cliente_id=cliente.id) }}">
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold mb-1">Efectivo</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="efectivo" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold mb-1">Transferencia</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="transferencia" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <label class="form-label small fw-bold mb-1">Cheque</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="cheque" class="form-control" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-bold mb-1">Cobro Cheque (Fecha)</label>
+                            <input type="date" name="fecha_cobro_cheque" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold mb-1">Notas / Motivo (opcional)</label>
+                        <input type="text" name="notas" class="form-control form-control-sm" placeholder="Ej: Pago directo en oficina / Devolución">
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 fw-bold shadow-sm">
+                        <i class="fas fa-check-circle me-1"></i> Registrar Pago
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- ── HISTORIAL DE TODOS LOS COBROS ── -->
         <div class="card border-dark">
@@ -192,7 +260,8 @@
                 <div class="list-group list-group-flush">
                     {% for cobro in historial_cobros %}
                     {% set es_ventas = cobro.cobrado_por and cobro.cobrado_por.rol == 'vendedor' %}
-                    <div class="list-group-item px-3 py-3 {% if es_ventas %}border-start border-success border-3{% else %}border-start border-dark border-3{% endif %}">
+                    {% set es_gerente = cobro.cobrado_por and cobro.cobrado_por.rol == 'gerente' %}
+                    <div class="list-group-item px-3 py-3 {% if es_gerente %}border-start border-primary border-3{% elif es_ventas %}border-start border-success border-3{% else %}border-start border-dark border-3{% endif %}">
                         <div class="d-flex justify-content-between align-items-start mb-1">
                             <span class="text-muted small">
                                 <i class="fas fa-clock me-1"></i>{{ cobro.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}
@@ -200,25 +269,41 @@
                             <span class="fw-bold text-success fs-6">${{ "%.2f"|format(cobro.total_recibido|float) }}</span>
                         </div>
 
-                        <!-- Badge de origen -->
-                        <div class="mb-1">
-                            {% if es_ventas %}
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 me-1">
-                                <i class="fas fa-user-tie me-1"></i>Ventas
-                            </span>
-                            {% else %}
-                            <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-25 me-1">
-                                <i class="fas fa-truck me-1"></i>Repartidor
-                            </span>
-                            {% endif %}
-                            {% if cobro.procesado %}
-                            <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25">
-                                <i class="fas fa-archive me-1"></i>Archivado
-                            </span>
-                            {% else %}
-                            <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">
-                                <i class="fas fa-circle me-1"></i>Sesión activa
-                            </span>
+                        <!-- Badge de origen y estado -->
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div>
+                                {% if es_gerente %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 me-1">
+                                    <i class="fas fa-briefcase me-1"></i>Gerencia
+                                </span>
+                                {% elif es_ventas %}
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 me-1">
+                                    <i class="fas fa-user-tie me-1"></i>Ventas
+                                </span>
+                                {% else %}
+                                <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-25 me-1">
+                                    <i class="fas fa-truck me-1"></i>Repartidor
+                                </span>
+                                {% endif %}
+
+                                {% if cobro.procesado %}
+                                <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25">
+                                    <i class="fas fa-archive me-1"></i>Archivado
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">
+                                    <i class="fas fa-circle me-1"></i>Sesión activa
+                                </span>
+                                {% endif %}
+                            </div>
+
+                            {% if current_user.es_gerente() %}
+                            <!-- Botón anular cobro para Gerente -->
+                            <form method="POST" action="{{ url_for('ventas.anular_pago_gerente', pago_id=cobro.id) }}" class="d-inline" onsubmit="return confirm('¿Anular este cobro de ${{ "%.2f"|format(cobro.total_recibido|float) }} y restablecer la deuda del cliente?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Anular este cobro">
+                                    <i class="fas fa-trash-alt me-1"></i> Anular
+                                </button>
+                            </form>
                             {% endif %}
                         </div>
 
@@ -277,5 +362,52 @@
     </div>
 
 </div>
+
+<!-- ── MODALES PARA EDITAR BOLETAS DE CUENTA CORRIENTE (GERENTE) ── -->
+{% if current_user.es_gerente() and boletas_cc %}
+    {% for b in boletas_cc %}
+    <div class="modal fade" id="modalEditarCC{{ b.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="{{ url_for('ventas.editar_boleta_cc', boleta_id=b.id) }}">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title"><i class="fas fa-edit me-1"></i> Modificar Cuenta Corriente</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body text-start">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Fecha de la Boleta</label>
+                            <input type="date" name="fecha_entrega" class="form-control" value="{{ b.fecha_entrega.strftime('%Y-%m-%d') }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Monto Total Original</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="monto_boleta" class="form-control" step="0.01" min="0" value="{{ "%.2f"|format(b.monto_boleta|float) }}" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Saldo Pendiente</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="saldo_pendiente" class="form-control" step="0.01" min="0" value="{{ "%.2f"|format(b.saldo_pendiente|float) }}" required>
+                            </div>
+                            <small class="text-muted">Podés reducir el saldo por devoluciones o errores. Si ponés 0, pasará a Cobrada.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Detalle / Motivo de modificación</label>
+                            <textarea name="descripcion" class="form-control" rows="2" placeholder="Motivo o detalle de los productos...">{{ b.descripcion or '' }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning fw-bold"><i class="fas fa-save me-1"></i> Guardar Cambios</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
 
 {% endblock %}

@@ -34,6 +34,20 @@ def vendedor_requerido(f):
     return decorated_function
 
 
+def vendedor_o_gerente_requerido(f):
+    """
+    Decorador para verificar que el usuario sea Vendedor o Gerente.
+    """
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not (current_user.es_vendedor() or current_user.es_gerente()):
+            flash('No tienes permisos para acceder a esta sección', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # ─────────────────────────────────────────────
 # SECCIÓN: AJUSTE PARCIAL DE CANTIDAD
 # ─────────────────────────────────────────────
@@ -997,7 +1011,7 @@ def stock():
 # ══════════════════════════════════════════════════════════
 
 @ventas_bp.route('/boletas')
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def boletas():
     """
     Lista todos los clientes activos (no sucursales) agrupados por ruta,
@@ -1131,7 +1145,7 @@ def boletas():
 
 
 @ventas_bp.route('/cliente/<int:cliente_id>/boleta', methods=['GET', 'POST'])
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def gestionar_boleta(cliente_id):
     """
     Ver y gestionar la boleta del día de un cliente específico.
@@ -1202,7 +1216,7 @@ def gestionar_boleta(cliente_id):
 
 
 @ventas_bp.route('/cliente/<int:cliente_id>/boleta/guardar', methods=['POST'])
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def guardar_boleta(cliente_id):
     """
     Crear o actualizar la boleta del día para un cliente.
@@ -1268,7 +1282,7 @@ def guardar_boleta(cliente_id):
 
 
 @ventas_bp.route('/cliente/<int:cliente_id>/boleta/saldo_inicial', methods=['POST'])
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def cargar_saldo_inicial(cliente_id):
     """
     Carga una boleta con fecha de ayer para que figure directamente 
@@ -1315,7 +1329,7 @@ def cargar_saldo_inicial(cliente_id):
 
 
 @ventas_bp.route('/boleta/<int:boleta_id>/anular', methods=['POST'])
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def anular_boleta(boleta_id):
     """
     Anula (elimina) una boleta pendiente del día.
@@ -1341,7 +1355,7 @@ def anular_boleta(boleta_id):
 
 
 @ventas_bp.route('/cliente/<int:cliente_id>/resetear_dia', methods=['POST'])
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def resetear_cliente_dia(cliente_id):
     """
     Cierra la sesión activa del cliente.
@@ -1440,7 +1454,7 @@ def resetear_cliente_dia(cliente_id):
 
 
 @ventas_bp.route('/ruta/<ruta_nombre>/resetear_dia', methods=['POST'])
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def resetear_ruta_dia(ruta_nombre):
     """
     Cierra la sesión activa para todos los clientes de una ruta.
@@ -1567,7 +1581,7 @@ def resetear_ruta_dia(ruta_nombre):
     return redirect(url_for('ventas.boletas'))
 
 @ventas_bp.route('/historial_gastos')
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def historial_gastos():
     """
     Muestra el historial de gastos archivados/procesados de todos los repartidores.
@@ -1597,7 +1611,7 @@ def historial_gastos():
 
 @ventas_bp.route('/reporte-producto', methods=['GET'])
 @login_required
-@vendedor_requerido
+@vendedor_o_gerente_requerido
 def reporte_producto():
     """
     Muestra un reporte de litros vendidos por producto en un rango de fechas.

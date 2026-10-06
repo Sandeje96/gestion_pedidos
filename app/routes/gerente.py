@@ -203,6 +203,71 @@ def movimientos_mp(mp_id):
                            title=f'Movimientos — {mp.nombre}', mp=mp, movimientos=movimientos)
 
 
+@gerente_bp.route('/materias-primas/<int:mp_id>/productos')
+@gerente_o_admin_requerido
+def productos_por_materia_prima(mp_id):
+    """
+    Endpoint AJAX: Devuelve la lista de productos y fórmulas intermedias
+    en las que está incluida esta materia prima como ingrediente o insumo.
+    """
+    mp = MateriaPrima.query.get_or_404(mp_id)
+
+    # 1. Productos finales que usan esta MP en su formulación
+    formulaciones = (
+        FormulacionProducto.query
+        .filter_by(materia_prima_id=mp.id)
+        .join(Producto, FormulacionProducto.producto_id == Producto.id)
+        .order_by(Producto.nombre)
+        .all()
+    )
+
+    productos_data = []
+    for f in formulaciones:
+        prod = f.producto
+        productos_data.append({
+            'id': prod.id,
+            'nombre': prod.nombre,
+            'unidad': prod.unidad or 'unidad',
+            'disponible': prod.disponible,
+            'cantidad_por_unidad': float(f.cantidad_por_unidad),
+            'grupo_alternativa': f.grupo_alternativa,
+            'es_alternativa': f.grupo_alternativa is not None,
+            'url_formula': url_for('gerente.editar_formula', producto_id=prod.id)
+        })
+
+    # 2. Fórmulas de otras materias primas donde esta MP es usada como componente
+    formulas_mp = (
+        FormulacionMateriaPrima.query
+        .filter_by(componente_id=mp.id)
+        .join(MateriaPrima, FormulacionMateriaPrima.materia_prima_id == MateriaPrima.id)
+        .order_by(MateriaPrima.nombre)
+        .all()
+    )
+
+    materias_intermedias_data = []
+    for f_mp in formulas_mp:
+        mp_padre = f_mp.materia_prima
+        materias_intermedias_data.append({
+            'id': mp_padre.id,
+            'nombre': mp_padre.nombre,
+            'unidad': mp_padre.unidad,
+            'stock_actual': float(mp_padre.stock_actual or 0),
+            'cantidad_por_unidad': float(f_mp.cantidad_por_unidad),
+            'url_formula': url_for('gerente.formula_materia_prima', mp_id=mp_padre.id)
+        })
+
+    return jsonify({
+        'materia_prima': {
+            'id': mp.id,
+            'nombre': mp.nombre,
+            'unidad': mp.unidad,
+            'stock_actual': float(mp.stock_actual or 0),
+        },
+        'productos': productos_data,
+        'materias_intermedias': materias_intermedias_data
+    })
+
+
 @gerente_bp.route('/materias-primas/<int:mp_id>/reajuste-stock', methods=['POST'])
 @gerente_o_admin_requerido
 def reajuste_stock_mp(mp_id):

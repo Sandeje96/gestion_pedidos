@@ -160,6 +160,14 @@
                                class="btn btn-sm btn-outline-secondary ms-1" title="Ver historial">
                                 <i class="fas fa-history"></i>
                             </a>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary ms-1 btn-ver-productos"
+                                    data-mp-id="{{ mp.id }}"
+                                    data-mp-nombre="{{ mp.nombre }}"
+                                    data-mp-unidad="{{ mp.unidad }}"
+                                    title="Ver productos donde se incluye">
+                                <i class="fas fa-cubes"></i>
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -195,38 +203,273 @@
     </a>
     {% endif %}
 </div>
+
+<!-- Modal Productos con Materia Prima -->
+<div class="modal fade" id="modalProductosMP" tabindex="-1" aria-labelledby="modalProductosMPLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #0d6efd, #0a58ca);">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0" id="modalProductosMPLabel">
+                        <i class="fas fa-cubes me-2"></i>Productos que incluyen esta Materia Prima
+                    </h5>
+                    <small class="text-white-50" id="modal-mp-subtitulo">Consultando recetas...</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Spinner de carga -->
+                <div id="modal-mp-loading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="text-muted mt-2 mb-0">Buscando productos y recetas asociadas...</p>
+                </div>
+
+                <!-- Contenido cargado -->
+                <div id="modal-mp-contenido" style="display: none;">
+                    <!-- Tarjeta con resumen de la Materia Prima -->
+                    <div class="p-3 bg-light rounded-3 mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2 border">
+                        <div>
+                            <span class="text-muted small d-block">Materia Prima:</span>
+                            <h5 class="mb-0 fw-bold text-dark" id="modal-mp-nombre-badge">—</h5>
+                        </div>
+                        <div class="text-end">
+                            <span class="text-muted small d-block">Stock Actual:</span>
+                            <span class="badge bg-secondary fs-6" id="modal-mp-stock-badge">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Mensaje si no tiene productos ni recetas -->
+                    <div id="modal-mp-sin-productos" class="alert alert-info d-flex align-items-center gap-2 mb-3" style="display: none;">
+                        <i class="fas fa-info-circle fa-lg"></i>
+                        <div>Esta materia prima no está configurada actualmente en la receta de ningún producto terminado ni intermedio.</div>
+                    </div>
+
+                    <!-- Tabla de productos finales -->
+                    <div id="modal-mp-tabla-container" style="display: none;" class="mb-4">
+                        <h6 class="fw-bold text-secondary mb-2">
+                            <i class="fas fa-box-open text-primary me-1"></i> Productos finales (<span id="modal-mp-cant-productos">0</span>)
+                        </h6>
+                        <div class="table-responsive rounded-3 border">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th class="text-center">Estado</th>
+                                        <th class="text-end">Cantidad en Receta</th>
+                                        <th class="text-center">Tipo de Ingrediente</th>
+                                        <th class="text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modal-mp-productos-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sección de fórmulas intermedias (si aplica) -->
+                    <div id="modal-mp-intermedias-container" style="display: none;">
+                        <h6 class="fw-bold text-secondary mb-2">
+                            <i class="fas fa-atom text-warning me-1"></i> Insumos intermedios que la utilizan (<span id="modal-mp-cant-intermedias">0</span>)
+                        </h6>
+                        <div class="table-responsive rounded-3 border">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Insumo Intermedio</th>
+                                        <th class="text-end">Cantidad en Fórmula</th>
+                                        <th class="text-end">Stock Actual</th>
+                                        <th class="text-center">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modal-mp-intermedias-tbody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error -->
+                <div id="modal-mp-error" class="alert alert-danger" style="display: none;">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Ocurrió un error al cargar los productos asociados. Por favor, intenta nuevamente.
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    // Buscador
     const buscador = document.getElementById('buscador-mp');
     const filas = document.querySelectorAll('.mp-row');
     const contador = document.getElementById('contador-mp');
     const sinResultados = document.getElementById('sin-resultados-mp');
     const total = filas.length;
 
-    if (!buscador) return;
+    if (buscador) {
+        buscador.addEventListener('input', function () {
+            const q = this.value.toLowerCase().trim();
+            let visibles = 0;
 
-    buscador.addEventListener('input', function () {
-        const q = this.value.toLowerCase().trim();
-        let visibles = 0;
+            filas.forEach(function (fila) {
+                const nombre = fila.getAttribute('data-nombre') || '';
+                const desc   = fila.getAttribute('data-desc') || '';
+                const match  = nombre.includes(q) || desc.includes(q);
+                fila.style.display = match ? '' : 'none';
+                if (match) visibles++;
+            });
 
-        filas.forEach(function (fila) {
-            const nombre = fila.getAttribute('data-nombre') || '';
-            const desc   = fila.getAttribute('data-desc') || '';
-            const match  = nombre.includes(q) || desc.includes(q);
-            fila.style.display = match ? '' : 'none';
-            if (match) visibles++;
+            if (contador) {
+                contador.innerHTML = 'Mostrando <strong>' + visibles + '</strong> de ' + total + ' insumos';
+            }
+            if (sinResultados) {
+                sinResultados.style.display = (visibles === 0 && total > 0) ? 'block' : 'none';
+            }
         });
+    }
 
-        if (contador) {
-            contador.innerHTML = 'Mostrando <strong>' + visibles + '</strong> de ' + total + ' insumos';
-        }
-        if (sinResultados) {
-            sinResultados.style.display = (visibles === 0 && total > 0) ? 'block' : 'none';
-        }
+    // Modal Productos por Materia Prima
+    const modalProductosEl = document.getElementById('modalProductosMP');
+    let modalProductosInstance = null;
+    if (modalProductosEl) {
+        modalProductosInstance = new bootstrap.Modal(modalProductosEl);
+    }
+
+    document.querySelectorAll('.btn-ver-productos').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const mpId = this.getAttribute('data-mp-id');
+            const mpNombre = this.getAttribute('data-mp-nombre');
+            const mpUnidad = this.getAttribute('data-mp-unidad');
+
+            abrirModalProductosMP(mpId, mpNombre, mpUnidad);
+        });
     });
+
+    function abrirModalProductosMP(mpId, mpNombre, mpUnidad) {
+        if (!modalProductosInstance) return;
+
+        const loading = document.getElementById('modal-mp-loading');
+        const contenido = document.getElementById('modal-mp-contenido');
+        const errorEl = document.getElementById('modal-mp-error');
+        const subtitulo = document.getElementById('modal-mp-subtitulo');
+        const nombreBadge = document.getElementById('modal-mp-nombre-badge');
+        const stockBadge = document.getElementById('modal-mp-stock-badge');
+        const sinProductos = document.getElementById('modal-mp-sin-productos');
+        const tablaContainer = document.getElementById('modal-mp-tabla-container');
+        const productosTbody = document.getElementById('modal-mp-productos-tbody');
+        const cantProductosSpan = document.getElementById('modal-mp-cant-productos');
+        const intermediasContainer = document.getElementById('modal-mp-intermedias-container');
+        const intermediasTbody = document.getElementById('modal-mp-intermedias-tbody');
+        const cantIntermediasSpan = document.getElementById('modal-mp-cant-intermedias');
+
+        // Estado inicial
+        loading.style.display = 'block';
+        contenido.style.display = 'none';
+        errorEl.style.display = 'none';
+        subtitulo.textContent = 'Materia prima: ' + mpNombre;
+        nombreBadge.textContent = mpNombre;
+        stockBadge.textContent = '...';
+
+        modalProductosInstance.show();
+
+        fetch('/gerente/materias-primas/' + mpId + '/productos')
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                loading.style.display = 'none';
+                contenido.style.display = 'block';
+
+                const mp = data.materia_prima;
+                nombreBadge.textContent = mp.nombre;
+                stockBadge.textContent = Number(mp.stock_actual).toFixed(3) + ' ' + (mp.unidad || '');
+                subtitulo.textContent = 'Unidad de medida: ' + (mp.unidad || '');
+
+                const prods = data.productos || [];
+                cantProductosSpan.textContent = prods.length;
+                productosTbody.innerHTML = '';
+
+                if (prods.length === 0) {
+                    tablaContainer.style.display = 'none';
+                } else {
+                    tablaContainer.style.display = 'block';
+                    prods.forEach(function(p) {
+                        const tr = document.createElement('tr');
+                        const badgeDisponibilidad = p.disponible
+                            ? '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Disponible</span>'
+                            : '<span class="badge bg-secondary"><i class="fas fa-times-circle me-1"></i>No disponible</span>';
+
+                        const badgeTipo = p.es_alternativa
+                            ? '<span class="badge bg-warning text-dark"><i class="fas fa-random me-1"></i>Alternativa (G' + p.grupo_alternativa + ')</span>'
+                            : '<span class="badge bg-light text-dark border">Principal</span>';
+
+                        tr.innerHTML = `
+                            <td><strong class="text-dark">${p.nombre}</strong></td>
+                            <td class="text-center">${badgeDisponibilidad}</td>
+                            <td class="text-end">
+                                <span class="fw-bold text-primary">${p.cantidad_por_unidad}</span>
+                                <small class="text-muted ms-1">${mp.unidad} / ${p.unidad}</small>
+                            </td>
+                            <td class="text-center">${badgeTipo}</td>
+                            <td class="text-center">
+                                <a href="${p.url_formula}" class="btn btn-sm btn-outline-secondary" title="Ver / editar receta del producto">
+                                    <i class="fas fa-sliders me-1"></i>Fórmula
+                                </a>
+                            </td>
+                        `;
+                        productosTbody.appendChild(tr);
+                    });
+                }
+
+                const intermedias = data.materias_intermedias || [];
+                cantIntermediasSpan.textContent = intermedias.length;
+                intermediasTbody.innerHTML = '';
+
+                if (intermedias.length === 0) {
+                    intermediasContainer.style.display = 'none';
+                } else {
+                    intermediasContainer.style.display = 'block';
+                    intermedias.forEach(function(it) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><strong class="text-dark">${it.nombre}</strong></td>
+                            <td class="text-end">
+                                <span class="fw-bold text-warning-emphasis">${it.cantidad_por_unidad}</span>
+                                <small class="text-muted ms-1">${mp.unidad} / ${it.unidad}</small>
+                            </td>
+                            <td class="text-end text-muted">${Number(it.stock_actual).toFixed(3)} ${it.unidad}</td>
+                            <td class="text-center">
+                                <a href="${it.url_formula}" class="btn btn-sm btn-outline-warning" title="Ver fórmula propia">
+                                    <i class="fas fa-atom me-1"></i>Fórmula
+                                </a>
+                            </td>
+                        `;
+                        intermediasTbody.appendChild(tr);
+                    });
+                }
+
+                if (prods.length === 0 && intermedias.length === 0) {
+                    sinProductos.style.display = 'flex';
+                } else {
+                    sinProductos.style.display = 'none';
+                }
+            })
+            .catch(function(err) {
+                console.error('Error al cargar productos:', err);
+                loading.style.display = 'none';
+                errorEl.style.display = 'block';
+            });
+    }
 });
 </script>
 {% endblock %}

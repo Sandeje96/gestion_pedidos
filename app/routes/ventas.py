@@ -377,6 +377,7 @@ def nuevo_pedido():
             '500ml': 0.50,
             '1litro': 1.00,
             '5litros': 5.00,
+            '10litros': 10.00,
             '20litros': 20.00,
             '200litros': 200.00,
             '500litros': 500.00,

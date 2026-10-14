@@ -30,7 +30,7 @@ class Pedido(db.Model):
     unidad = db.Column(db.String(50), nullable=True)
     
     # Presentación y envases (sistema nuevo)
-    presentacion = db.Column(db.String(20), nullable=True)         # "300ml","500ml","1litro","5litros","20litros"
+    presentacion = db.Column(db.String(20), nullable=True)         # "300ml","500ml","1litro","5litros","10litros","20litros",etc.
     cantidad_envases = db.Column(db.Numeric(10, 2), nullable=True) # Cantidad de envases pedidos
     litros_por_presentacion = db.Column(db.Numeric(10, 4), nullable=True)  # Factor de conversión guardado
 

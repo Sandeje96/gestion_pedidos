@@ -233,24 +233,22 @@
                                     <td>
                                         <input type="text" class="form-control form-control-sm time-input input-ingreso text-center"
                                                name="hora_ingreso_{{ p.id }}"
-                                               value="{{ item.hora_ingreso or '' }}"
-                                               placeholder="{{ item.hora_ingreso_pactada }}"
-                                               maxlength="5"
+                                               value="{{ item.hora_ingreso or item.hora_ingreso_pactada or '08:00' }}"
+                                               placeholder="{{ item.hora_ingreso_pactada or '08:00' }}"
                                                inputmode="numeric"
                                                autocomplete="off"
-                                               data-pactado-ing="{{ item.hora_ingreso_pactada }}">
+                                               data-pactado-ing="{{ item.hora_ingreso_pactada or '08:00' }}">
                                     </td>
 
                                     <!-- Hora de Salida -->
                                     <td>
                                         <input type="text" class="form-control form-control-sm time-input input-salida text-center"
                                                name="hora_salida_{{ p.id }}"
-                                               value="{{ item.hora_salida or '' }}"
-                                               placeholder="{{ item.hora_salida_pactada }}"
-                                               maxlength="5"
+                                               value="{{ item.hora_salida or item.hora_salida_pactada or '17:00' }}"
+                                               placeholder="{{ item.hora_salida_pactada or '17:00' }}"
                                                inputmode="numeric"
                                                autocomplete="off"
-                                               data-pactado-sal="{{ item.hora_salida_pactada }}">
+                                               data-pactado-sal="{{ item.hora_salida_pactada or '17:00' }}">
                                     </td>
 
                                     <!-- Tipo de Jornada -->
@@ -824,53 +822,58 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ── Parser inteligente y permisivo de horario a minutos ──
-    function timeToMins(tStr) {
-        if (!tStr) return null;
-        tStr = String(tStr).trim();
-        if (!tStr) return null;
+    function parseHorarioFlexible(str) {
+        if (!str) return null;
+        str = String(str).trim();
+        if (!str) return null;
 
-        // Si tiene separador (: o . o ,)
-        if (tStr.includes(':') || tStr.includes('.') || tStr.includes(',')) {
-            const sep = tStr.includes(':') ? ':' : (tStr.includes('.') ? '.' : ',');
-            const parts = tStr.split(sep);
-            const h = parseInt(parts[0], 10);
-            if (isNaN(h) || h < 0 || h > 24) return null;
-            let m = 0;
-            if (parts[1] && parts[1].trim() !== '') {
-                m = parseInt(parts[1], 10);
-                if (isNaN(m) || m < 0 || m >= 60) return null;
+        // Si tiene separador (: o . o , o espacio o guion)
+        // Soporta ej: "18:00", "18.30", "18,30", "18 30", "18:"
+        const matchSep = str.match(/^(\d{1,2})[\s:.,-](\d{0,2})$/);
+        if (matchSep) {
+            let h = parseInt(matchSep[1], 10);
+            let m = matchSep[2] ? parseInt(matchSep[2], 10) : 0;
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) {
+                return h * 60 + m;
             }
-            return h * 60 + m;
         }
 
-        // Solo dígitos sin separador
-        const digits = tStr.replace(/\D/g, '');
+        // Solo dígitos sin separador (ej: "18", "1800", "8", "830")
+        const digits = str.replace(/\D/g, '');
         if (!digits) return null;
 
         if (digits.length === 1) {
-            const d = parseInt(digits, 10);
-            if (d >= 6 && d <= 9) return d * 60; // 6, 7, 8, 9 asumimos 06:00, 07:00, etc.
-            return null; // 1 o 2 esperando segundo dígito (ej: 17 o 20)
-        } else if (digits.length === 2) {
-            const h = parseInt(digits, 10);
-            if (h >= 0 && h <= 24) return h * 60;
-            return null;
-        } else if (digits.length === 3) {
-            const h = parseInt(digits.slice(0, 1), 10);
-            const m = parseInt(digits.slice(1), 10);
-            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m;
-            return null;
-        } else if (digits.length >= 4) {
-            const h = parseInt(digits.slice(0, 2), 10);
-            const m = parseInt(digits.slice(2, 4), 10);
-            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m;
+            let d = parseInt(digits, 10);
+            if (d >= 6 && d <= 9) return d * 60; // 6, 7, 8, 9 hs
             return null;
         }
+
+        if (digits.length === 2) {
+            let h = parseInt(digits, 10);
+            if (h >= 0 && h <= 24) return h * 60; // Ej: 16 -> 16:00, 18 -> 18:00
+            return null;
+        }
+
+        if (digits.length === 3) {
+            let h = parseInt(digits.slice(0, 1), 10);
+            let m = parseInt(digits.slice(1), 10);
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m; // Ej: 830 -> 8:30
+            return null;
+        }
+
+        if (digits.length >= 4) {
+            let h = parseInt(digits.slice(0, 2), 10);
+            let m = parseInt(digits.slice(2, 4), 10);
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m; // Ej: 1630 -> 16:30, 1800 -> 18:00
+            return null;
+        }
+
         return null;
     }
 
     // ── Normalizar campo al formato estándar HH:MM ──
     function normalizarHoraInput(input) {
+        if (!input) return;
         let val = input.value.trim();
         if (!val) return;
         if (/^\d{1,2}:\d{2}$/.test(val)) {
@@ -901,19 +904,39 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Recalcular delta en vivo para cada fila al tipear horarios ──
     function recalcularFila(tr) {
-        const pactadoMins = parseInt(tr.dataset.pactadoMins, 10) || 540;
         const inpIng = tr.querySelector('.input-ingreso');
         const inpSal = tr.querySelector('.input-salida');
-        const tipoDia = tr.querySelector('.select-tipo-dia').value;
+        const tipoDia = tr.querySelector('.select-tipo-dia') ? tr.querySelector('.select-tipo-dia').value : 'normal';
         const badge = tr.querySelector('.badge-delta');
+        if (!badge) return;
 
-        const minsIng = timeToMins(inpIng ? inpIng.value : '');
-        const minsSal = timeToMins(inpSal ? inpSal.value : '');
+        // Horario pactado esperado en minutos (por defecto 9 hs = 540 min)
+        let pactadoMins = parseInt(tr.dataset.pactadoMins, 10);
+        if (!pactadoMins || isNaN(pactadoMins)) {
+            const pIng = parseHorarioFlexible(inpIng ? inpIng.dataset.pactadoIng : '08:00') || (8 * 60);
+            const pSal = parseHorarioFlexible(inpSal ? inpSal.dataset.pactadoSal : '17:00') || (17 * 60);
+            pactadoMins = pSal - pIng;
+            if (pactadoMins < 0) pactadoMins += 24 * 60;
+        }
+
+        // Minutos de ingreso (si está vacío, usar pactado 08:00)
+        let ingStr = inpIng ? inpIng.value.trim() : '';
+        if (!ingStr && inpIng) {
+            ingStr = inpIng.dataset.pactadoIng || inpIng.placeholder || '08:00';
+        }
+        let minsIng = parseHorarioFlexible(ingStr);
+        if (minsIng === null) {
+            minsIng = 8 * 60; // 08:00 por defecto garantizado
+        }
+
+        // Minutos de salida
+        let salStr = inpSal ? inpSal.value.trim() : '';
+        let minsSal = parseHorarioFlexible(salStr);
 
         let delta = 0;
 
         if (tipoDia === 'franco' || tipoDia === 'feriado' || tipoDia === 'ausente_justificado') {
-            if (minsIng !== null && minsSal !== null) {
+            if (minsSal !== null) {
                 let worked = minsSal - minsIng;
                 if (worked < 0) worked += 24 * 60;
                 delta = worked;
@@ -924,11 +947,16 @@ document.addEventListener('DOMContentLoaded', function () {
             delta = -pactadoMins;
         } else {
             // Normal o Compensación
-            if (minsIng !== null && minsSal !== null) {
+            if (minsSal !== null) {
                 let worked = minsSal - minsIng;
                 if (worked < 0) worked += 24 * 60;
                 delta = worked - pactadoMins;
             } else {
+                if (salStr.length > 0) {
+                    badge.textContent = '...';
+                    badge.className = 'delta-badge delta-cero';
+                    return;
+                }
                 delta = 0;
             }
         }
@@ -946,7 +974,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Inputs de ingreso y salida
-        tr.querySelectorAll('.input-ingreso, .input-salida').forEach(function (inp) {
+        const inpIng = tr.querySelector('.input-ingreso');
+        const inpSal = tr.querySelector('.input-salida');
+
+        [inpIng, inpSal].forEach(function (inp) {
+            if (!inp) return;
+
             // Seleccionar contenido al hacer foco para facilitar sobreescritura rápida
             inp.addEventListener('focus', function () {
                 this.select();
@@ -955,14 +988,14 @@ document.addEventListener('DOMContentLoaded', function () {
             // Recalcular al instante en CADA pulsación de tecla, cambio o pegado
             inp.addEventListener('input', () => recalcularFila(tr));
             inp.addEventListener('keyup', () => recalcularFila(tr));
-            inp.addEventListener('paste', () => setTimeout(() => recalcularFila(tr), 10));
+            inp.addEventListener('paste', () => setTimeout(() => recalcularFila(tr), 15));
             inp.addEventListener('change', () => recalcularFila(tr));
 
             // Flechas arriba/abajo para subir o bajar horario, y Enter para avanzar
             inp.addEventListener('keydown', function (e) {
                 if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                     e.preventDefault();
-                    let curMins = timeToMins(inp.value);
+                    let curMins = parseHorarioFlexible(inp.value);
                     if (curMins === null) {
                         curMins = inp.classList.contains('input-ingreso') ? 8 * 60 : 17 * 60;
                     }

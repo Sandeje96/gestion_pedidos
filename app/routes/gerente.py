@@ -1041,40 +1041,104 @@ def historial_repartidores():
 def detalle_cierre_ruta(cierre_id):
     """
     Endpoint AJAX: devuelve el desglose completo de cobros y gastos vinculados
-    a un CierreRuta, además del total consolidado de la ruta si formó parte de un lote.
+    a un CierreRuta, indicando a qué corresponde cada cobro (boleta del día,
+    cuenta corriente, cheques con fecha) y el motivo/concepto de cada gasto.
     """
+    from app.models.cliente import Cliente
+
     cierre = CierreRuta.query.get_or_404(cierre_id)
     OFFSET_ARG = timedelta(hours=3)
     fecha_arg = cierre.fecha_cierre - OFFSET_ARG
 
     # Cobros vinculados directamente al cierre
     pagos = cierre.pagos.order_by(PagoBoleta.fecha_cobro.asc()).all()
+
+    # Si es un cierre histórico previo a la vinculación y no tiene pagos enlazados
+    if not pagos and cierre.cantidad_cobros > 0:
+        clientes_ruta_ids = [cl.id for cl in Cliente.query.filter_by(ruta=cierre.ruta).all()]
+        q_pagos = PagoBoleta.query.filter(
+            PagoBoleta.cobrado_por_id == cierre.repartidor_id,
+            PagoBoleta.procesado == True,
+            (PagoBoleta.cierre_ruta_id == None) | (PagoBoleta.cierre_ruta_id == cierre.id),
+            PagoBoleta.fecha_cobro <= cierre.fecha_cierre
+        )
+        if clientes_ruta_ids:
+            pagos_cand = q_pagos.filter(PagoBoleta.cliente_id.in_(clientes_ruta_ids)).order_by(PagoBoleta.fecha_cobro.desc()).limit(cierre.cantidad_cobros).all()
+        else:
+            pagos_cand = []
+        if not pagos_cand:
+            pagos_cand = q_pagos.order_by(PagoBoleta.fecha_cobro.desc()).limit(cierre.cantidad_cobros).all()
+        pagos = list(reversed(pagos_cand))
+
     pagos_data = []
     for p in pagos:
         fecha_pago_arg = p.fecha_cobro - OFFSET_ARG if p.fecha_cobro else None
+        aplicado_boleta = float(p.aplicado_boleta or 0)
+        aplicado_cc = float(p.aplicado_cc or 0)
+        saldo_favor = float(p.saldo_favor or 0)
+        total_recibido = float(p.total_recibido or 0)
+
+        # Conceptos legibles de imputación
+        conceptos = []
+        if aplicado_boleta > 0:
+            if p.boleta_id:
+                conceptos.append(f"Boleta #{p.boleta_id} (${aplicado_boleta:,.2f})")
+            else:
+                conceptos.append(f"Boleta del día (${aplicado_boleta:,.2f})")
+        if aplicado_cc > 0:
+            conceptos.append(f"Cuenta Corriente / Deuda anterior (${aplicado_cc:,.2f})")
+        if saldo_favor > 0:
+            conceptos.append(f"Saldo a favor (${saldo_favor:,.2f})")
+
+        concepto_str = " + ".join(conceptos) if conceptos else "Cobro general"
+        if total_recibido == 0 and p.notas == 'Todo a cuenta corriente':
+            concepto_str = "Todo a Cuenta Corriente (no cobrado)"
+
         pagos_data.append({
             'id': p.id,
             'cliente': p.cliente.nombre if p.cliente else f'Cliente #{p.cliente_id}',
             'cliente_id': p.cliente_id,
-            'hora': fecha_pago_arg.strftime('%H:%M') if fecha_pago_arg else '—',
+            'cliente_direccion': p.cliente.direccion if p.cliente and p.cliente.direccion else '',
+            'fecha_cobro': fecha_pago_arg.strftime('%d/%m/%Y %H:%M') if fecha_pago_arg else '—',
             'efectivo': float(p.efectivo),
             'transferencia': float(p.transferencia),
             'cheque': float(p.cheque),
-            'total': float(p.total_recibido),
-            'notas': p.notas or '—',
+            'fecha_cheque': p.fecha_cobro_cheque.strftime('%d/%m/%Y') if p.fecha_cobro_cheque else None,
+            'total': total_recibido,
+            'aplicado_boleta': aplicado_boleta,
+            'aplicado_cc': aplicado_cc,
+            'saldo_favor': saldo_favor,
+            'concepto': concepto_str,
+            'boleta_id': p.boleta_id,
+            'boleta_detalle': p.boleta.descripcion if p.boleta and p.boleta.descripcion else '',
+            'notas': p.notas or '',
         })
 
     # Gastos vinculados directamente al cierre
     gastos = cierre.gastos.order_by(GastoRepartidor.fecha_creacion.asc()).all()
+
+    # Si es un cierre histórico previo a la vinculación y no tiene gastos enlazados
+    if not gastos and cierre.cantidad_gastos > 0:
+        gastos_cand = GastoRepartidor.query.filter(
+            GastoRepartidor.repartidor_id == cierre.repartidor_id,
+            GastoRepartidor.procesado == True,
+            (GastoRepartidor.cierre_ruta_id == None) | (GastoRepartidor.cierre_ruta_id == cierre.id),
+            (GastoRepartidor.fecha_creacion <= cierre.fecha_cierre) | (GastoRepartidor.fecha_creacion == None)
+        ).order_by(GastoRepartidor.id.desc()).limit(cierre.cantidad_gastos).all()
+        gastos = list(reversed(gastos_cand))
+
     gastos_data = []
     for g in gastos:
         fecha_gasto_arg = g.fecha_creacion - OFFSET_ARG if g.fecha_creacion else None
+        fecha_display = fecha_gasto_arg.strftime('%d/%m/%Y %H:%M') if fecha_gasto_arg else (g.fecha.strftime('%d/%m/%Y') if g.fecha else '—')
         gastos_data.append({
             'id': g.id,
             'tipo': g.tipo,
             'monto': float(g.monto),
-            'notas': g.notas or '—',
-            'hora': fecha_gasto_arg.strftime('%H:%M') if fecha_gasto_arg else '—',
+            'concepto': g.notas or f'Gasto de {g.tipo}',
+            'notas': g.notas or '',
+            'ruta': g.ruta or cierre.ruta,
+            'fecha': fecha_display,
         })
 
     totales_lote = None

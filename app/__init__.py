@@ -103,6 +103,7 @@ def create_app(config_name='development'):
         from app.models.movimiento_materia_prima import MovimientoMateriaPrima  # noqa
         from app.models.formulacion_materia_prima import FormulacionMateriaPrima  # noqa
         from app.models.cierre_ruta import CierreRuta              # noqa
+        from app.models.personal import Personal, RegistroAsistencia  # noqa
         db.create_all()
         
         # Migraciones automáticas de base de datos para producción (PostgreSQL) y local (SQLite)
@@ -320,7 +321,31 @@ def create_app(config_name='development'):
         formatted = formatted.replace('X', '.')        # '1.234.567,89'
         return formatted
 
+    def formato_horas(minutos):
+        """Formatea minutos con signo a formato horas y minutos.
+        Ej: 90 -> '+1h 30m', -45 -> '-45m', 0 -> '0m'
+        """
+        if minutos is None:
+            return '0m'
+        try:
+            m = int(minutos)
+        except (ValueError, TypeError):
+            return str(minutos)
+        signo = '+' if m > 0 else ('-' if m < 0 else '')
+        abs_m = abs(m)
+        h = abs_m // 60
+        r = abs_m % 60
+        if h > 0 and r > 0:
+            return f"{signo}{h}h {r:02d}m"
+        elif h > 0:
+            return f"{signo}{h}h 00m"
+        elif r > 0:
+            return f"{signo}{r}m"
+        else:
+            return "0m"
+
     app.jinja_env.filters['formato_peso'] = formato_peso
+    app.jinja_env.filters['formato_horas'] = formato_horas
 
     return app
 

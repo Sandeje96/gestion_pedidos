@@ -1,0 +1,1047 @@
+{% extends "base.html" %}
+
+{% block title %}Personal y Banco de Horas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kpi-card {
+        border-radius: 14px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: none;
+    }
+    .kpi-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    .delta-badge {
+        font-family: monospace;
+        font-weight: 700;
+        font-size: 0.95rem;
+        padding: 4px 10px;
+        border-radius: 8px;
+    }
+    .delta-positivo {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #a3cfbb;
+    }
+    .delta-negativo {
+        background-color: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+    .delta-cero {
+        background-color: #e2e3e5;
+        color: #41464b;
+        border: 1px solid #d3d6d8;
+    }
+    .time-input {
+        min-width: 110px;
+        font-weight: 600;
+    }
+    .nav-tabs .nav-link {
+        font-weight: 600;
+        color: #495057;
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding: 12px 20px;
+    }
+    .nav-tabs .nav-link.active {
+        color: #0d6efd;
+        border-bottom: 3px solid #0d6efd;
+        background: transparent;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-2">
+
+    <!-- Header Principal -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-user-clock text-primary me-2"></i>Control de Horarios y Banco de Horas
+            </h2>
+            <p class="text-muted mb-0">
+                Gestión de asistencia de lunes a sábado, registro de ingresos/salidas y compensación de horas del personal de fábrica.
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary rounded-pill px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoPersonal">
+                <i class="fas fa-user-plus me-1"></i>Nuevo Personal
+            </button>
+        </div>
+    </div>
+
+    <!-- Tarjetas KPI / Resumen Banco de Horas -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card shadow-sm h-100 bg-white border-start border-primary border-4">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold">Personal Activo</div>
+                    <div class="fs-4 fw-bold text-dark mt-1">{{ personal_list|length }}</div>
+                    <small class="text-muted">En nómina de fábrica</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card shadow-sm h-100 bg-white border-start border-success border-4">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold">Con Horas a Favor</div>
+                    <div class="fs-4 fw-bold text-success mt-1">{{ total_a_favor_fmt }}</div>
+                    <small class="text-success">{{ cant_a_favor }} empleado(s) con saldo a favor</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card shadow-sm h-100 bg-white border-start border-danger border-4">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold">Con Horas Adeudadas</div>
+                    <div class="fs-4 fw-bold text-danger mt-1">{{ total_adeudado_fmt }}</div>
+                    <small class="text-danger">{{ cant_adeudado }} empleado(s) adeudan horas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card shadow-sm h-100 bg-white border-start border-secondary border-4">
+                <div class="card-body py-3">
+                    <div class="text-muted small fw-semibold">Al Día / Equilibrados</div>
+                    <div class="fs-4 fw-bold text-secondary mt-1">{{ cant_al_dia }}</div>
+                    <small class="text-muted">A la par con su banco de horas</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navegación por Pestañas -->
+    <ul class="nav nav-tabs mb-4 border-bottom" id="tabsPersonal" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if tab_activa == 'diario' else '' }}" id="diario-tab" data-bs-toggle="tab" data-bs-target="#tab-diario" type="button" role="tab">
+                <i class="fas fa-calendar-day me-2 text-primary"></i>Planilla Diaria de Asistencia
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if tab_activa == 'banco' else '' }}" id="banco-tab" data-bs-toggle="tab" data-bs-target="#tab-banco" type="button" role="tab">
+                <i class="fas fa-piggy-bank me-2 text-success"></i>Tablero del Banco de Horas
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {{ 'active' if tab_activa == 'personal' else '' }}" id="personal-tab" data-bs-toggle="tab" data-bs-target="#tab-personal" type="button" role="tab">
+                <i class="fas fa-users-cog me-2 text-secondary"></i>Directorio de Personal
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="tabsPersonalContent">
+
+        <!-- ═════════════════════════════════════════════════════════════ -->
+        <!-- PESTAÑA 1: PLANILLA DIARIA DE ASISTENCIA                     -->
+        <!-- ═════════════════════════════════════════════════════════════ -->
+        <div class="tab-pane fade {{ 'show active' if tab_activa == 'diario' else '' }}" id="tab-diario" role="tabpanel">
+
+            <!-- Barra de Selección de Fecha y Controles de Planilla -->
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body py-3">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+                            <a href="{{ url_for('administracion.personal', fecha=fecha_ant.strftime('%Y-%m-%d'), tab='diario') }}" class="btn btn-outline-secondary btn-sm" title="Día anterior">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                            <form method="GET" action="{{ url_for('administracion.personal') }}" class="d-inline-flex align-items-center gap-2">
+                                <input type="hidden" name="tab" value="diario">
+                                <input type="date" name="fecha" id="inputFechaSel" class="form-control form-control-sm fw-bold text-dark" value="{{ fecha_sel.strftime('%Y-%m-%d') }}" onchange="this.form.submit()">
+                            </form>
+                            <a href="{{ url_for('administracion.personal', fecha=fecha_sig.strftime('%Y-%m-%d'), tab='diario') }}" class="btn btn-outline-secondary btn-sm" title="Día siguiente">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                            <a href="{{ url_for('administracion.personal', fecha=hoy_arg.strftime('%Y-%m-%d'), tab='diario') }}" class="btn btn-sm {{ 'btn-primary' if fecha_sel == hoy_arg else 'btn-outline-primary' }}">
+                                Hoy
+                            </a>
+                        </div>
+
+                        <div class="col-12 col-md">
+                            <span class="fs-6 fw-bold text-dark me-2">
+                                <i class="far fa-calendar-alt text-primary me-1"></i>{{ dia_semana_nombre }} {{ fecha_sel.strftime('%d/%m/%Y') }}
+                            </span>
+                            {% if es_sabado %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-info-circle me-1"></i>Sábado (Jornada especial)</span>
+                            {% elif es_domingo %}
+                            <span class="badge bg-secondary"><i class="fas fa-bed me-1"></i>Domingo (Día no laborable)</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark border">Horario habitual general: 08:00 a 17:00 hs</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-12 col-md-auto d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-sm btn-outline-success" id="btnAutocompletarHabitual">
+                                <i class="fas fa-magic me-1"></i>Cargar Habitual (08:00 - 17:00)
+                            </button>
+                            <button type="submit" form="formPlanillaDiaria" class="btn btn-sm btn-success px-3 shadow-sm">
+                                <i class="fas fa-save me-1"></i>Guardar Planilla del Día
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Registro Diario -->
+            <form id="formPlanillaDiaria" method="POST" action="{{ url_for('administracion.guardar_asistencias') }}">
+                <input type="hidden" name="fecha" value="{{ fecha_sel.strftime('%Y-%m-%d') }}">
+
+                <div class="card shadow-sm border-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="min-width: 200px;">Personal</th>
+                                    <th style="width: 140px;">Pactado</th>
+                                    <th style="width: 130px;">Ingreso</th>
+                                    <th style="width: 130px;">Salida</th>
+                                    <th style="width: 190px;">Tipo de Día</th>
+                                    <th style="width: 140px;" class="text-center">Balance del Día</th>
+                                    <th style="width: 140px;" class="text-center">Saldo Actual Banco</th>
+                                    <th>Observaciones / Compensación</th>
+                                    <th style="width: 60px;" class="text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if planilla_dia %}
+                                {% for item in planilla_dia %}
+                                {% set p = item.personal %}
+                                <tr class="fila-asistencia" data-personal-id="{{ p.id }}" data-pactado-mins="{{ item.minutos_esperados }}">
+                                    <input type="hidden" name="personal_ids[]" value="{{ p.id }}">
+                                    
+                                    <!-- Nombre y Puesto -->
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ p.nombre_completo }}</div>
+                                        <div class="small text-muted">{{ p.puesto or 'Fábrica' }}</div>
+                                    </td>
+
+                                    <!-- Horario Pactado -->
+                                    <td>
+                                        <small class="badge bg-light text-dark border">
+                                            {{ item.hora_ingreso_pactada }} - {{ item.hora_salida_pactada }}
+                                        </small>
+                                        <br>
+                                        <small class="text-muted" style="font-size:0.75rem;">
+                                            ({{ item.minutos_esperados // 60 }} hs)
+                                        </small>
+                                    </td>
+
+                                    <!-- Hora de Ingreso -->
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm time-input input-ingreso"
+                                               name="hora_ingreso_{{ p.id }}"
+                                               value="{{ item.hora_ingreso or '' }}"
+                                               data-pactado-ing="{{ item.hora_ingreso_pactada }}">
+                                    </td>
+
+                                    <!-- Hora de Salida -->
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm time-input input-salida"
+                                               name="hora_salida_{{ p.id }}"
+                                               value="{{ item.hora_salida or '' }}"
+                                               data-pactado-sal="{{ item.hora_salida_pactada }}">
+                                    </td>
+
+                                    <!-- Tipo de Jornada -->
+                                    <td>
+                                        <select class="form-select form-select-sm select-tipo-dia" name="tipo_dia_{{ p.id }}">
+                                            <option value="normal" {{ 'selected' if item.tipo_dia == 'normal' else '' }}>Jornada habitual</option>
+                                            <option value="compensacion" {{ 'selected' if item.tipo_dia == 'compensacion' else '' }}>Compensación (entra tarde / sale antes)</option>
+                                            <option value="franco" {{ 'selected' if item.tipo_dia == 'franco' else '' }}>Franco / Descanso</option>
+                                            <option value="ausente_justificado" {{ 'selected' if item.tipo_dia == 'ausente_justificado' else '' }}>Falta justificada (médica/trámite)</option>
+                                            <option value="ausente_injustificado" {{ 'selected' if item.tipo_dia == 'ausente_injustificado' else '' }}>Falta injustificada (debe horas)</option>
+                                            <option value="feriado" {{ 'selected' if item.tipo_dia == 'feriado' else '' }}>Feriado</option>
+                                        </select>
+                                    </td>
+
+                                    <!-- Diferencia / Delta del Día Calculado -->
+                                    <td class="text-center">
+                                        <span class="delta-badge {{ 'delta-positivo' if item.diferencia_minutos > 0 else ('delta-negativo' if item.diferencia_minutos < 0 else 'delta-cero') }} badge-delta">
+                                            {{ item.diferencia_formateada }}
+                                        </span>
+                                    </td>
+
+                                    <!-- Saldo Acumulado Actual del Banco -->
+                                    <td class="text-center">
+                                        <span class="badge {{ 'bg-success' if item.saldo_estado == 'a_favor' else ('bg-danger' if item.saldo_estado == 'adeudado' else 'bg-secondary') }} py-1 px-2">
+                                            {{ item.saldo_actual_formateado }}
+                                        </span>
+                                    </td>
+
+                                    <!-- Observaciones -->
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm input-obs"
+                                               name="observaciones_{{ p.id }}"
+                                               placeholder="Ej. Compensó 1h saliendo 16:00..."
+                                               value="{{ item.observaciones or '' }}">
+                                    </td>
+
+                                    <!-- Estado de guardado -->
+                                    <td class="text-center">
+                                        {% if item.registrado %}
+                                        <i class="fas fa-check-circle text-success" title="Asistencia guardada"></i>
+                                        {% else %}
+                                        <i class="far fa-clock text-muted" title="Pendiente de guardar"></i>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="9" class="text-center py-5 text-muted">
+                                        <i class="fas fa-users-slash fa-3x mb-3 text-secondary"></i>
+                                        <p class="mb-2 fs-6">No hay personal activo registrado aún.</p>
+                                        <button type="button" class="btn btn-primary btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalNuevoPersonal">
+                                            <i class="fas fa-user-plus me-1"></i>Agregar Primer Empleado
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if planilla_dia %}
+                    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1 text-primary"></i>
+                            El balance del día actualiza automáticamente el saldo en el banco de horas. Las horas a favor se pueden compensar en cualquier día de la semana.
+                        </small>
+                        <button type="submit" class="btn btn-success px-4 rounded-pill shadow-sm">
+                            <i class="fas fa-save me-1"></i>Guardar Planilla del Día
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+
+        <!-- ═════════════════════════════════════════════════════════════ -->
+        <!-- PESTAÑA 2: TABLERO DEL BANCO DE HORAS                        -->
+        <!-- ═════════════════════════════════════════════════════════════ -->
+        <div class="tab-pane fade {{ 'show active' if tab_activa == 'banco' else '' }}" id="tab-banco" role="tabpanel">
+
+            <div class="alert alert-info border shadow-sm mb-4">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="fas fa-info-circle fs-4 text-info mt-1"></i>
+                    <div>
+                        <strong class="d-block mb-1 fs-6">¿Cómo funciona el Banco de Horas de Fábrica?</strong>
+                        <p class="mb-0 small text-secondary">
+                            El horario habitual establecido es de <strong>08:00 a 17:00 hs (9 horas diarias)</strong> de lunes a sábado.
+                            Cuando un integrante del personal trabaja de más o ingresa antes, genera <strong>horario a favor</strong> en su banco.
+                            Ese tiempo a favor se <strong>compensa</strong> durante la semana saliendo antes o ingresando más tarde,
+                            descontándose automáticamente hasta volver a quedar <strong>a la par (saldo en 0 hs)</strong>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-balance-scale text-primary me-2"></i>Estado de Saldos del Personal
+                    </h5>
+                    <span class="badge bg-secondary">{{ personal_list|length }} empleados</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Personal</th>
+                                <th>Puesto / Área</th>
+                                <th>Horario Habitual</th>
+                                <th>Sábados</th>
+                                <th class="text-center" style="width: 180px;">Saldo Banco de Horas</th>
+                                <th>Situación / Compensación</th>
+                                <th class="text-center" style="width: 160px;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in personal_list %}
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ p.nombre_completo }}</div>
+                                    <small class="text-muted">DNI: {{ p.dni or '—' }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ p.puesto or 'Fábrica' }}</span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">{{ p.hora_ingreso_habitual }} a {{ p.hora_salida_habitual }}</span>
+                                </td>
+                                <td>
+                                    {% if p.trabaja_sabados %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                        <i class="fas fa-check me-1"></i>{{ p.hora_ingreso_sabado }} a {{ p.hora_salida_sabado }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary-subtle text-muted">No trabaja</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if p.saldo_estado == 'a_favor' %}
+                                    <span class="badge bg-success fs-6 px-3 py-2">
+                                        <i class="fas fa-plus-circle me-1"></i>{{ p.saldo_formateado }}
+                                    </span>
+                                    {% elif p.saldo_estado == 'adeudado' %}
+                                    <span class="badge bg-danger fs-6 px-3 py-2">
+                                        <i class="fas fa-minus-circle me-1"></i>{{ p.saldo_formateado }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary fs-6 px-3 py-2">
+                                        <i class="fas fa-check me-1"></i>Al día (0 hs)
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if p.saldo_estado == 'a_favor' %}
+                                    <span class="text-success small fw-semibold">
+                                        <i class="fas fa-arrow-right me-1"></i>Puede salir antes o entrar tarde por {{ p.saldo_formateado }}
+                                    </span>
+                                    {% elif p.saldo_estado == 'adeudado' %}
+                                    <span class="text-danger small fw-semibold">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>Debe recuperar {{ p.saldo_formateado|replace('-', '') }}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted small">Sin diferencias acumuladas</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary btn-ver-historial"
+                                                data-personal-id="{{ p.id }}"
+                                                data-personal-nombre="{{ p.nombre_completo }}"
+                                                title="Ver historial de asistencias y compensaciones">
+                                            <i class="fas fa-history me-1"></i>Historial
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-ajuste-manual"
+                                                data-personal-id="{{ p.id }}"
+                                                data-personal-nombre="{{ p.nombre_completo }}"
+                                                data-saldo-actual="{{ p.saldo_formateado }}"
+                                                title="Ajuste manual de banco">
+                                            <i class="fas fa-sliders-h"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    No hay empleados registrados.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ═════════════════════════════════════════════════════════════ -->
+        <!-- PESTAÑA 3: DIRECTORIO DE PERSONAL                            -->
+        <!-- ═════════════════════════════════════════════════════════════ -->
+        <div class="tab-pane fade {{ 'show active' if tab_activa == 'personal' else '' }}" id="tab-personal" role="tabpanel">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-id-card text-primary me-2"></i>Nómina del Personal de Fábrica
+                    </h5>
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#modalNuevoPersonal">
+                        <i class="fas fa-plus me-1"></i>Agregar Personal
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nombre y Apellido</th>
+                                <th>Puesto</th>
+                                <th>DNI</th>
+                                <th>Teléfono</th>
+                                <th>Horario Lunes a Viernes</th>
+                                <th>Horario Sábados</th>
+                                <th>Estado</th>
+                                <th class="text-end pe-3">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in personal_list %}
+                            <tr>
+                                <td class="fw-bold text-dark">{{ p.nombre_completo }}</td>
+                                <td>{{ p.puesto or 'Fábrica' }}</td>
+                                <td>{{ p.dni or '—' }}</td>
+                                <td>{{ p.telefono or '—' }}</td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ p.hora_ingreso_habitual }} - {{ p.hora_salida_habitual }}</span>
+                                </td>
+                                <td>
+                                    {% if p.trabaja_sabados %}
+                                    <span class="badge bg-light text-dark border">{{ p.hora_ingreso_sabado }} - {{ p.hora_salida_sabado }}</span>
+                                    {% else %}
+                                    <span class="text-muted small">Franco</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if p.activo %}
+                                    <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-editar-personal me-1"
+                                            data-id="{{ p.id }}"
+                                            data-nombre="{{ p.nombre }}"
+                                            data-apellido="{{ p.apellido or '' }}"
+                                            data-dni="{{ p.dni or '' }}"
+                                            data-telefono="{{ p.telefono or '' }}"
+                                            data-puesto="{{ p.puesto or '' }}"
+                                            data-ingreso="{{ p.hora_ingreso_habitual }}"
+                                            data-salida="{{ p.hora_salida_habitual }}"
+                                            data-trabaja-sab="{{ '1' if p.trabaja_sabados else '0' }}"
+                                            data-ingreso-sab="{{ p.hora_ingreso_sabado }}"
+                                            data-salida-sab="{{ p.hora_salida_sabado }}"
+                                            data-notas="{{ p.notas or '' }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <form method="POST" action="{{ url_for('administracion.toggle_activo_personal', personal_id=p.id) }}" class="d-inline" onsubmit="return confirm('¿Seguro que deseas cambiar el estado de este personal?');">
+                                        <button type="submit" class="btn btn-sm {{ 'btn-outline-danger' if p.activo else 'btn-outline-success' }}" title="{{ 'Dar de baja' if p.activo else 'Reactivar' }}">
+                                            <i class="fas {{ 'fa-user-slash' if p.activo else 'fa-user-check' }}"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">No hay empleados registrados.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- MODAL: NUEVO PERSONAL                                         -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalNuevoPersonal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-user-plus text-primary me-2"></i>Agregar Personal de Fábrica
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('administracion.nuevo_personal') }}">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+                            <input type="text" name="nombre" class="form-control" required placeholder="Ej. Juan">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Apellido</label>
+                            <input type="text" name="apellido" class="form-control" placeholder="Ej. Pérez">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">DNI</label>
+                            <input type="text" name="dni" class="form-control" placeholder="Sin puntos">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Teléfono</label>
+                            <input type="text" name="telefono" class="form-control" placeholder="Contacto">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Puesto / Área</label>
+                            <input type="text" name="puesto" class="form-control" value="Fábrica / Producción">
+                        </div>
+
+                        <hr class="my-3">
+                        <h6 class="fw-bold text-primary mb-2"><i class="far fa-clock me-1"></i>Horarios Habituales Pactados</h6>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Ingreso Habitual (Lunes a Viernes)</label>
+                            <input type="time" name="hora_ingreso_habitual" class="form-control" value="08:00" required>
+                            <small class="text-muted">Horario de entrada estándar</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Salida Habitual (Lunes a Viernes)</label>
+                            <input type="time" name="hora_salida_habitual" class="form-control" value="17:00" required>
+                            <small class="text-muted">Horario de salida estándar (9 horas)</small>
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="trabaja_sabados" id="checkTrabajaSabadosNuevo" value="1" checked onchange="toggleSabadosNuevo(this.checked)">
+                                <label class="form-check-label fw-semibold" for="checkTrabajaSabadosNuevo">Trabaja los Sábados</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 bloque-sabado-nuevo">
+                            <label class="form-label fw-semibold">Ingreso Sábados</label>
+                            <input type="time" name="hora_ingreso_sabado" class="form-control" value="08:00">
+                        </div>
+                        <div class="col-md-6 bloque-sabado-nuevo">
+                            <label class="form-label fw-semibold">Salida Sábados</label>
+                            <input type="time" name="hora_salida_sabado" class="form-control" value="17:00">
+                        </div>
+
+                        <hr class="my-3">
+                        <h6 class="fw-bold text-success mb-2"><i class="fas fa-piggy-bank me-1"></i>Saldo Inicial del Banco de Horas (Opcional)</h6>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Horas iniciales</label>
+                            <input type="number" step="1" name="saldo_inicial_horas" class="form-control" value="0" placeholder="Ej. 2 o -1">
+                            <small class="text-muted">Positivo = a favor, Negativo = adeudado</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Minutos iniciales</label>
+                            <input type="number" step="1" min="0" max="59" name="saldo_inicial_minutos" class="form-control" value="0" placeholder="0 a 59">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Observaciones / Notas</label>
+                            <textarea name="notas" class="form-control" rows="2" placeholder="Notas internas..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                        <i class="fas fa-save me-1"></i>Guardar Personal
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- MODAL: EDITAR PERSONAL                                        -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalEditarPersonal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-user-edit text-primary me-2"></i>Editar Personal
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditarPersonal" method="POST" action="">
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+                            <input type="text" name="nombre" id="editNombre" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Apellido</label>
+                            <input type="text" name="apellido" id="editApellido" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">DNI</label>
+                            <input type="text" name="dni" id="editDni" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Teléfono</label>
+                            <input type="text" name="telefono" id="editTelefono" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Puesto</label>
+                            <input type="text" name="puesto" id="editPuesto" class="form-control">
+                        </div>
+
+                        <hr class="my-3">
+                        <h6 class="fw-bold text-primary mb-2"><i class="far fa-clock me-1"></i>Horarios Habituales Pactados</h6>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Ingreso Lunes a Viernes</label>
+                            <input type="time" name="hora_ingreso_habitual" id="editIngreso" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Salida Lunes a Viernes</label>
+                            <input type="time" name="hora_salida_habitual" id="editSalida" class="form-control" required>
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="trabaja_sabados" id="editTrabajaSabados" value="1" onchange="toggleSabadosEdit(this.checked)">
+                                <label class="form-check-label fw-semibold" for="editTrabajaSabados">Trabaja los Sábados</label>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 bloque-sabado-edit">
+                            <label class="form-label fw-semibold">Ingreso Sábados</label>
+                            <input type="time" name="hora_ingreso_sabado" id="editIngresoSab" class="form-control">
+                        </div>
+                        <div class="col-md-6 bloque-sabado-edit">
+                            <label class="form-label fw-semibold">Salida Sábados</label>
+                            <input type="time" name="hora_salida_sabado" id="editSalidaSab" class="form-control">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Observaciones / Notas</label>
+                            <textarea name="notas" id="editNotas" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                        <i class="fas fa-save me-1"></i>Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- MODAL: HISTORIAL DEL BANCO DE HORAS Y COMPENSACIONES          -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalHistorialPersonal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-white text-dark d-flex align-items-center justify-content-center" style="width:38px;height:38px;">
+                        <i class="fas fa-history text-primary"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="historialTitulo">Historial de Horarios y Compensaciones</h5>
+                        <small class="text-white-50" id="historialSubtitulo"></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 bg-light-subtle" id="historialBody">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
+                    <p class="mb-0">Cargando registros...</p>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-2">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<!-- MODAL: AJUSTE MANUAL DEL BANCO DE HORAS                       -->
+<!-- ═════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalAjusteManual" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-sliders-h text-primary me-2"></i>Ajuste Manual de Banco de Horas
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAjusteManual" method="POST" action="">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <strong class="d-block text-dark fs-6" id="ajustePersonalNombre"></strong>
+                        <small class="text-muted" id="ajustePersonalSaldo"></small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tipo de Ajuste</label>
+                        <select name="tipo_ajuste" class="form-select">
+                            <option value="sumar">Sumar tiempo (+ horas a favor)</option>
+                            <option value="restar">Restar tiempo (- compensar / adeudadas)</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Horas</label>
+                            <input type="number" name="horas" class="form-control" value="1" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Minutos</label>
+                            <input type="number" name="minutos" class="form-control" value="0" min="0" max="59">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Motivo del Ajuste <span class="text-danger">*</span></label>
+                        <textarea name="motivo" class="form-control" rows="2" required placeholder="Ej. Compensación de horas por guardia de sábado..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                        <i class="fas fa-check me-1"></i>Aplicar Ajuste
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Función para formatear minutos con signo ──
+    function formatearMinutos(mins) {
+        if (mins === null || mins === undefined || isNaN(mins)) return '0m';
+        mins = parseInt(mins);
+        const signo = mins > 0 ? '+' : (mins < 0 ? '-' : '');
+        const abs = Math.abs(mins);
+        const h = Math.floor(abs / 60);
+        const m = abs % 60;
+        if (h > 0 && m > 0) return `${signo}${h}h ${String(m).padStart(2, '0')}m`;
+        if (h > 0) return `${signo}${h}h 00m`;
+        if (m > 0) return `${signo}${m}m`;
+        return '0m';
+    }
+
+    function timeToMins(tStr) {
+        if (!tStr) return 0;
+        const parts = tStr.split(':');
+        if (parts.length < 2) return 0;
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    }
+
+    // ── Recalcular delta en vivo para cada fila al tipear horarios ──
+    function recalcularFila(tr) {
+        const pactadoMins = parseInt(tr.dataset.pactadoMins) || 540;
+        const ingVal = tr.querySelector('.input-ingreso').value;
+        const salVal = tr.querySelector('.input-salida').value;
+        const tipoDia = tr.querySelector('.select-tipo-dia').value;
+        const badge = tr.querySelector('.badge-delta');
+
+        let delta = 0;
+
+        if (tipoDia === 'franco' || tipoDia === 'feriado' || tipoDia === 'ausente_justificado') {
+            if (ingVal && salVal) {
+                let worked = timeToMins(salVal) - timeToMins(ingVal);
+                if (worked < 0) worked += 24 * 60;
+                delta = worked;
+            } else {
+                delta = 0;
+            }
+        } else if (tipoDia === 'ausente_injustificado') {
+            delta = -pactadoMins;
+        } else {
+            // Normal o Compensación
+            if (ingVal && salVal) {
+                let worked = timeToMins(salVal) - timeToMins(ingVal);
+                if (worked < 0) worked += 24 * 60;
+                delta = worked - pactadoMins;
+            } else {
+                delta = 0;
+            }
+        }
+
+        badge.textContent = formatearMinutos(delta);
+        badge.className = 'delta-badge ' + (delta > 0 ? 'delta-positivo' : (delta < 0 ? 'delta-negativo' : 'delta-cero'));
+    }
+
+    document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
+        tr.querySelectorAll('.input-ingreso, .input-salida, .select-tipo-dia').forEach(function (el) {
+            el.addEventListener('change', () => recalcularFila(tr));
+            el.addEventListener('input', () => recalcularFila(tr));
+        });
+    });
+
+    // ── Botón Cargar Habitual (08:00 - 17:00) en lote ──
+    const btnAuto = document.getElementById('btnAutocompletarHabitual');
+    if (btnAuto) {
+        btnAuto.addEventListener('click', function () {
+            document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
+                const tipoSel = tr.querySelector('.select-tipo-dia');
+                const inpIng = tr.querySelector('.input-ingreso');
+                const inpSal = tr.querySelector('.input-salida');
+
+                // Si está en normal y vacío o queremos completar
+                if (tipoSel.value === 'normal' || tipoSel.value === 'compensacion') {
+                    const pactIng = inpIng.dataset.pactadoIng || '08:00';
+                    const pactSal = inpSal.dataset.pactadoSal || '17:00';
+                    inpIng.value = pactIng;
+                    inpSal.value = pactSal;
+                    recalcularFila(tr);
+                }
+            });
+        });
+    }
+
+    // ── Toggle Sábados en Modal Nuevo y Editar ──
+    window.toggleSabadosNuevo = function (checked) {
+        document.querySelectorAll('.bloque-sabado-nuevo').forEach(el => {
+            el.style.display = checked ? 'block' : 'none';
+        });
+    };
+    window.toggleSabadosEdit = function (checked) {
+        document.querySelectorAll('.bloque-sabado-edit').forEach(el => {
+            el.style.display = checked ? 'block' : 'none';
+        });
+    };
+
+    // ── Modal Editar Personal ──
+    const modalEditEl = document.getElementById('modalEditarPersonal');
+    const modalEdit = new bootstrap.Modal(modalEditEl);
+    const formEdit = document.getElementById('formEditarPersonal');
+
+    document.querySelectorAll('.btn-editar-personal').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const d = this.dataset;
+            formEdit.action = `/administracion/personal/${d.id}/editar`;
+            document.getElementById('editNombre').value = d.nombre;
+            document.getElementById('editApellido').value = d.apellido;
+            document.getElementById('editDni').value = d.dni;
+            document.getElementById('editTelefono').value = d.telefono;
+            document.getElementById('editPuesto').value = d.puesto;
+            document.getElementById('editIngreso').value = d.ingreso;
+            document.getElementById('editSalida').value = d.salida;
+            const trabajaSab = (d.trabajaSab === '1');
+            const checkSab = document.getElementById('editTrabajaSabados');
+            checkSab.checked = trabajaSab;
+            toggleSabadosEdit(trabajaSab);
+            document.getElementById('editIngresoSab').value = d.ingresoSab;
+            document.getElementById('editSalidaSab').value = d.salidaSab;
+            document.getElementById('editNotas').value = d.notas;
+            modalEdit.show();
+        });
+    });
+
+    // ── Modal Historial de Banco de Horas ──
+    const modalHistEl = document.getElementById('modalHistorialPersonal');
+    const modalHist = new bootstrap.Modal(modalHistEl);
+    const histTitulo = document.getElementById('historialTitulo');
+    const histSub = document.getElementById('historialSubtitulo');
+    const histBody = document.getElementById('historialBody');
+
+    document.querySelectorAll('.btn-ver-historial').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const pid = this.dataset.personalId;
+            const nombre = this.dataset.personalNombre;
+
+            histTitulo.textContent = `Historial: ${nombre}`;
+            histSub.textContent = 'Cargando balance y registros cronológicos...';
+            histBody.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
+                    <p class="mb-0">Cargando historial de asistencias y compensaciones...</p>
+                </div>`;
+            modalHist.show();
+
+            fetch(`/administracion/personal/${pid}/historial`)
+                .then(res => res.json())
+                .then(data => {
+                    const p = data.personal;
+                    histSub.textContent = `Saldo actual: ${p.saldo_formateado} (${p.saldo_estado === 'a_favor' ? 'A favor' : (p.saldo_estado === 'adeudado' ? 'Adeudado' : 'Al día')}) • Puesto: ${p.puesto}`;
+
+                    if (!data.historial || data.historial.length === 0) {
+                        histBody.innerHTML = `
+                            <div class="alert alert-light border text-center py-5 text-muted">
+                                <i class="fas fa-calendar-times fa-3x mb-3 text-secondary"></i>
+                                <p class="mb-0 fs-6">Aún no hay registros de asistencia cargados para este empleado.</p>
+                            </div>`;
+                        return;
+                    }
+
+                    let rows = '';
+                    data.historial.forEach(item => {
+                        const difMins = item.diferencia_minutos;
+                        let badgeClass = 'bg-secondary';
+                        if (difMins > 0) badgeClass = 'bg-success';
+                        else if (difMins < 0) badgeClass = 'bg-danger';
+
+                        let tipoBadge = `<span class="badge bg-light text-dark border">${item.tipo_dia}</span>`;
+                        if (item.tipo_dia === 'compensacion') {
+                            tipoBadge = `<span class="badge bg-primary text-white"><i class="fas fa-exchange-alt me-1"></i>Compensación</span>`;
+                        } else if (item.tipo_dia === 'normal') {
+                            tipoBadge = `<span class="badge bg-light text-dark border">Normal</span>`;
+                        } else if (item.tipo_dia === 'franco') {
+                            tipoBadge = `<span class="badge bg-secondary text-white">Franco</span>`;
+                        }
+
+                        rows += `
+                            <tr>
+                                <td class="fw-semibold">
+                                    ${item.fecha}
+                                    <br><small class="text-muted">${item.dia_nombre}</small>
+                                </td>
+                                <td>${tipoBadge}</td>
+                                <td>
+                                    <span class="fw-bold">${item.hora_ingreso}</span> a <span class="fw-bold">${item.hora_salida}</span>
+                                    <br><small class="text-muted">Pactado: ${item.hora_ingreso_pactada} - ${item.hora_salida_pactada}</small>
+                                </td>
+                                <td class="text-center">${item.horas_trabajadas}</td>
+                                <td class="text-center">
+                                    <span class="badge ${badgeClass} fs-6 py-1 px-2">
+                                        ${item.diferencia_formateada}
+                                    </span>
+                                </td>
+                                <td>${item.observaciones ? '<small class="text-dark">' + item.observaciones + '</small>' : '<span class="text-muted">—</span>'}</td>
+                            </tr>`;
+                    });
+
+                    histBody.innerHTML = `
+                        <div class="card border-0 shadow-sm">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Tipo</th>
+                                            <th>Horario Real / Pactado</th>
+                                            <th class="text-center">Horas Trabajadas</th>
+                                            <th class="text-center">Diferencia</th>
+                                            <th>Observaciones / Motivo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                            </div>
+                        </div>`;
+                })
+                .catch(err => {
+                    histBody.innerHTML = `<div class="alert alert-danger">Error al cargar historial: ${err.message}</div>`;
+                });
+        });
+    });
+
+    // ── Modal Ajuste Manual ──
+    const modalAjusteEl = document.getElementById('modalAjusteManual');
+    const modalAjuste = new bootstrap.Modal(modalAjusteEl);
+    const formAjuste = document.getElementById('formAjusteManual');
+    const txtAjusteNombre = document.getElementById('ajustePersonalNombre');
+    const txtAjusteSaldo = document.getElementById('ajustePersonalSaldo');
+
+    document.querySelectorAll('.btn-ajuste-manual').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const pid = this.dataset.personalId;
+            const nombre = this.dataset.personalNombre;
+            const saldo = this.dataset.saldoActual;
+
+            formAjuste.action = `/administracion/personal/${pid}/ajustar-banco`;
+            txtAjusteNombre.textContent = nombre;
+            txtAjusteSaldo.textContent = `Saldo actual en banco: ${saldo}`;
+            modalAjuste.show();
+        });
+    });
+
+});
+</script>
+{% endblock %}

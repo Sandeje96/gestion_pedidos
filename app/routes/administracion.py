@@ -13,6 +13,7 @@ from app.models.producto import Producto
 from app.models.produccion import ProduccionDiaria
 from app.models.materia_prima import MateriaPrima
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
+from app.models.personal import Personal, RegistroAsistencia, formatear_minutos
 from app.routes.fabrica import _descontar_stock_pedido, _preview_materias_primas, _registrar_movimientos_mp, _validar_stock_materias_primas
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -831,3 +832,427 @@ def eliminar_producto_catalogo(prod_id):
     db.session.commit()
     flash(f'⚠️ Producto "{producto.nombre}" eliminado del catálogo.', 'warning')
     return redirect(url_for('administracion.stock'))
+
+
+# ─────────────────────────────────────────────────────────────
+# SECCIÓN: CONTROL DE HORARIOS, ASISTENCIA Y BANCO DE HORAS
+# ─────────────────────────────────────────────────────────────
+
+@administracion_bp.route('/personal', methods=['GET'])
+@administracion_o_gerente_requerido
+def personal():
+    """
+    Panel de Gestión de Personal, Asistencias Diarias y Banco de Horas.
+    Horario habitual: 08:00 a 17:00 hs (lunes a sábado).
+    Permite registrar horarios de ingreso y salida diarios, calcular horas a favor / adeudadas
+    y gestionar compensaciones durante la semana.
+    """
+    OFFSET_ARG = timedelta(hours=3)
+    hoy_arg = (datetime.utcnow() - OFFSET_ARG).date()
+
+    fecha_str = request.args.get('fecha')
+    if fecha_str:
+        try:
+            fecha_sel = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        except ValueError:
+            fecha_sel = hoy_arg
+    else:
+        fecha_sel = hoy_arg
+
+    fecha_ant = fecha_sel - timedelta(days=1)
+    fecha_sig = fecha_sel + timedelta(days=1)
+
+    DIAS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    dia_semana_nombre = DIAS_ES[fecha_sel.weekday()]
+    es_sabado = (fecha_sel.weekday() == 5)
+    es_domingo = (fecha_sel.weekday() == 6)
+
+    # Personal activo e inactivo
+    personal_list = Personal.query.order_by(Personal.nombre.asc(), Personal.apellido.asc()).all()
+    activos = [p for p in personal_list if p.activo]
+    inactivos = [p for p in personal_list if not p.activo]
+
+    # Asistencias existentes en la fecha seleccionada
+    asistencias_map = {
+        a.personal_id: a
+        for a in RegistroAsistencia.query.filter_by(fecha=fecha_sel).all()
+    }
+
+    # Planilla del día combinando personal y registros
+    planilla_dia = []
+    for p in activos:
+        asist = asistencias_map.get(p.id)
+        pact_ing, pact_sal, pact_mins = p.get_horario_pactado_para_fecha(fecha_sel)
+
+        if asist:
+            ingreso = asist.hora_ingreso
+            salida = asist.hora_salida
+            tipo_dia = asist.tipo_dia
+            observaciones = asist.observaciones or ''
+            dif_mins = asist.diferencia_minutos
+            mins_trab = asist.minutos_trabajados
+            registrado = True
+        else:
+            if es_domingo:
+                tipo_dia = 'franco'
+                ingreso = ''
+                salida = ''
+            elif es_sabado and not p.trabaja_sabados:
+                tipo_dia = 'franco'
+                ingreso = ''
+                salida = ''
+            else:
+                tipo_dia = 'normal'
+                ingreso = pact_ing or '08:00'
+                salida = pact_sal or '17:00'
+            observaciones = ''
+            dif_mins = 0
+            mins_trab = pact_mins
+            registrado = False
+
+        planilla_dia.append({
+            'personal': p,
+            'asistencia': asist,
+            'registrado': registrado,
+            'hora_ingreso_pactada': pact_ing or '08:00',
+            'hora_salida_pactada': pact_sal or '17:00',
+            'hora_ingreso': ingreso,
+            'hora_salida': salida,
+            'tipo_dia': tipo_dia,
+            'observaciones': observaciones,
+            'diferencia_minutos': dif_mins,
+            'diferencia_formateada': formatear_minutos(dif_mins),
+            'minutos_trabajados': mins_trab,
+            'minutos_esperados': pact_mins,
+            'saldo_actual_minutos': p.get_saldo_banco_minutos(),
+            'saldo_actual_formateado': p.saldo_formateado,
+            'saldo_estado': p.saldo_estado,
+        })
+
+    # Estadísticas globales del Banco de Horas
+    total_a_favor = 0
+    cant_a_favor = 0
+    total_adeudado = 0
+    cant_adeudado = 0
+    cant_al_dia = 0
+
+    for p in activos:
+        s = p.get_saldo_banco_minutos()
+        if s > 0:
+            cant_a_favor += 1
+            total_a_favor += s
+        elif s < 0:
+            cant_adeudado += 1
+            total_adeudado += abs(s)
+        else:
+            cant_al_dia += 1
+
+    tab_activa = request.args.get('tab', 'diario')
+
+    return render_template(
+        'administracion/personal.html',
+        fecha_sel=fecha_sel,
+        fecha_ant=fecha_ant,
+        fecha_sig=fecha_sig,
+        dia_semana_nombre=dia_semana_nombre,
+        es_sabado=es_sabado,
+        es_domingo=es_domingo,
+        planilla_dia=planilla_dia,
+        personal_list=activos,
+        inactivos=inactivos,
+        cant_a_favor=cant_a_favor,
+        total_a_favor_fmt=formatear_minutos(total_a_favor),
+        cant_adeudado=cant_adeudado,
+        total_adeudado_fmt=formatear_minutos(-total_adeudado),
+        cant_al_dia=cant_al_dia,
+        hoy_arg=hoy_arg,
+        tab_activa=tab_activa,
+    )
+
+
+@administracion_bp.route('/personal/nuevo', methods=['POST'])
+@administracion_o_gerente_requerido
+def nuevo_personal():
+    """
+    Registrar un nuevo integrante del personal de fábrica.
+    """
+    nombre = request.form.get('nombre', '').strip()
+    apellido = request.form.get('apellido', '').strip()
+    dni = request.form.get('dni', '').strip() or None
+    telefono = request.form.get('telefono', '').strip() or None
+    puesto = request.form.get('puesto', '').strip() or 'Fábrica / Producción'
+
+    hora_ingreso = request.form.get('hora_ingreso_habitual', '08:00').strip() or '08:00'
+    hora_salida = request.form.get('hora_salida_habitual', '17:00').strip() or '17:00'
+    trabaja_sabados = bool(request.form.get('trabaja_sabados'))
+    hora_ingreso_sabado = request.form.get('hora_ingreso_sabado', '08:00').strip() or '08:00'
+    hora_salida_sabado = request.form.get('hora_salida_sabado', '17:00').strip() or '17:00'
+
+    saldo_horas = request.form.get('saldo_inicial_horas', '0').strip()
+    saldo_minutos = request.form.get('saldo_inicial_minutos', '0').strip()
+    notas = request.form.get('notas', '').strip() or None
+
+    if not nombre:
+        flash('El nombre del personal es obligatorio.', 'danger')
+        return redirect(url_for('administracion.personal', tab='personal'))
+
+    try:
+        sh = float(saldo_horas or 0)
+        sm = int(saldo_minutos or 0)
+        total_saldo_inicial = int(sh * 60) + (sm if sh >= 0 else -sm)
+    except ValueError:
+        total_saldo_inicial = 0
+
+    p = Personal(
+        nombre=nombre,
+        apellido=apellido,
+        dni=dni,
+        telefono=telefono,
+        puesto=puesto,
+        hora_ingreso_habitual=hora_ingreso,
+        hora_salida_habitual=hora_salida,
+        trabaja_sabados=trabaja_sabados,
+        hora_ingreso_sabado=hora_ingreso_sabado,
+        hora_salida_sabado=hora_salida_sabado,
+        saldo_inicial_minutos=total_saldo_inicial,
+        activo=True,
+        notas=notas,
+    )
+    db.session.add(p)
+    db.session.commit()
+    flash(f'✅ Personal "{p.nombre_completo}" agregado correctamente.', 'success')
+    return redirect(url_for('administracion.personal', tab='personal'))
+
+
+@administracion_bp.route('/personal/<int:personal_id>/editar', methods=['POST'])
+@administracion_o_gerente_requerido
+def editar_personal(personal_id):
+    """
+    Editar datos de un personal existente.
+    """
+    p = Personal.query.get_or_404(personal_id)
+    nombre = request.form.get('nombre', '').strip()
+    if not nombre:
+        flash('El nombre no puede estar vacío.', 'danger')
+        return redirect(url_for('administracion.personal', tab='personal'))
+
+    p.nombre = nombre
+    p.apellido = request.form.get('apellido', '').strip()
+    p.dni = request.form.get('dni', '').strip() or None
+    p.telefono = request.form.get('telefono', '').strip() or None
+    p.puesto = request.form.get('puesto', '').strip() or 'Fábrica / Producción'
+    p.hora_ingreso_habitual = request.form.get('hora_ingreso_habitual', '08:00').strip() or '08:00'
+    p.hora_salida_habitual = request.form.get('hora_salida_habitual', '17:00').strip() or '17:00'
+    p.trabaja_sabados = bool(request.form.get('trabaja_sabados'))
+    p.hora_ingreso_sabado = request.form.get('hora_ingreso_sabado', '08:00').strip() or '08:00'
+    p.hora_salida_sabado = request.form.get('hora_salida_sabado', '17:00').strip() or '17:00'
+    p.notas = request.form.get('notas', '').strip() or None
+
+    db.session.commit()
+    flash(f'✅ Datos de "{p.nombre_completo}" actualizados correctamente.', 'success')
+    return redirect(url_for('administracion.personal', tab='personal'))
+
+
+@administracion_bp.route('/personal/<int:personal_id>/toggle-activo', methods=['POST'])
+@administracion_o_gerente_requerido
+def toggle_activo_personal(personal_id):
+    """
+    Activar o desactivar a un empleado.
+    """
+    p = Personal.query.get_or_404(personal_id)
+    p.activo = not p.activo
+    db.session.commit()
+    estado = "activado" if p.activo else "dado de baja"
+    flash(f'El personal "{p.nombre_completo}" fue {estado}.', 'info')
+    return redirect(url_for('administracion.personal', tab='personal'))
+
+
+@administracion_bp.route('/personal/guardar-asistencias', methods=['POST'])
+@administracion_o_gerente_requerido
+def guardar_asistencias():
+    """
+    Guarda o actualiza las asistencias diarias para la fecha indicada.
+    Soporta envío masivo JSON o envío por formulario tradicional.
+    """
+    if request.is_json:
+        data = request.get_json() or {}
+        fecha_str = data.get('fecha')
+        registros = data.get('registros', [])
+    else:
+        fecha_str = request.form.get('fecha')
+        registros = []
+        personal_ids = request.form.getlist('personal_ids[]') or request.form.getlist('personal_id')
+        for pid in personal_ids:
+            registros.append({
+                'personal_id': int(pid),
+                'hora_ingreso': request.form.get(f'hora_ingreso_{pid}', '').strip(),
+                'hora_salida': request.form.get(f'hora_salida_{pid}', '').strip(),
+                'tipo_dia': request.form.get(f'tipo_dia_{pid}', 'normal').strip(),
+                'observaciones': request.form.get(f'observaciones_{pid}', '').strip(),
+            })
+
+    try:
+        fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        OFFSET_ARG = timedelta(hours=3)
+        fecha_obj = (datetime.utcnow() - OFFSET_ARG).date()
+
+    guardados = 0
+    for reg in registros:
+        pid = reg.get('personal_id')
+        if not pid:
+            continue
+        p = Personal.query.get(pid)
+        if not p:
+            continue
+
+        hora_ing = reg.get('hora_ingreso', '').strip() or None
+        hora_sal = reg.get('hora_salida', '').strip() or None
+        tipo_dia = reg.get('tipo_dia', 'normal').strip() or 'normal'
+        obs = reg.get('observaciones', '').strip() or None
+
+        pact_ing, pact_sal, pact_mins = p.get_horario_pactado_para_fecha(fecha_obj)
+
+        asist = RegistroAsistencia.query.filter_by(personal_id=p.id, fecha=fecha_obj).first()
+        if not asist:
+            asist = RegistroAsistencia(
+                personal_id=p.id,
+                fecha=fecha_obj,
+                hora_ingreso_pactada=pact_ing or '08:00',
+                hora_salida_pactada=pact_sal or '17:00',
+                registrado_por_id=current_user.id
+            )
+            db.session.add(asist)
+
+        asist.hora_ingreso = hora_ing
+        asist.hora_salida = hora_sal
+        asist.tipo_dia = tipo_dia
+        asist.observaciones = obs
+        asist.hora_ingreso_pactada = pact_ing or '08:00'
+        asist.hora_salida_pactada = pact_sal or '17:00'
+        asist.registrado_por_id = current_user.id
+        asist.recalcular()
+        guardados += 1
+
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({
+            'success': True,
+            'guardados': guardados,
+            'mensaje': f'Se guardaron {guardados} asistencias correctamente.'
+        })
+
+    flash(f'✅ Asistencias guardadas para el día {fecha_obj.strftime("%d/%m/%Y")} ({guardados} empleados).', 'success')
+    return redirect(url_for('administracion.personal', fecha=fecha_obj.strftime('%Y-%m-%d'), tab='diario'))
+
+
+@administracion_bp.route('/personal/<int:personal_id>/historial', methods=['GET'])
+@administracion_o_gerente_requerido
+def historial_personal(personal_id):
+    """
+    Devuelve el historial cronológico de asistencias y movimientos de banco de horas
+    de un empleado en formato JSON para el modal interactivo.
+    """
+    p = Personal.query.get_or_404(personal_id)
+    asistencias = RegistroAsistencia.query.filter_by(personal_id=p.id).order_by(RegistroAsistencia.fecha.desc()).all()
+
+    DIAS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    items = []
+    for a in asistencias:
+        items.append({
+            'id': a.id,
+            'fecha': a.fecha.strftime('%d/%m/%Y'),
+            'fecha_iso': a.fecha.strftime('%Y-%m-%d'),
+            'dia_nombre': DIAS_ES[a.fecha.weekday()],
+            'hora_ingreso': a.hora_ingreso or '—',
+            'hora_salida': a.hora_salida or '—',
+            'hora_ingreso_pactada': a.hora_ingreso_pactada,
+            'hora_salida_pactada': a.hora_salida_pactada,
+            'minutos_trabajados': a.minutos_trabajados,
+            'horas_trabajadas': a.horas_trabajadas_formateadas,
+            'minutos_esperados': a.minutos_esperados,
+            'horas_esperadas': a.horas_esperadas_formateadas,
+            'diferencia_minutos': a.diferencia_minutos,
+            'diferencia_formateada': a.diferencia_formateada,
+            'tipo_dia': a.tipo_dia,
+            'observaciones': a.observaciones or '',
+        })
+
+    return jsonify({
+        'personal': p.to_dict(),
+        'historial': items,
+    })
+
+
+@administracion_bp.route('/personal/<int:personal_id>/ajustar-banco', methods=['POST'])
+@administracion_o_gerente_requerido
+def ajustar_banco(personal_id):
+    """
+    Asentar un ajuste manual o compensación acordada en el banco de horas.
+    """
+    p = Personal.query.get_or_404(personal_id)
+    tipo_ajuste = request.form.get('tipo_ajuste', 'sumar')  # 'sumar' | 'restar' | 'fijar'
+    minutos_raw = request.form.get('minutos', '0')
+    horas_raw = request.form.get('horas', '0')
+    motivo = request.form.get('motivo', '').strip() or 'Ajuste manual de banco de horas'
+
+    try:
+        h = float(horas_raw or 0)
+        m = int(minutos_raw or 0)
+        delta_mins = int(h * 60) + m
+    except ValueError:
+        flash('Valores de tiempo inválidos.', 'danger')
+        return redirect(url_for('administracion.personal', tab='banco'))
+
+    OFFSET_ARG = timedelta(hours=3)
+    hoy_arg = (datetime.utcnow() - OFFSET_ARG).date()
+
+    if tipo_ajuste == 'restar':
+        delta_mins = -abs(delta_mins)
+    elif tipo_ajuste == 'sumar':
+        delta_mins = abs(delta_mins)
+    elif tipo_ajuste == 'fijar':
+        saldo_actual = p.get_saldo_banco_minutos()
+        delta_mins = delta_mins - saldo_actual
+
+    existente = RegistroAsistencia.query.filter_by(personal_id=p.id, fecha=hoy_arg).first()
+    if existente:
+        existente.diferencia_minutos += delta_mins
+        existente.observaciones = (existente.observaciones or '') + f" | Ajuste: {motivo} ({formatear_minutos(delta_mins)})"
+    else:
+        asist = RegistroAsistencia(
+            personal_id=p.id,
+            fecha=hoy_arg,
+            hora_ingreso=None,
+            hora_salida=None,
+            hora_ingreso_pactada='00:00',
+            hora_salida_pactada='00:00',
+            minutos_trabajados=max(0, delta_mins) if delta_mins > 0 else 0,
+            minutos_esperados=abs(delta_mins) if delta_mins < 0 else 0,
+            diferencia_minutos=delta_mins,
+            tipo_dia='compensacion',
+            observaciones=f"Ajuste manual: {motivo}",
+            registrado_por_id=current_user.id
+        )
+        db.session.add(asist)
+
+    db.session.commit()
+    flash(f'✅ Banco de horas de {p.nombre_completo} actualizado ({formatear_minutos(delta_mins)}).', 'success')
+    return redirect(url_for('administracion.personal', tab='banco'))
+
+
+@administracion_bp.route('/personal/asistencia/<int:asistencia_id>/eliminar', methods=['POST'])
+@administracion_o_gerente_requerido
+def eliminar_asistencia(asistencia_id):
+    """
+    Eliminar un registro de asistencia específico.
+    """
+    asist = RegistroAsistencia.query.get_or_404(asistencia_id)
+    fecha_str = asist.fecha.strftime('%Y-%m-%d')
+    p_nombre = asist.personal.nombre_completo if asist.personal else 'Personal'
+    db.session.delete(asist)
+    db.session.commit()
+    flash(f'Asistencia de {p_nombre} eliminada.', 'info')
+    return redirect(url_for('administracion.personal', fecha=fecha_str))
+

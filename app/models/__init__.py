@@ -17,11 +17,12 @@ from app.models.formulacion_producto import FormulacionProducto
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 from app.models.formulacion_materia_prima import FormulacionMateriaPrima
 from app.models.cierre_ruta import CierreRuta
+from app.models.personal import Personal, RegistroAsistencia
 
 __all__ = [
     'Usuario', 'Cliente', 'Pedido', 'Producto', 'MensajePedido',
     'ProduccionDiaria', 'Boleta', 'PagoBoleta', 'GastoRepartidor',
     'MateriaPrima', 'FormulacionProducto', 'MovimientoMateriaPrima',
-    'FormulacionMateriaPrima', 'CierreRuta',
+    'FormulacionMateriaPrima', 'CierreRuta', 'Personal', 'RegistroAsistencia',
 ]
 

@@ -113,6 +113,10 @@ class PagoBoleta(db.Model):
     # Indica si este pago fue cerrado por Ventas (cierre de ruta).
     # False = sesión activa (se muestra en resumen). True = sesión cerrada (archivado).
     procesado = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    # Vínculo con el CierreRuta donde se archivó este cobro
+    cierre_ruta_id = db.Column(
+        db.Integer, db.ForeignKey('cierres_ruta.id'), nullable=True, index=True
+    )
 
     # Relaciones
     cliente = db.relationship('Cliente', backref=db.backref('pagos', lazy='dynamic'))
@@ -136,4 +140,5 @@ class PagoBoleta(db.Model):
             'saldo_favor': float(self.saldo_favor),
             'notas': self.notas,
             'fecha_cobro': self.fecha_cobro.isoformat() if self.fecha_cobro else None,
+            'cierre_ruta_id': self.cierre_ruta_id,
         }

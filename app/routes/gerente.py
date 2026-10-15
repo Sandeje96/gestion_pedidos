@@ -13,6 +13,8 @@ from app.models.formulacion_materia_prima import FormulacionMateriaPrima
 from app.models.movimiento_materia_prima import MovimientoMateriaPrima
 from app.models.produccion import ProduccionDiaria
 from app.models.cierre_ruta import CierreRuta
+from app.models.boleta import PagoBoleta
+from app.models.gasto_repartidor import GastoRepartidor
 from app.models.usuario import Usuario
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -967,9 +969,9 @@ def historial_repartidores():
     repartidor_id = int(repartidor_id_str) if repartidor_id_str.isdigit() else None
 
     # ── Consulta principal ──
-    # Convertimos las fechas a datetime UTC para comparar con fecha_cierre (DateTime UTC)
-    desde_utc = datetime(fecha_desde.year, fecha_desde.month, fecha_desde.day, 0, 0, 0)
-    hasta_utc = datetime(fecha_hasta.year, fecha_hasta.month, fecha_hasta.day, 23, 59, 59)
+    # Convertir rango del día en hora Argentina (00:00:00 a 23:59:59.999999) a UTC (+3h)
+    desde_utc = datetime(fecha_desde.year, fecha_desde.month, fecha_desde.day, 0, 0, 0) + OFFSET_ARG
+    hasta_utc = datetime(fecha_hasta.year, fecha_hasta.month, fecha_hasta.day, 23, 59, 59, 999999) + OFFSET_ARG
 
     query = CierreRuta.query.filter(
         CierreRuta.fecha_cierre >= desde_utc,
@@ -980,6 +982,26 @@ def historial_repartidores():
         query = query.filter(CierreRuta.repartidor_id == repartidor_id)
 
     cierres = query.order_by(CierreRuta.fecha_cierre.desc()).all()
+
+    # ── Totales consolidados por lote_cierre (para rutas cerradas en conjunto) ──
+    totales_por_lote = {}
+    for c in cierres:
+        if c.lote_cierre:
+            if c.lote_cierre not in totales_por_lote:
+                totales_por_lote[c.lote_cierre] = {
+                    'total_efectivo': 0.0,
+                    'total_transferencia': 0.0,
+                    'total_cheque': 0.0,
+                    'total_gastos': 0.0,
+                    'neto_efectivo': 0.0,
+                    'count': 0
+                }
+            totales_por_lote[c.lote_cierre]['total_efectivo'] += float(c.total_efectivo)
+            totales_por_lote[c.lote_cierre]['total_transferencia'] += float(c.total_transferencia)
+            totales_por_lote[c.lote_cierre]['total_cheque'] += float(c.total_cheque)
+            totales_por_lote[c.lote_cierre]['total_gastos'] += float(c.total_gastos)
+            totales_por_lote[c.lote_cierre]['neto_efectivo'] += float(c.neto_efectivo)
+            totales_por_lote[c.lote_cierre]['count'] += 1
 
     # ── Totales del período ──
     total_efectivo_periodo      = sum(float(c.total_efectivo)      for c in cierres)
@@ -997,6 +1019,7 @@ def historial_repartidores():
         title='Historial de Billetera — Repartidores',
         cierres=cierres,
         repartidores=repartidores,
+        totales_por_lote=totales_por_lote,
         # Filtros aplicados
         fecha_desde=fecha_desde,
         fecha_hasta=fecha_hasta,
@@ -1011,3 +1034,79 @@ def historial_repartidores():
         hoy=hoy,
         timedelta=timedelta,
     )
+
+
+@gerente_bp.route('/cierres-ruta/<int:cierre_id>/detalle')
+@gerente_o_admin_requerido
+def detalle_cierre_ruta(cierre_id):
+    """
+    Endpoint AJAX: devuelve el desglose completo de cobros y gastos vinculados
+    a un CierreRuta, además del total consolidado de la ruta si formó parte de un lote.
+    """
+    cierre = CierreRuta.query.get_or_404(cierre_id)
+    OFFSET_ARG = timedelta(hours=3)
+    fecha_arg = cierre.fecha_cierre - OFFSET_ARG
+
+    # Cobros vinculados directamente al cierre
+    pagos = cierre.pagos.order_by(PagoBoleta.fecha_cobro.asc()).all()
+    pagos_data = []
+    for p in pagos:
+        fecha_pago_arg = p.fecha_cobro - OFFSET_ARG if p.fecha_cobro else None
+        pagos_data.append({
+            'id': p.id,
+            'cliente': p.cliente.nombre if p.cliente else f'Cliente #{p.cliente_id}',
+            'cliente_id': p.cliente_id,
+            'hora': fecha_pago_arg.strftime('%H:%M') if fecha_pago_arg else '—',
+            'efectivo': float(p.efectivo),
+            'transferencia': float(p.transferencia),
+            'cheque': float(p.cheque),
+            'total': float(p.total_recibido),
+            'notas': p.notas or '—',
+        })
+
+    # Gastos vinculados directamente al cierre
+    gastos = cierre.gastos.order_by(GastoRepartidor.fecha_creacion.asc()).all()
+    gastos_data = []
+    for g in gastos:
+        fecha_gasto_arg = g.fecha_creacion - OFFSET_ARG if g.fecha_creacion else None
+        gastos_data.append({
+            'id': g.id,
+            'tipo': g.tipo,
+            'monto': float(g.monto),
+            'notas': g.notas or '—',
+            'hora': fecha_gasto_arg.strftime('%H:%M') if fecha_gasto_arg else '—',
+        })
+
+    totales_lote = None
+    if cierre.lote_cierre:
+        cierres_lote = CierreRuta.query.filter_by(lote_cierre=cierre.lote_cierre).all()
+        if len(cierres_lote) > 1:
+            totales_lote = {
+                'cantidad_repartidores': len(cierres_lote),
+                'total_efectivo': sum(float(c.total_efectivo) for c in cierres_lote),
+                'total_transferencia': sum(float(c.total_transferencia) for c in cierres_lote),
+                'total_cheque': sum(float(c.total_cheque) for c in cierres_lote),
+                'total_gastos': sum(float(c.total_gastos) for c in cierres_lote),
+                'total_neto': sum(float(c.neto_efectivo) for c in cierres_lote),
+            }
+
+    return jsonify({
+        'cierre': {
+            'id': cierre.id,
+            'ruta': cierre.ruta,
+            'tipo_cierre': cierre.tipo_cierre,
+            'repartidor': cierre.repartidor.nombre if cierre.repartidor else '—',
+            'cerrado_por': cierre.cerrado_por.nombre if cierre.cerrado_por else '—',
+            'fecha': fecha_arg.strftime('%d/%m/%Y %H:%M'),
+            'total_efectivo': float(cierre.total_efectivo),
+            'total_transferencia': float(cierre.total_transferencia),
+            'total_cheque': float(cierre.total_cheque),
+            'total_gastos': float(cierre.total_gastos),
+            'neto_efectivo': float(cierre.neto_efectivo),
+            'cantidad_cobros': cierre.cantidad_cobros,
+            'cantidad_gastos': cierre.cantidad_gastos,
+        },
+        'pagos': pagos_data,
+        'gastos': gastos_data,
+        'totales_lote': totales_lote,
+    })

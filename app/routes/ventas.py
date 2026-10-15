@@ -1629,66 +1629,54 @@ def resetear_cliente_dia(cliente_id):
     3. Marca todos sus pagos activos como procesado=True (archivados) →
        el resumen del repartidor se resetea a $0.
     """
-    from app.models.gasto_repartidor import GastoRepartidor
     from app.models.cierre_ruta import CierreRuta
     from collections import defaultdict
+    import uuid
 
     cliente = Cliente.query.get_or_404(cliente_id)
     hoy = date.today()
     ayer = hoy - timedelta(days=1)
     ruta_nombre = cliente.ruta or 'Sin ruta'
+    lote_cierre = uuid.uuid4().hex[:12]
 
-    # ── SNAPSHOT: capturar balance por repartidor ANTES de archivar ──
+    # ── SNAPSHOT: capturar pagos activos de este cliente ──
     pagos_activos = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
         PagoBoleta.procesado == False
     ).all()
 
     # Agrupar cobros por repartidor
-    cobros_por_rep = defaultdict(lambda: {
-        'efectivo': 0.0, 'transferencia': 0.0, 'cheque': 0.0, 'cantidad': 0
-    })
+    cobros_por_rep = defaultdict(list)
     for p in pagos_activos:
-        cobros_por_rep[p.cobrado_por_id]['efectivo']       += float(p.efectivo)
-        cobros_por_rep[p.cobrado_por_id]['transferencia']  += float(p.transferencia)
-        cobros_por_rep[p.cobrado_por_id]['cheque']         += float(p.cheque)
-        cobros_por_rep[p.cobrado_por_id]['cantidad']       += 1
+        cobros_por_rep[p.cobrado_por_id].append(p)
 
-    # Verificar si después de este cierre ya no quedan pagos activos en el sistema
-    otros_pagos_pendientes = PagoBoleta.query.filter(
-        PagoBoleta.cliente_id != cliente_id,
-        PagoBoleta.procesado == False
-    ).count()
-    gastos_globales_activos = GastoRepartidor.query.filter_by(procesado=False).all()
-
-    # Construir cierres — uno por repartidor encontrado
-    for rep_id, datos in cobros_por_rep.items():
-        # Gastos del repartidor asociados a la ruta de este cliente
-        gastos_rep = [
-            g for g in gastos_globales_activos
-            if g.repartidor_id == rep_id and (g.ruta == ruta_nombre or g.ruta is None)
-        ]
-        # Si ya no quedan pagos pendientes de otros clientes, incluir todos sus gastos
-        if otros_pagos_pendientes == 0:
-            gastos_rep = [g for g in gastos_globales_activos if g.repartidor_id == rep_id]
-
-        total_gastos = sum(float(g.monto) for g in gastos_rep)
-        neto = datos['efectivo'] - total_gastos
+    # Construir cierres — uno por repartidor encontrado con cobros
+    for rep_id, pagos_rep in cobros_por_rep.items():
+        total_efectivo = sum(float(p.efectivo) for p in pagos_rep)
+        total_transf = sum(float(p.transferencia) for p in pagos_rep)
+        total_cheque = sum(float(p.cheque) for p in pagos_rep)
 
         cierre = CierreRuta(
             ruta=ruta_nombre,
             tipo_cierre='cliente_individual',
+            lote_cierre=lote_cierre,
             repartidor_id=rep_id,
             cerrado_por_id=current_user.id,
-            total_efectivo=datos['efectivo'],
-            total_transferencia=datos['transferencia'],
-            total_cheque=datos['cheque'],
-            total_gastos=total_gastos,
-            neto_efectivo=neto,
-            cantidad_cobros=datos['cantidad'],
-            cantidad_gastos=len(gastos_rep),
+            total_efectivo=total_efectivo,
+            total_transferencia=total_transf,
+            total_cheque=total_cheque,
+            total_gastos=0.0,
+            neto_efectivo=total_efectivo,
+            cantidad_cobros=len(pagos_rep),
+            cantidad_gastos=0,
         )
         db.session.add(cierre)
+        db.session.flush()
+
+        # Vincular cada pago al cierre y archivar
+        for p in pagos_rep:
+            p.cierre_ruta_id = cierre.id
+            p.procesado = True
 
     # 1. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
     Boleta.query.filter(
@@ -1696,22 +1684,7 @@ def resetear_cliente_dia(cliente_id):
         Boleta.fecha_entrega == hoy
     ).update({'fecha_entrega': ayer}, synchronize_session=False)
 
-    # 2. Archivar todos los pagos activos del cliente
-    PagoBoleta.query.filter(
-        PagoBoleta.cliente_id == cliente_id,
-        PagoBoleta.procesado == False
-    ).update({'procesado': True}, synchronize_session=False)
-
     db.session.commit()
-
-    # Archivar los gastos activos del repartidor si ya no quedan pagos pendientes
-    pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
-    if pagos_pendientes == 0:
-        gastos_restantes = GastoRepartidor.query.filter_by(procesado=False).all()
-        for g in gastos_restantes:
-            g.procesado = True
-        if gastos_restantes:
-            db.session.commit()
 
     flash(f'El día para {cliente.nombre} ha sido cerrado. Saldo pendiente pasado a Cuenta Corriente.', 'success')
     return redirect(url_for('ventas.boletas'))
@@ -1722,18 +1695,18 @@ def resetear_cliente_dia(cliente_id):
 def resetear_ruta_dia(ruta_nombre):
     """
     Cierra la sesión activa para todos los clientes de una ruta.
-    1. Captura snapshot de billetera por repartidor (CierreRuta) ANTES de archivar.
+    1. Captura snapshot de billetera por repartidor (CierreRuta) vinculando cobros y gastos.
     2. Mueve todas las boletas de hoy a 'ayer' → dejan de aparecer como 'Boleta hoy'.
        El saldo pendiente queda automáticamente en Cuenta Corriente.
-    3. Marca todos los pagos activos como procesado=True →
-       el resumen del repartidor se resetea a $0.
+    3. Marca todos los pagos y gastos activos involucrados como procesado=True con su cierre_ruta_id.
     """
     from app.models.gasto_repartidor import GastoRepartidor
     from app.models.cierre_ruta import CierreRuta
-    from collections import defaultdict
+    import uuid
 
     hoy = date.today()
     ayer = hoy - timedelta(days=1)
+    lote_cierre = uuid.uuid4().hex[:12]
 
     # 1. Obtener todos los clientes activos de esta ruta
     clientes_ruta = Cliente.query.filter(
@@ -1747,26 +1720,16 @@ def resetear_ruta_dia(ruta_nombre):
 
     clientes_ids = [c.id for c in clientes_ruta]
 
-    # ── SNAPSHOT: capturar balance por repartidor ANTES de archivar ──
+    # 2. Cobros activos de los clientes de esta ruta
     pagos_activos = PagoBoleta.query.filter(
         PagoBoleta.cliente_id.in_(clientes_ids),
         PagoBoleta.procesado == False
     ).all()
 
-    # Agrupar cobros por repartidor
-    cobros_por_rep = defaultdict(lambda: {
-        'efectivo': 0.0, 'transferencia': 0.0, 'cheque': 0.0, 'cantidad': 0
-    })
-    for p in pagos_activos:
-        cobros_por_rep[p.cobrado_por_id]['efectivo']       += float(p.efectivo)
-        cobros_por_rep[p.cobrado_por_id]['transferencia']  += float(p.transferencia)
-        cobros_por_rep[p.cobrado_por_id]['cheque']         += float(p.cheque)
-        cobros_por_rep[p.cobrado_por_id]['cantidad']       += 1
-
-    # Gastos activos de esta ruta (antes de archivarlos)
-    gastos_ruta_activos = GastoRepartidor.query.filter_by(
-        procesado=False,
-        ruta=ruta_nombre
+    # 3. Gastos activos de esta ruta
+    gastos_ruta_activos = GastoRepartidor.query.filter(
+        GastoRepartidor.procesado == False,
+        GastoRepartidor.ruta == ruta_nombre
     ).all()
 
     # Verificar si al cerrar esta ruta ya no quedan pagos activos en el sistema
@@ -1775,71 +1738,69 @@ def resetear_ruta_dia(ruta_nombre):
         PagoBoleta.procesado == False
     ).count()
 
-    # Construir cierres — uno por repartidor encontrado
-    for rep_id, datos in cobros_por_rep.items():
-        # Gastos de este repartidor en esta ruta
-        gastos_rep = [g for g in gastos_ruta_activos if g.repartidor_id == rep_id]
-        # Si ya no quedan pagos pendientes en todo el sistema, incluir gastos de otras rutas
-        if otros_pagos_pendientes == 0:
-            gastos_otras = GastoRepartidor.query.filter(
-                GastoRepartidor.repartidor_id == rep_id,
-                GastoRepartidor.procesado == False,
-                GastoRepartidor.ruta != ruta_nombre
-            ).all()
-            gastos_rep = gastos_rep + gastos_otras
+    # Si no quedan pagos en otras rutas, incluir también los gastos que quedaron sin ruta o de otras rutas
+    gastos_adicionales = []
+    if otros_pagos_pendientes == 0:
+        gastos_adicionales = GastoRepartidor.query.filter(
+            GastoRepartidor.procesado == False,
+            (GastoRepartidor.ruta != ruta_nombre) | (GastoRepartidor.ruta == None)
+        ).all()
 
+    todos_los_gastos = gastos_ruta_activos + gastos_adicionales
+
+    # 4. Todos los repartidores involucrados (los que cobraron O tuvieron gastos en esta ruta)
+    repartidores_ids = set(p.cobrado_por_id for p in pagos_activos) | set(g.repartidor_id for g in todos_los_gastos)
+
+    # 5. Construir un CierreRuta por cada repartidor involucrado
+    for rep_id in repartidores_ids:
+        pagos_rep = [p for p in pagos_activos if p.cobrado_por_id == rep_id]
+        gastos_rep = [g for g in todos_los_gastos if g.repartidor_id == rep_id]
+
+        total_efectivo = sum(float(p.efectivo) for p in pagos_rep)
+        total_transf = sum(float(p.transferencia) for p in pagos_rep)
+        total_cheque = sum(float(p.cheque) for p in pagos_rep)
         total_gastos = sum(float(g.monto) for g in gastos_rep)
-        neto = datos['efectivo'] - total_gastos
+        neto = total_efectivo - total_gastos
 
         cierre = CierreRuta(
             ruta=ruta_nombre,
             tipo_cierre='ruta_completa',
+            lote_cierre=lote_cierre,
             repartidor_id=rep_id,
             cerrado_por_id=current_user.id,
-            total_efectivo=datos['efectivo'],
-            total_transferencia=datos['transferencia'],
-            total_cheque=datos['cheque'],
+            total_efectivo=total_efectivo,
+            total_transferencia=total_transf,
+            total_cheque=total_cheque,
             total_gastos=total_gastos,
             neto_efectivo=neto,
-            cantidad_cobros=datos['cantidad'],
+            cantidad_cobros=len(pagos_rep),
             cantidad_gastos=len(gastos_rep),
         )
         db.session.add(cierre)
+        db.session.flush()
 
-    # 2. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
+        # Vincular y archivar pagos
+        for p in pagos_rep:
+            p.cierre_ruta_id = cierre.id
+            p.procesado = True
+
+        # Vincular y archivar gastos
+        for g in gastos_rep:
+            g.cierre_ruta_id = cierre.id
+            g.procesado = True
+
+    # 6. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
     boletas_movidas = Boleta.query.filter(
         Boleta.cliente_id.in_(clientes_ids),
         Boleta.fecha_entrega == hoy
     ).update({'fecha_entrega': ayer}, synchronize_session=False)
 
-    # 3. Archivar todos los pagos activos de la ruta
-    total_procesados = PagoBoleta.query.filter(
-        PagoBoleta.cliente_id.in_(clientes_ids),
-        PagoBoleta.procesado == False
-    ).update({'procesado': True}, synchronize_session=False)
-
     db.session.commit()
-
-    # Archivar gastos activos del repartidor que correspondan a esta ruta.
-    for g in gastos_ruta_activos:
-        g.procesado = True
-    if gastos_ruta_activos:
-        db.session.commit()
-
-    # Adicionalmente, si ya no quedan pagos activos en todo el sistema,
-    # archivar cualquier gasto restante de otras rutas
-    pagos_pendientes = PagoBoleta.query.filter_by(procesado=False).count()
-    if pagos_pendientes == 0:
-        gastos_restantes = GastoRepartidor.query.filter_by(procesado=False).all()
-        for g in gastos_restantes:
-            g.procesado = True
-        if gastos_restantes:
-            db.session.commit()
 
     flash(
         f'Ruta {ruta_nombre} cerrada correctamente. '
         f'{boletas_movidas} boleta(s) pasaron a Cuenta Corriente. '
-        f'{total_procesados} cobro(s) archivado(s).',
+        f'{len(pagos_activos)} cobro(s) y {len(todos_los_gastos)} gasto(s) archivado(s).',
         'success'
     )
     return redirect(url_for('ventas.boletas'))

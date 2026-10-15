@@ -628,7 +628,24 @@ def eliminar_gasto(gasto_id):
 def limpiar_gastos():
     """
     Limpia los gastos activos del repartidor actual, marcándolos como procesados.
+    Solo se permite si no hay cobros activos en curso, ya que de lo contrario
+    los gastos deben rendirse en el Cierre de Ruta realizado por Ventas.
     """
+    # Si el repartidor tiene cobros activos en curso, no permitir limpiar en bloque
+    tiene_cobros_activos = PagoBoleta.query.filter(
+        PagoBoleta.cobrado_por_id == current_user.id,
+        PagoBoleta.procesado == False
+    ).count() > 0
+
+    if tiene_cobros_activos:
+        flash(
+            'No podés limpiar los gastos mientras tengas cobros activos de la ruta. '
+            'Los gastos se rendirán automáticamente cuando Ventas cierre la ruta. '
+            'Si cargaste un gasto por error, podés eliminarlo individualmente con el botón rojo.',
+            'warning'
+        )
+        return redirect(url_for('repartidor.gastos'))
+
     gastos_activos = GastoRepartidor.query.filter_by(
         repartidor_id=current_user.id,
         procesado=False

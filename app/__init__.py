@@ -250,7 +250,41 @@ def create_app(config_name='development'):
             db.session.commit()
         except Exception as e_bf:
             db.session.rollback()
-            print(f"Backfill de stock en movimientos: {e_bf}")
+        # 13. Agregar columna 'lote_cierre' en cierres_ruta
+        try:
+            db.session.execute(text("ALTER TABLE cierres_ruta ADD COLUMN IF NOT EXISTS lote_cierre VARCHAR(36)"))
+            db.session.commit()
+        except Exception as e_lc:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE cierres_ruta ADD COLUMN lote_cierre VARCHAR(36)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # 14. Agregar columna 'cierre_ruta_id' en pagos_boleta
+        try:
+            db.session.execute(text("ALTER TABLE pagos_boleta ADD COLUMN IF NOT EXISTS cierre_ruta_id INTEGER REFERENCES cierres_ruta(id)"))
+            db.session.commit()
+        except Exception as e_pc:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE pagos_boleta ADD COLUMN cierre_ruta_id INTEGER REFERENCES cierres_ruta(id)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # 15. Agregar columna 'cierre_ruta_id' en gastos_repartidor
+        try:
+            db.session.execute(text("ALTER TABLE gastos_repartidor ADD COLUMN IF NOT EXISTS cierre_ruta_id INTEGER REFERENCES cierres_ruta(id)"))
+            db.session.commit()
+        except Exception as e_gc:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE gastos_repartidor ADD COLUMN cierre_ruta_id INTEGER REFERENCES cierres_ruta(id)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
 
         # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stocks idénticos
         try:

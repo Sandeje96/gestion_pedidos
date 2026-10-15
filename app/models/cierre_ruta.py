@@ -35,6 +35,8 @@ class CierreRuta(db.Model):
     ruta = db.Column(db.String(100), nullable=False, index=True)
     # Tipo: 'ruta_completa' o 'cliente_individual'
     tipo_cierre = db.Column(db.String(30), nullable=False, default='ruta_completa')
+    # Identificador de lote para agrupar cierres de la misma ejecución de ruta
+    lote_cierre = db.Column(db.String(36), nullable=True, index=True)
 
     # ── Actores ──
     repartidor_id = db.Column(
@@ -71,6 +73,16 @@ class CierreRuta(db.Model):
         'Usuario',
         foreign_keys=[cerrado_por_id]
     )
+    pagos = db.relationship(
+        'PagoBoleta',
+        backref='cierre_ruta',
+        lazy='dynamic'
+    )
+    gastos = db.relationship(
+        'GastoRepartidor',
+        backref='cierre_ruta',
+        lazy='dynamic'
+    )
 
     def __repr__(self):
         return (
@@ -86,6 +98,7 @@ class CierreRuta(db.Model):
             'id': self.id,
             'ruta': self.ruta,
             'tipo_cierre': self.tipo_cierre,
+            'lote_cierre': self.lote_cierre,
             'repartidor_id': self.repartidor_id,
             'repartidor_nombre': self.repartidor.nombre if self.repartidor else None,
             'cerrado_por_id': self.cerrado_por_id,

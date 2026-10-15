@@ -231,17 +231,25 @@
 
                                     <!-- Hora de Ingreso -->
                                     <td>
-                                        <input type="time" class="form-control form-control-sm time-input input-ingreso"
+                                        <input type="text" class="form-control form-control-sm time-input input-ingreso text-center"
                                                name="hora_ingreso_{{ p.id }}"
                                                value="{{ item.hora_ingreso or '' }}"
+                                               placeholder="{{ item.hora_ingreso_pactada }}"
+                                               maxlength="5"
+                                               inputmode="numeric"
+                                               autocomplete="off"
                                                data-pactado-ing="{{ item.hora_ingreso_pactada }}">
                                     </td>
 
                                     <!-- Hora de Salida -->
                                     <td>
-                                        <input type="time" class="form-control form-control-sm time-input input-salida"
+                                        <input type="text" class="form-control form-control-sm time-input input-salida text-center"
                                                name="hora_salida_{{ p.id }}"
                                                value="{{ item.hora_salida or '' }}"
+                                               placeholder="{{ item.hora_salida_pactada }}"
+                                               maxlength="5"
+                                               inputmode="numeric"
+                                               autocomplete="off"
                                                data-pactado-sal="{{ item.hora_salida_pactada }}">
                                     </td>
 
@@ -804,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Función para formatear minutos con signo ──
     function formatearMinutos(mins) {
         if (mins === null || mins === undefined || isNaN(mins)) return '0m';
-        mins = parseInt(mins);
+        mins = parseInt(mins, 10);
         const signo = mins > 0 ? '+' : (mins < 0 ? '-' : '');
         const abs = Math.abs(mins);
         const h = Math.floor(abs / 60);
@@ -815,26 +823,98 @@ document.addEventListener('DOMContentLoaded', function () {
         return '0m';
     }
 
+    // ── Parser inteligente y permisivo de horario a minutos ──
     function timeToMins(tStr) {
-        if (!tStr) return 0;
-        const parts = tStr.split(':');
-        if (parts.length < 2) return 0;
-        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        if (!tStr) return null;
+        tStr = String(tStr).trim();
+        if (!tStr) return null;
+
+        // Si tiene separador (: o . o ,)
+        if (tStr.includes(':') || tStr.includes('.') || tStr.includes(',')) {
+            const sep = tStr.includes(':') ? ':' : (tStr.includes('.') ? '.' : ',');
+            const parts = tStr.split(sep);
+            const h = parseInt(parts[0], 10);
+            if (isNaN(h) || h < 0 || h > 24) return null;
+            let m = 0;
+            if (parts[1] && parts[1].trim() !== '') {
+                m = parseInt(parts[1], 10);
+                if (isNaN(m) || m < 0 || m >= 60) return null;
+            }
+            return h * 60 + m;
+        }
+
+        // Solo dígitos sin separador
+        const digits = tStr.replace(/\D/g, '');
+        if (!digits) return null;
+
+        if (digits.length === 1) {
+            const d = parseInt(digits, 10);
+            if (d >= 6 && d <= 9) return d * 60; // 6, 7, 8, 9 asumimos 06:00, 07:00, etc.
+            return null; // 1 o 2 esperando segundo dígito (ej: 17 o 20)
+        } else if (digits.length === 2) {
+            const h = parseInt(digits, 10);
+            if (h >= 0 && h <= 24) return h * 60;
+            return null;
+        } else if (digits.length === 3) {
+            const h = parseInt(digits.slice(0, 1), 10);
+            const m = parseInt(digits.slice(1), 10);
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m;
+            return null;
+        } else if (digits.length >= 4) {
+            const h = parseInt(digits.slice(0, 2), 10);
+            const m = parseInt(digits.slice(2, 4), 10);
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m;
+            return null;
+        }
+        return null;
+    }
+
+    // ── Normalizar campo al formato estándar HH:MM ──
+    function normalizarHoraInput(input) {
+        let val = input.value.trim();
+        if (!val) return;
+        if (/^\d{1,2}:\d{2}$/.test(val)) {
+            let [h, m] = val.split(':');
+            input.value = `${String(parseInt(h, 10)).padStart(2, '0')}:${m}`;
+            return;
+        }
+        if (/^\d{1,2}$/.test(val)) {
+            let h = parseInt(val, 10);
+            if (h >= 0 && h <= 24) {
+                input.value = `${String(h).padStart(2, '0')}:00`;
+            }
+            return;
+        }
+        if (/^\d{3,4}$/.test(val)) {
+            let h = val.length === 3 ? val.slice(0, 1) : val.slice(0, 2);
+            let m = val.length === 3 ? val.slice(1) : val.slice(2, 4);
+            input.value = `${String(parseInt(h, 10)).padStart(2, '0')}:${m}`;
+            return;
+        }
+        if (val.includes('.') || val.includes(',')) {
+            let [h, m] = val.split(/[.,]/);
+            m = m ? m.padEnd(2, '0').slice(0, 2) : '00';
+            input.value = `${String(parseInt(h, 10)).padStart(2, '0')}:${m}`;
+            return;
+        }
     }
 
     // ── Recalcular delta en vivo para cada fila al tipear horarios ──
     function recalcularFila(tr) {
-        const pactadoMins = parseInt(tr.dataset.pactadoMins) || 540;
-        const ingVal = tr.querySelector('.input-ingreso').value;
-        const salVal = tr.querySelector('.input-salida').value;
+        const pactadoMins = parseInt(tr.dataset.pactadoMins, 10) || 540;
+        const inpIng = tr.querySelector('.input-ingreso');
+        const inpSal = tr.querySelector('.input-salida');
         const tipoDia = tr.querySelector('.select-tipo-dia').value;
         const badge = tr.querySelector('.badge-delta');
+
+        const minsIng = timeToMins(inpIng ? inpIng.value : '');
+        const minsSal = timeToMins(inpSal ? inpSal.value : '');
 
         let delta = 0;
 
         if (tipoDia === 'franco' || tipoDia === 'feriado' || tipoDia === 'ausente_justificado') {
-            if (ingVal && salVal) {
-                let worked = timeToMins(salVal) - timeToMins(ingVal);
+            if (minsIng !== null && minsSal !== null) {
+                let worked = minsSal - minsIng;
                 if (worked < 0) worked += 24 * 60;
                 delta = worked;
             } else {
@@ -844,8 +924,8 @@ document.addEventListener('DOMContentLoaded', function () {
             delta = -pactadoMins;
         } else {
             // Normal o Compensación
-            if (ingVal && salVal) {
-                let worked = timeToMins(salVal) - timeToMins(ingVal);
+            if (minsIng !== null && minsSal !== null) {
+                let worked = minsSal - minsIng;
                 if (worked < 0) worked += 24 * 60;
                 delta = worked - pactadoMins;
             } else {
@@ -857,12 +937,82 @@ document.addEventListener('DOMContentLoaded', function () {
         badge.className = 'delta-badge ' + (delta > 0 ? 'delta-positivo' : (delta < 0 ? 'delta-negativo' : 'delta-cero'));
     }
 
+    // ── Asignar eventos interactivos y reactivos en vivo a cada fila ──
     document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
-        tr.querySelectorAll('.input-ingreso, .input-salida, .select-tipo-dia').forEach(function (el) {
-            el.addEventListener('change', () => recalcularFila(tr));
-            el.addEventListener('input', () => recalcularFila(tr));
+        // Dropdown tipo de día
+        const selectTipo = tr.querySelector('.select-tipo-dia');
+        if (selectTipo) {
+            selectTipo.addEventListener('change', () => recalcularFila(tr));
+        }
+
+        // Inputs de ingreso y salida
+        tr.querySelectorAll('.input-ingreso, .input-salida').forEach(function (inp) {
+            // Seleccionar contenido al hacer foco para facilitar sobreescritura rápida
+            inp.addEventListener('focus', function () {
+                this.select();
+            });
+
+            // Recalcular al instante en CADA pulsación de tecla, cambio o pegado
+            inp.addEventListener('input', () => recalcularFila(tr));
+            inp.addEventListener('keyup', () => recalcularFila(tr));
+            inp.addEventListener('paste', () => setTimeout(() => recalcularFila(tr), 10));
+            inp.addEventListener('change', () => recalcularFila(tr));
+
+            // Flechas arriba/abajo para subir o bajar horario, y Enter para avanzar
+            inp.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    let curMins = timeToMins(inp.value);
+                    if (curMins === null) {
+                        curMins = inp.classList.contains('input-ingreso') ? 8 * 60 : 17 * 60;
+                    }
+                    const step = e.shiftKey ? 30 : 60; // Shift = 30 min, Normal = 1 hora
+                    if (e.key === 'ArrowUp') {
+                        curMins = Math.min(24 * 60, curMins + step);
+                    } else {
+                        curMins = Math.max(0, curMins - step);
+                    }
+                    const h = Math.floor(curMins / 60) % 24;
+                    const m = curMins % 60;
+                    inp.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                    recalcularFila(tr);
+                    return;
+                }
+
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Evitar submit accidental del formulario
+                    normalizarHoraInput(inp);
+                    recalcularFila(tr);
+                    // Avanzar el foco al siguiente input de horario
+                    const allInputs = Array.from(document.querySelectorAll('.input-ingreso, .input-salida'));
+                    const idx = allInputs.indexOf(inp);
+                    if (idx >= 0 && idx < allInputs.length - 1) {
+                        allInputs[idx + 1].focus();
+                        allInputs[idx + 1].select();
+                    }
+                }
+            });
+
+            // Normalizar a formato HH:MM al salir del campo
+            inp.addEventListener('blur', function () {
+                normalizarHoraInput(inp);
+                recalcularFila(tr);
+            });
         });
+
+        // Recalcular inicialmente para sincronizar
+        recalcularFila(tr);
     });
+
+    // ── Normalizar todos los inputs antes de enviar el formulario ──
+    const formPlanilla = document.getElementById('formPlanillaDiaria');
+    if (formPlanilla) {
+        formPlanilla.addEventListener('submit', function () {
+            document.querySelectorAll('.input-ingreso, .input-salida').forEach(function (inp) {
+                normalizarHoraInput(inp);
+            });
+        });
+    }
 
     // ── Botón Cargar Habitual (08:00 - 17:00) en lote ──
     const btnAuto = document.getElementById('btnAutocompletarHabitual');

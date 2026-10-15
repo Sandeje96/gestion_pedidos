@@ -1067,6 +1067,42 @@ def toggle_activo_personal(personal_id):
     return redirect(url_for('administracion.personal', tab='personal'))
 
 
+def _normalizar_hhmm(val):
+    """Limpia y estandariza cadenas de hora al formato HH:MM (ej. '8' -> '08:00', '1730' -> '17:30')."""
+    if not val:
+        return None
+    val = str(val).strip()
+    if not val:
+        return None
+    if ':' in val or '.' in val or ',' in val:
+        sep = ':' if ':' in val else ('.' if '.' in val else ',')
+        parts = val.split(sep)
+        try:
+            h = int(parts[0])
+            m = int(parts[1]) if len(parts) > 1 and parts[1].strip() else 0
+            if 0 <= h <= 24 and 0 <= m < 60:
+                return f"{h:02d}:{m:02d}"
+        except (ValueError, TypeError):
+            return val
+    elif val.isdigit():
+        try:
+            if len(val) <= 2:
+                h = int(val)
+                if 0 <= h <= 24:
+                    return f"{h:02d}:00"
+            elif len(val) == 3:
+                h, m = int(val[0]), int(val[1:])
+                if 0 <= h <= 24 and 0 <= m < 60:
+                    return f"{h:02d}:{m:02d}"
+            elif len(val) >= 4:
+                h, m = int(val[:2]), int(val[2:4])
+                if 0 <= h <= 24 and 0 <= m < 60:
+                    return f"{h:02d}:{m:02d}"
+        except (ValueError, TypeError):
+            return val
+    return val
+
+
 @administracion_bp.route('/personal/guardar-asistencias', methods=['POST'])
 @administracion_o_gerente_requerido
 def guardar_asistencias():
@@ -1106,8 +1142,8 @@ def guardar_asistencias():
         if not p:
             continue
 
-        hora_ing = reg.get('hora_ingreso', '').strip() or None
-        hora_sal = reg.get('hora_salida', '').strip() or None
+        hora_ing = _normalizar_hhmm(reg.get('hora_ingreso', ''))
+        hora_sal = _normalizar_hhmm(reg.get('hora_salida', ''))
         tipo_dia = reg.get('tipo_dia', 'normal').strip() or 'normal'
         obs = reg.get('observaciones', '').strip() or None
 

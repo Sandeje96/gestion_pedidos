@@ -47,6 +47,10 @@ class MovimientoMateriaPrima(db.Model):
     # Timestamp
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
+    # Stock antes y después del movimiento para auditoría y trazabilidad
+    stock_anterior = db.Column(db.Numeric(10, 3), nullable=True)
+    stock_resultante = db.Column(db.Numeric(10, 3), nullable=True)
+
     # Relaciones
     usuario = db.relationship('Usuario', backref='movimientos_mp_registrados', lazy='joined')
     produccion = db.relationship('ProduccionDiaria', backref='movimientos_mp', lazy='joined')
@@ -81,4 +85,6 @@ class MovimientoMateriaPrima(db.Model):
             'usuario_id': self.usuario_id,
             'usuario_nombre': self.usuario.nombre if self.usuario else None,
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
+            'stock_anterior': float(self.stock_anterior) if self.stock_anterior is not None else None,
+            'stock_resultante': float(self.stock_resultante) if self.stock_resultante is not None else None,
         }

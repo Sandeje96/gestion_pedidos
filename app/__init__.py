@@ -196,6 +196,62 @@ def create_app(config_name='development'):
             except Exception:
                 db.session.rollback()
 
+        # 11. Agregar columnas 'stock_anterior' y 'stock_resultante' en movimientos_materia_prima
+        try:
+            db.session.execute(text("ALTER TABLE movimientos_materia_prima ADD COLUMN IF NOT EXISTS stock_anterior NUMERIC(10,3)"))
+            db.session.commit()
+        except Exception as e_sa:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE movimientos_materia_prima ADD COLUMN stock_anterior NUMERIC(10,3)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        try:
+            db.session.execute(text("ALTER TABLE movimientos_materia_prima ADD COLUMN IF NOT EXISTS stock_resultante NUMERIC(10,3)"))
+            db.session.commit()
+        except Exception as e_sr:
+            db.session.rollback()
+            try:
+                db.session.execute(text("ALTER TABLE movimientos_materia_prima ADD COLUMN stock_resultante NUMERIC(10,3)"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # 12. Backfill inicial para movimientos existentes sin stock_resultante
+        try:
+            mps = MateriaPrima.query.all()
+            for mp_obj in mps:
+                movs = MovimientoMateriaPrima.query.filter_by(materia_prima_id=mp_obj.id).order_by(
+                    MovimientoMateriaPrima.fecha_creacion.desc(), MovimientoMateriaPrima.id.desc()
+                ).all()
+                if movs and any(m.stock_resultante is None for m in movs):
+                    cur = float(mp_obj.stock_actual or 0)
+                    for m in movs:
+                        if m.stock_resultante is not None:
+                            cur = float(m.stock_anterior) if m.stock_anterior is not None else float(m.stock_resultante)
+                            continue
+                        cant = float(m.cantidad or 0)
+                        m.stock_resultante = cur
+                        if m.tipo == 'ingreso':
+                            prev = cur - cant
+                        elif m.tipo in ('egreso_produccion', 'egreso'):
+                            prev = cur + cant
+                        elif m.tipo in ('ajuste', 'reajuste'):
+                            if '+' in (m.descripcion or ''):
+                                prev = cur - cant
+                            else:
+                                prev = cur + cant
+                        else:
+                            prev = cur + cant
+                        m.stock_anterior = prev
+                        cur = prev
+            db.session.commit()
+        except Exception as e_bf:
+            db.session.rollback()
+            print(f"Backfill de stock en movimientos: {e_bf}")
+
         # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stocks idénticos
         try:
             from app.models.producto import Producto

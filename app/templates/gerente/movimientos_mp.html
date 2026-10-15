@@ -40,13 +40,15 @@
                     <tr>
                         <th>Fecha</th>
                         <th>Tipo</th>
-                        <th class="text-end">Cantidad</th>
+                        <th class="text-end">Variación</th>
+                        <th class="text-end">Stock en ese momento</th>
                         <th>Descripción</th>
                         <th>Usuario</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for mov in movimientos %}
+                    {% set es_positivo = (mov.tipo == 'ingreso') or (mov.stock_momento is not none and mov.stock_previo is not none and mov.stock_momento > mov.stock_previo) %}
                     <tr>
                         <td class="text-muted small">
                             {{ mov.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}
@@ -70,8 +72,22 @@
                             </span>
                             {% endif %}
                         </td>
-                        <td class="text-end fw-bold {{ 'text-success' if mov.tipo == 'ingreso' else 'text-danger' }}">
-                            {{ '+' if mov.tipo == 'ingreso' else '-' }}{{ mov.cantidad|float|round(3) }} {{ mp.unidad }}
+                        <td class="text-end fw-bold {{ 'text-success' if es_positivo else 'text-danger' }}">
+                            {{ '+' if es_positivo else '-' }}{{ mov.cantidad|float|round(3) }} {{ mp.unidad }}
+                        </td>
+                        <td class="text-end">
+                            {% if mov.stock_momento is not none %}
+                            <div class="fw-bold text-dark fs-6">
+                                {{ mov.stock_momento|float|round(3) }} <span class="small fw-normal text-muted">{{ mp.unidad }}</span>
+                            </div>
+                            {% if mov.stock_previo is not none %}
+                            <div class="text-muted" style="font-size: 0.76rem;" title="Stock antes de esta operación">
+                                <i class="fas fa-history me-1 opacity-50"></i>antes: {{ mov.stock_previo|float|round(3) }}
+                            </div>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                         <td>
                             {% if mov.tipo == 'egreso_produccion' and mov.produccion and mov.produccion.producto %}

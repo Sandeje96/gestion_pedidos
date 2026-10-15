@@ -105,13 +105,17 @@ def _descontar_stock_pedido(pedido):
             # Si el producto tiene una materia prima vinculada, descontar también su stock
             mp_vinc = producto.get_materia_prima_vinculada()
             if mp_vinc:
+                stock_ant_mp = mp_vinc.stock_actual or 0
                 mp_vinc.descontar_stock(cantidad)
+                stock_res_mp = mp_vinc.stock_actual
                 mov_mp = MovimientoMateriaPrima(
                     materia_prima_id=mp_vinc.id,
                     tipo='ajuste',
                     cantidad=cantidad,
                     descripcion=f'Despacho de Pedido #{pedido.id} ({producto.nombre})',
-                    usuario_id=getattr(pedido, 'usuario_id', 1) or 1
+                    usuario_id=getattr(pedido, 'usuario_id', 1) or 1,
+                    stock_anterior=stock_ant_mp,
+                    stock_resultante=stock_res_mp
                 )
                 db.session.add(mov_mp)
 
@@ -927,8 +931,11 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
         if not mp:
             continue
 
+        stock_ant_mp = mp.stock_actual or 0
+
         # Descontar stock de la Materia Prima
         mp.descontar_stock(cantidad)
+        stock_res_mp = mp.stock_actual
 
         # Si esta MP está vinculada a un Producto, descontar también del Producto
         prod_vinc = mp.get_producto_vinculado()
@@ -943,6 +950,8 @@ def _registrar_movimientos_mp(produccion_id, materias_primas_data, usuario_id):
             descripcion=desc_base,
             produccion_id=produccion_id,
             usuario_id=usuario_id,
+            stock_anterior=stock_ant_mp,
+            stock_resultante=stock_res_mp
         )
         db.session.add(mov)
 
@@ -1042,6 +1051,7 @@ def produccion():
 
         # Sincronizar con Materia Prima vinculada si este producto es también un insumo
         mp_vinc = producto.get_materia_prima_vinculada()
+        stock_ant_mp = (mp_vinc.stock_actual or 0) if mp_vinc else 0
         if mp_vinc:
             mp_vinc.agregar_stock(cantidad)
             producto.stock_actual = mp_vinc.stock_actual
@@ -1057,7 +1067,9 @@ def produccion():
                 cantidad=cantidad,
                 descripcion=f'Ingreso automático por Producción #{prod.id} de {producto.nombre}',
                 produccion_id=prod.id,
-                usuario_id=current_user.id
+                usuario_id=current_user.id,
+                stock_anterior=stock_ant_mp,
+                stock_resultante=mp_vinc.stock_actual
             )
             db.session.add(mov_mp_in)
 

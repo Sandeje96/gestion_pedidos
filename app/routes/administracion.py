@@ -618,6 +618,7 @@ def produccion():
 
         # Sincronizar con Materia Prima vinculada si este producto es también un insumo
         mp_vinc = producto.get_materia_prima_vinculada()
+        stock_ant_mp = (mp_vinc.stock_actual or 0) if mp_vinc else 0
         if mp_vinc:
             mp_vinc.agregar_stock(cantidad)
             producto.stock_actual = mp_vinc.stock_actual
@@ -633,7 +634,9 @@ def produccion():
                 cantidad=cantidad,
                 descripcion=f'Ingreso automático por Producción #{prod.id} de {producto.nombre}',
                 produccion_id=prod.id,
-                usuario_id=current_user.id
+                usuario_id=current_user.id,
+                stock_anterior=stock_ant_mp,
+                stock_resultante=mp_vinc.stock_actual
             )
             db.session.add(mov_mp_in)
 

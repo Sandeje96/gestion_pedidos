@@ -165,8 +165,11 @@ def ingreso_stock(mp_id):
             flash('La cantidad debe ser un número mayor a cero.', 'danger')
             return render_template('gerente/ingreso_stock.html', title='Registrar Ingreso', mp=mp)
 
+        stock_anterior = mp.stock_actual or Decimal('0')
+
         # Sumar al stock de la MP
         mp.agregar_stock(cantidad)
+        stock_resultante = mp.stock_actual
 
         # Si esta MP está vinculada a un Producto, mantener ambos stocks exactamente idénticos
         prod_vinc = mp.get_producto_vinculado()
@@ -179,7 +182,9 @@ def ingreso_stock(mp_id):
             tipo='ingreso',
             cantidad=cantidad,
             descripcion=descripcion or f'Ingreso de stock — {mp.nombre}',
-            usuario_id=current_user.id
+            usuario_id=current_user.id,
+            stock_anterior=stock_anterior,
+            stock_resultante=stock_resultante
         )
         db.session.add(movimiento)
         db.session.commit()
@@ -198,7 +203,35 @@ def movimientos_mp(mp_id):
     mp = MateriaPrima.query.get_or_404(mp_id)
     movimientos = MovimientoMateriaPrima.query.filter_by(
         materia_prima_id=mp_id
-    ).order_by(MovimientoMateriaPrima.fecha_creacion.desc()).limit(100).all()
+    ).order_by(
+        MovimientoMateriaPrima.fecha_creacion.desc(),
+        MovimientoMateriaPrima.id.desc()
+    ).limit(100).all()
+
+    # Reconstrucción retrospectiva para movimientos históricos que no tengan stock guardado
+    cur_stock = float(mp.stock_actual or 0)
+    for mov in movimientos:
+        if mov.stock_resultante is not None:
+            mov.stock_momento = float(mov.stock_resultante)
+            mov.stock_previo = float(mov.stock_anterior) if mov.stock_anterior is not None else None
+            cur_stock = mov.stock_previo if mov.stock_previo is not None else mov.stock_momento
+        else:
+            cant = float(mov.cantidad or 0)
+            mov.stock_momento = cur_stock
+            if mov.tipo == 'ingreso':
+                prev = cur_stock - cant
+            elif mov.tipo in ('egreso_produccion', 'egreso'):
+                prev = cur_stock + cant
+            elif mov.tipo in ('ajuste', 'reajuste'):
+                if '+' in (mov.descripcion or ''):
+                    prev = cur_stock - cant
+                else:
+                    prev = cur_stock + cant
+            else:
+                prev = cur_stock + cant
+            mov.stock_previo = prev
+            cur_stock = prev
+
     return render_template('gerente/movimientos_mp.html',
                            title=f'Movimientos — {mp.nombre}', mp=mp, movimientos=movimientos)
 
@@ -322,7 +355,9 @@ def reajuste_stock_mp(mp_id):
         tipo='reajuste',
         cantidad=abs(diferencia) if diferencia != 0 else nuevo_stock,
         descripcion=descripcion_movimiento,
-        usuario_id=current_user.id
+        usuario_id=current_user.id,
+        stock_anterior=stock_anterior,
+        stock_resultante=nuevo_stock
     )
     db.session.add(movimiento)
     db.session.commit()
@@ -807,6 +842,7 @@ def editar_stock_producto(producto_id):
     # Sincronizar MP vinculada si existe
     mp_vinc = producto.get_materia_prima_vinculada()
     if mp_vinc:
+        stock_ant_mp = mp_vinc.stock_actual or Decimal('0')
         mp_vinc.stock_actual = nuevo_stock
         if diferencia != 0:
             movimiento = MovimientoMateriaPrima(
@@ -814,7 +850,9 @@ def editar_stock_producto(producto_id):
                 tipo='ajuste',
                 cantidad=abs(diferencia),
                 descripcion=motivo or f"Ajuste manual de stock ({'+' if diferencia > 0 else '-'}{abs(diferencia)} {producto.unidad or ''})",
-                usuario_id=current_user.id
+                usuario_id=current_user.id,
+                stock_anterior=stock_ant_mp,
+                stock_resultante=nuevo_stock
             )
             db.session.add(movimiento)
 
@@ -870,13 +908,16 @@ def reajuste_stock_producto(producto_id):
     # Sincronizar MP vinculada y registrar movimiento
     mp_vinc = producto.get_materia_prima_vinculada()
     if mp_vinc:
+        stock_ant_mp = mp_vinc.stock_actual or Decimal('0')
         mp_vinc.stock_actual = nuevo_stock
         movimiento = MovimientoMateriaPrima(
             materia_prima_id=mp_vinc.id,
             tipo='reajuste',
             cantidad=abs(diferencia) if diferencia != 0 else nuevo_stock,
             descripcion=descripcion_movimiento,
-            usuario_id=current_user.id
+            usuario_id=current_user.id,
+            stock_anterior=stock_ant_mp,
+            stock_resultante=nuevo_stock
         )
         db.session.add(movimiento)
 

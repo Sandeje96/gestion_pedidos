@@ -19,6 +19,16 @@
         font-size: 0.95rem;
         padding: 4px 10px;
         border-radius: 8px;
+        display: inline-block;
+        transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .delta-badge.badge-updated {
+        animation: pulseBadge 0.45s ease;
+    }
+    @keyframes pulseBadge {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.18); }
+        100% { transform: scale(1); }
     }
     .delta-positivo {
         background-color: #d1e7dd;
@@ -173,8 +183,11 @@
                             {% endif %}
                         </div>
 
-                        <div class="col-12 col-md-auto d-flex gap-2 justify-content-end">
-                            <button type="button" class="btn btn-sm btn-outline-success" id="btnAutocompletarHabitual">
+                        <div class="col-12 col-md-auto d-flex gap-2 justify-content-end flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary shadow-sm" id="btnCalcularBalance" title="Calcular dinámicamente el balance de horas para todos los empleados">
+                                <i class="fas fa-calculator me-1"></i>Calcular Balance del Día
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-success shadow-sm" id="btnAutocompletarHabitual">
                                 <i class="fas fa-magic me-1"></i>Cargar Habitual (08:00 - 17:00)
                             </button>
                             <button type="submit" form="formPlanillaDiaria" class="btn btn-sm btn-success px-3 shadow-sm">
@@ -199,7 +212,12 @@
                                     <th style="width: 130px;">Ingreso</th>
                                     <th style="width: 130px;">Salida</th>
                                     <th style="width: 190px;">Tipo de Día</th>
-                                    <th style="width: 140px;" class="text-center">Balance del Día</th>
+                                    <th style="width: 150px;" class="text-center">
+                                        Balance del Día
+                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-primary align-baseline" id="btnHeaderCalcular" title="Recalcular balances" style="text-decoration: none;">
+                                            <i class="fas fa-sync-alt" style="font-size: 0.8rem;"></i>
+                                        </button>
+                                    </th>
                                     <th style="width: 140px;" class="text-center">Saldo Actual Banco</th>
                                     <th>Observaciones / Compensación</th>
                                     <th style="width: 60px;" class="text-center">Estado</th>
@@ -237,7 +255,9 @@
                                                placeholder="{{ item.hora_ingreso_pactada or '08:00' }}"
                                                inputmode="numeric"
                                                autocomplete="off"
-                                               data-pactado-ing="{{ item.hora_ingreso_pactada or '08:00' }}">
+                                               data-pactado-ing="{{ item.hora_ingreso_pactada or '08:00' }}"
+                                               oninput="window.recalcularFila && window.recalcularFila(this.closest('.fila-asistencia'))"
+                                               onchange="window.recalcularFila && window.recalcularFila(this.closest('.fila-asistencia'))">
                                     </td>
 
                                     <!-- Hora de Salida -->
@@ -248,12 +268,15 @@
                                                placeholder="{{ item.hora_salida_pactada or '17:00' }}"
                                                inputmode="numeric"
                                                autocomplete="off"
-                                               data-pactado-sal="{{ item.hora_salida_pactada or '17:00' }}">
+                                               data-pactado-sal="{{ item.hora_salida_pactada or '17:00' }}"
+                                               oninput="window.recalcularFila && window.recalcularFila(this.closest('.fila-asistencia'))"
+                                               onchange="window.recalcularFila && window.recalcularFila(this.closest('.fila-asistencia'))">
                                     </td>
 
                                     <!-- Tipo de Jornada -->
                                     <td>
-                                        <select class="form-select form-select-sm select-tipo-dia" name="tipo_dia_{{ p.id }}">
+                                        <select class="form-select form-select-sm select-tipo-dia" name="tipo_dia_{{ p.id }}"
+                                                onchange="window.recalcularFila && window.recalcularFila(this.closest('.fila-asistencia'))">
                                             <option value="normal" {{ 'selected' if item.tipo_dia == 'normal' else '' }}>Jornada habitual</option>
                                             <option value="compensacion" {{ 'selected' if item.tipo_dia == 'compensacion' else '' }}>Compensación (entra tarde / sale antes)</option>
                                             <option value="franco" {{ 'selected' if item.tipo_dia == 'franco' else '' }}>Franco / Descanso</option>
@@ -310,14 +333,19 @@
                         </table>
                     </div>
                     {% if planilla_dia %}
-                    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+                    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
                         <small class="text-muted">
                             <i class="fas fa-info-circle me-1 text-primary"></i>
                             El balance del día actualiza automáticamente el saldo en el banco de horas. Las horas a favor se pueden compensar en cualquier día de la semana.
                         </small>
-                        <button type="submit" class="btn btn-success px-4 rounded-pill shadow-sm">
-                            <i class="fas fa-save me-1"></i>Guardar Planilla del Día
-                        </button>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary rounded-pill px-3 shadow-sm" id="btnCalcularBalanceFooter">
+                                <i class="fas fa-calculator me-1"></i>Calcular Balance del Día
+                            </button>
+                            <button type="submit" class="btn btn-success px-4 rounded-pill shadow-sm">
+                                <i class="fas fa-save me-1"></i>Guardar Planilla del Día
+                            </button>
+                        </div>
                     </div>
                     {% endif %}
                 </div>
@@ -805,7 +833,7 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+(function() {
 
     // ── Función para formatear minutos con signo ──
     function formatearMinutos(mins) {
@@ -821,50 +849,57 @@ document.addEventListener('DOMContentLoaded', function () {
         return '0m';
     }
 
-    // ── Parser inteligente y permisivo de horario a minutos ──
+    // ── Parser inteligente y ultra-permisivo de horario a minutos ──
     function parseHorarioFlexible(str) {
         if (!str) return null;
         str = String(str).trim();
         if (!str) return null;
 
-        // Si tiene separador (: o . o , o espacio o guion)
-        // Soporta ej: "18:00", "18.30", "18,30", "18 30", "18:"
-        const matchSep = str.match(/^(\d{1,2})[\s:.,-](\d{0,2})$/);
+        // Formatos con separador: HH:MM, H:MM, HH.MM, H.MM, HH,MM, HH MM
+        const matchSep = str.match(/^(\d{1,2})[\s:.,-](\d{1,2})$/);
         if (matchSep) {
             let h = parseInt(matchSep[1], 10);
-            let m = matchSep[2] ? parseInt(matchSep[2], 10) : 0;
+            let m = parseInt(matchSep[2], 10);
             if (h >= 0 && h <= 24 && m >= 0 && m < 60) {
                 return h * 60 + m;
             }
         }
 
-        // Solo dígitos sin separador (ej: "18", "1800", "8", "830")
+        // Formatos con hora y separador incompleto al tipear: "18:", "8.", "17 "
+        const matchSoloH = str.match(/^(\d{1,2})[\s:.,-]?$/);
+        if (matchSoloH) {
+            let h = parseInt(matchSoloH[1], 10);
+            if (h >= 0 && h <= 24) {
+                // Si es solo 1 dígito menor a 6 (ej. '1' o '2'), esperar a que termine de escribir
+                if (str.length === 1 && (h < 6 || h > 9)) return null;
+                return h * 60;
+            }
+        }
+
+        // Dígitos sin separador
         const digits = str.replace(/\D/g, '');
         if (!digits) return null;
 
         if (digits.length === 1) {
             let d = parseInt(digits, 10);
-            if (d >= 6 && d <= 9) return d * 60; // 6, 7, 8, 9 hs
-            return null;
+            if (d >= 6 && d <= 9) return d * 60; // 6, 7, 8, 9 -> 06:00, 07:00, etc.
+            return null; // Esperando segundo dígito para 1x o 2x
         }
-
         if (digits.length === 2) {
             let h = parseInt(digits, 10);
-            if (h >= 0 && h <= 24) return h * 60; // Ej: 16 -> 16:00, 18 -> 18:00
+            if (h >= 0 && h <= 24) return h * 60; // 16 -> 16:00, 18 -> 18:00
             return null;
         }
-
         if (digits.length === 3) {
             let h = parseInt(digits.slice(0, 1), 10);
             let m = parseInt(digits.slice(1), 10);
-            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m; // Ej: 830 -> 8:30
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m; // 830 -> 08:30
             return null;
         }
-
         if (digits.length >= 4) {
             let h = parseInt(digits.slice(0, 2), 10);
             let m = parseInt(digits.slice(2, 4), 10);
-            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m; // Ej: 1630 -> 16:30, 1800 -> 18:00
+            if (h >= 0 && h <= 24 && m >= 0 && m < 60) return h * 60 + m; // 1830 -> 18:30, 0800 -> 08:00
             return null;
         }
 
@@ -894,32 +929,34 @@ document.addEventListener('DOMContentLoaded', function () {
             input.value = `${String(parseInt(h, 10)).padStart(2, '0')}:${m}`;
             return;
         }
-        if (val.includes('.') || val.includes(',')) {
-            let [h, m] = val.split(/[.,]/);
+        if (val.includes('.') || val.includes(',') || val.includes(' ')) {
+            let [h, m] = val.split(/[.,\s]/);
             m = m ? m.padEnd(2, '0').slice(0, 2) : '00';
             input.value = `${String(parseInt(h, 10)).padStart(2, '0')}:${m}`;
             return;
         }
     }
 
-    // ── Recalcular delta en vivo para cada fila al tipear horarios ──
+    // ── Recalcular delta en vivo para una fila ──
     function recalcularFila(tr) {
+        if (!tr) return;
         const inpIng = tr.querySelector('.input-ingreso');
         const inpSal = tr.querySelector('.input-salida');
-        const tipoDia = tr.querySelector('.select-tipo-dia') ? tr.querySelector('.select-tipo-dia').value : 'normal';
+        const selectTipo = tr.querySelector('.select-tipo-dia');
+        const tipoDia = selectTipo ? selectTipo.value : 'normal';
         const badge = tr.querySelector('.badge-delta');
         if (!badge) return;
 
-        // Horario pactado esperado en minutos (por defecto 9 hs = 540 min)
+        // Minutos pactados de la jornada (por defecto 9 hs = 540 min)
         let pactadoMins = parseInt(tr.dataset.pactadoMins, 10);
-        if (!pactadoMins || isNaN(pactadoMins)) {
+        if (isNaN(pactadoMins)) {
             const pIng = parseHorarioFlexible(inpIng ? inpIng.dataset.pactadoIng : '08:00') || (8 * 60);
             const pSal = parseHorarioFlexible(inpSal ? inpSal.dataset.pactadoSal : '17:00') || (17 * 60);
             pactadoMins = pSal - pIng;
             if (pactadoMins < 0) pactadoMins += 24 * 60;
         }
 
-        // Minutos de ingreso (si está vacío, usar pactado 08:00)
+        // Horario de ingreso
         let ingStr = inpIng ? inpIng.value.trim() : '';
         if (!ingStr && inpIng) {
             ingStr = inpIng.dataset.pactadoIng || inpIng.placeholder || '08:00';
@@ -929,8 +966,11 @@ document.addEventListener('DOMContentLoaded', function () {
             minsIng = 8 * 60; // 08:00 por defecto garantizado
         }
 
-        // Minutos de salida
+        // Horario de salida
         let salStr = inpSal ? inpSal.value.trim() : '';
+        if (!salStr && inpSal && (tipoDia === 'normal' || tipoDia === 'compensacion')) {
+            salStr = inpSal.dataset.pactadoSal || inpSal.placeholder || '17:00';
+        }
         let minsSal = parseHorarioFlexible(salStr);
 
         let delta = 0;
@@ -952,11 +992,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (worked < 0) worked += 24 * 60;
                 delta = worked - pactadoMins;
             } else {
-                if (salStr.length > 0) {
-                    badge.textContent = '...';
-                    badge.className = 'delta-badge delta-cero';
-                    return;
-                }
                 delta = 0;
             }
         }
@@ -965,266 +1000,357 @@ document.addEventListener('DOMContentLoaded', function () {
         badge.className = 'delta-badge ' + (delta > 0 ? 'delta-positivo' : (delta < 0 ? 'delta-negativo' : 'delta-cero'));
     }
 
-    // ── Asignar eventos interactivos y reactivos en vivo a cada fila ──
-    document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
-        // Dropdown tipo de día
-        const selectTipo = tr.querySelector('.select-tipo-dia');
-        if (selectTipo) {
-            selectTipo.addEventListener('change', () => recalcularFila(tr));
-        }
-
-        // Inputs de ingreso y salida
-        const inpIng = tr.querySelector('.input-ingreso');
-        const inpSal = tr.querySelector('.input-salida');
-
-        [inpIng, inpSal].forEach(function (inp) {
-            if (!inp) return;
-
-            // Seleccionar contenido al hacer foco para facilitar sobreescritura rápida
-            inp.addEventListener('focus', function () {
-                this.select();
-            });
-
-            // Recalcular al instante en CADA pulsación de tecla, cambio o pegado
-            inp.addEventListener('input', () => recalcularFila(tr));
-            inp.addEventListener('keyup', () => recalcularFila(tr));
-            inp.addEventListener('paste', () => setTimeout(() => recalcularFila(tr), 15));
-            inp.addEventListener('change', () => recalcularFila(tr));
-
-            // Flechas arriba/abajo para subir o bajar horario, y Enter para avanzar
-            inp.addEventListener('keydown', function (e) {
-                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    let curMins = parseHorarioFlexible(inp.value);
-                    if (curMins === null) {
-                        curMins = inp.classList.contains('input-ingreso') ? 8 * 60 : 17 * 60;
-                    }
-                    const step = e.shiftKey ? 30 : 60; // Shift = 30 min, Normal = 1 hora
-                    if (e.key === 'ArrowUp') {
-                        curMins = Math.min(24 * 60, curMins + step);
-                    } else {
-                        curMins = Math.max(0, curMins - step);
-                    }
-                    const h = Math.floor(curMins / 60) % 24;
-                    const m = curMins % 60;
-                    inp.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-                    recalcularFila(tr);
-                    return;
+    // ── Recalcular todas las filas y opcionalmente animar ──
+    function recalcularTodasLasFilas(animar) {
+        document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
+            const inpIng = tr.querySelector('.input-ingreso');
+            const inpSal = tr.querySelector('.input-salida');
+            if (inpIng) normalizarHoraInput(inpIng);
+            if (inpSal) normalizarHoraInput(inpSal);
+            recalcularFila(tr);
+            if (animar) {
+                const badge = tr.querySelector('.badge-delta');
+                if (badge) {
+                    badge.classList.remove('badge-updated');
+                    void badge.offsetWidth; // Reflow para reiniciar animación
+                    badge.classList.add('badge-updated');
                 }
+            }
+        });
+    }
 
-                if (e.key === 'Enter') {
-                    e.preventDefault(); // Evitar submit accidental del formulario
+    // Exponer globalmente para que funciones inline (oninput, onchange) funcionen siempre
+    window.formatearMinutos = formatearMinutos;
+    window.parseHorarioFlexible = parseHorarioFlexible;
+    window.normalizarHoraInput = normalizarHoraInput;
+    window.recalcularFila = recalcularFila;
+    window.recalcularTodasLasFilas = recalcularTodasLasFilas;
+
+    // ── Inicializador principal ──
+    function initPersonalScript() {
+        // Asignar eventos a cada fila existente
+        document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
+            const selectTipo = tr.querySelector('.select-tipo-dia');
+            if (selectTipo) {
+                selectTipo.addEventListener('change', () => recalcularFila(tr));
+            }
+
+            const inpIng = tr.querySelector('.input-ingreso');
+            const inpSal = tr.querySelector('.input-salida');
+
+            [inpIng, inpSal].forEach(function (inp) {
+                if (!inp) return;
+
+                inp.addEventListener('focus', function () {
+                    this.select();
+                });
+
+                // Eventos inmediatos en vivo al tipear, cambiar o pegar
+                inp.addEventListener('input', () => recalcularFila(tr));
+                inp.addEventListener('keyup', () => recalcularFila(tr));
+                inp.addEventListener('paste', () => setTimeout(() => recalcularFila(tr), 15));
+                inp.addEventListener('change', () => {
                     normalizarHoraInput(inp);
                     recalcularFila(tr);
-                    // Avanzar el foco al siguiente input de horario
-                    const allInputs = Array.from(document.querySelectorAll('.input-ingreso, .input-salida'));
-                    const idx = allInputs.indexOf(inp);
-                    if (idx >= 0 && idx < allInputs.length - 1) {
-                        allInputs[idx + 1].focus();
-                        allInputs[idx + 1].select();
-                    }
-                }
-            });
+                });
 
-            // Normalizar a formato HH:MM al salir del campo
-            inp.addEventListener('blur', function () {
-                normalizarHoraInput(inp);
-                recalcularFila(tr);
-            });
-        });
-
-        // Recalcular inicialmente para sincronizar
-        recalcularFila(tr);
-    });
-
-    // ── Normalizar todos los inputs antes de enviar el formulario ──
-    const formPlanilla = document.getElementById('formPlanillaDiaria');
-    if (formPlanilla) {
-        formPlanilla.addEventListener('submit', function () {
-            document.querySelectorAll('.input-ingreso, .input-salida').forEach(function (inp) {
-                normalizarHoraInput(inp);
-            });
-        });
-    }
-
-    // ── Botón Cargar Habitual (08:00 - 17:00) en lote ──
-    const btnAuto = document.getElementById('btnAutocompletarHabitual');
-    if (btnAuto) {
-        btnAuto.addEventListener('click', function () {
-            document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
-                const tipoSel = tr.querySelector('.select-tipo-dia');
-                const inpIng = tr.querySelector('.input-ingreso');
-                const inpSal = tr.querySelector('.input-salida');
-
-                // Si está en normal y vacío o queremos completar
-                if (tipoSel.value === 'normal' || tipoSel.value === 'compensacion') {
-                    const pactIng = inpIng.dataset.pactadoIng || '08:00';
-                    const pactSal = inpSal.dataset.pactadoSal || '17:00';
-                    inpIng.value = pactIng;
-                    inpSal.value = pactSal;
-                    recalcularFila(tr);
-                }
-            });
-        });
-    }
-
-    // ── Toggle Sábados en Modal Nuevo y Editar ──
-    window.toggleSabadosNuevo = function (checked) {
-        document.querySelectorAll('.bloque-sabado-nuevo').forEach(el => {
-            el.style.display = checked ? 'block' : 'none';
-        });
-    };
-    window.toggleSabadosEdit = function (checked) {
-        document.querySelectorAll('.bloque-sabado-edit').forEach(el => {
-            el.style.display = checked ? 'block' : 'none';
-        });
-    };
-
-    // ── Modal Editar Personal ──
-    const modalEditEl = document.getElementById('modalEditarPersonal');
-    const modalEdit = new bootstrap.Modal(modalEditEl);
-    const formEdit = document.getElementById('formEditarPersonal');
-
-    document.querySelectorAll('.btn-editar-personal').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const d = this.dataset;
-            formEdit.action = `/administracion/personal/${d.id}/editar`;
-            document.getElementById('editNombre').value = d.nombre;
-            document.getElementById('editApellido').value = d.apellido;
-            document.getElementById('editDni').value = d.dni;
-            document.getElementById('editTelefono').value = d.telefono;
-            document.getElementById('editPuesto').value = d.puesto;
-            document.getElementById('editIngreso').value = d.ingreso;
-            document.getElementById('editSalida').value = d.salida;
-            const trabajaSab = (d.trabajaSab === '1');
-            const checkSab = document.getElementById('editTrabajaSabados');
-            checkSab.checked = trabajaSab;
-            toggleSabadosEdit(trabajaSab);
-            document.getElementById('editIngresoSab').value = d.ingresoSab;
-            document.getElementById('editSalidaSab').value = d.salidaSab;
-            document.getElementById('editNotas').value = d.notas;
-            modalEdit.show();
-        });
-    });
-
-    // ── Modal Historial de Banco de Horas ──
-    const modalHistEl = document.getElementById('modalHistorialPersonal');
-    const modalHist = new bootstrap.Modal(modalHistEl);
-    const histTitulo = document.getElementById('historialTitulo');
-    const histSub = document.getElementById('historialSubtitulo');
-    const histBody = document.getElementById('historialBody');
-
-    document.querySelectorAll('.btn-ver-historial').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const pid = this.dataset.personalId;
-            const nombre = this.dataset.personalNombre;
-
-            histTitulo.textContent = `Historial: ${nombre}`;
-            histSub.textContent = 'Cargando balance y registros cronológicos...';
-            histBody.innerHTML = `
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
-                    <p class="mb-0">Cargando historial de asistencias y compensaciones...</p>
-                </div>`;
-            modalHist.show();
-
-            fetch(`/administracion/personal/${pid}/historial`)
-                .then(res => res.json())
-                .then(data => {
-                    const p = data.personal;
-                    histSub.textContent = `Saldo actual: ${p.saldo_formateado} (${p.saldo_estado === 'a_favor' ? 'A favor' : (p.saldo_estado === 'adeudado' ? 'Adeudado' : 'Al día')}) • Puesto: ${p.puesto}`;
-
-                    if (!data.historial || data.historial.length === 0) {
-                        histBody.innerHTML = `
-                            <div class="alert alert-light border text-center py-5 text-muted">
-                                <i class="fas fa-calendar-times fa-3x mb-3 text-secondary"></i>
-                                <p class="mb-0 fs-6">Aún no hay registros de asistencia cargados para este empleado.</p>
-                            </div>`;
+                // Flechas arriba/abajo para subir o bajar horario, y Enter para avanzar
+                inp.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        let curMins = parseHorarioFlexible(inp.value);
+                        if (curMins === null) {
+                            curMins = inp.classList.contains('input-ingreso') ? 8 * 60 : 17 * 60;
+                        }
+                        const step = e.shiftKey ? 30 : 60; // Shift = 30 min, Normal = 1 hora
+                        if (e.key === 'ArrowUp') {
+                            curMins = Math.min(24 * 60, curMins + step);
+                        } else {
+                            curMins = Math.max(0, curMins - step);
+                        }
+                        const h = Math.floor(curMins / 60) % 24;
+                        const m = curMins % 60;
+                        inp.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                        recalcularFila(tr);
                         return;
                     }
 
-                    let rows = '';
-                    data.historial.forEach(item => {
-                        const difMins = item.diferencia_minutos;
-                        let badgeClass = 'bg-secondary';
-                        if (difMins > 0) badgeClass = 'bg-success';
-                        else if (difMins < 0) badgeClass = 'bg-danger';
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        normalizarHoraInput(inp);
+                        recalcularFila(tr);
+                        const allInputs = Array.from(document.querySelectorAll('.input-ingreso, .input-salida'));
+                        const idx = allInputs.indexOf(inp);
+                        if (idx >= 0 && idx < allInputs.length - 1) {
+                            allInputs[idx + 1].focus();
+                            allInputs[idx + 1].select();
+                        }
+                    }
+                });
 
-                        let tipoBadge = `<span class="badge bg-light text-dark border">${item.tipo_dia}</span>`;
-                        if (item.tipo_dia === 'compensacion') {
-                            tipoBadge = `<span class="badge bg-primary text-white"><i class="fas fa-exchange-alt me-1"></i>Compensación</span>`;
-                        } else if (item.tipo_dia === 'normal') {
-                            tipoBadge = `<span class="badge bg-light text-dark border">Normal</span>`;
-                        } else if (item.tipo_dia === 'franco') {
-                            tipoBadge = `<span class="badge bg-secondary text-white">Franco</span>`;
+                inp.addEventListener('blur', function () {
+                    normalizarHoraInput(inp);
+                    recalcularFila(tr);
+                });
+            });
+        });
+
+        // Delegación global para asegurar reactividad total en toda la tabla
+        document.addEventListener('input', function (e) {
+            const tr = e.target.closest && e.target.closest('.fila-asistencia');
+            if (tr) recalcularFila(tr);
+        });
+
+        document.addEventListener('change', function (e) {
+            const tr = e.target.closest && e.target.closest('.fila-asistencia');
+            if (tr) recalcularFila(tr);
+        });
+
+        // ── Botón Calcular Balance del Día (Header) ──
+        const btnCalc = document.getElementById('btnCalcularBalance');
+        if (btnCalc) {
+            btnCalc.addEventListener('click', function () {
+                recalcularTodasLasFilas(true);
+                const origHtml = btnCalc.innerHTML;
+                btnCalc.innerHTML = '<i class="fas fa-check me-1"></i>¡Balance Calculado!';
+                btnCalc.classList.replace('btn-outline-primary', 'btn-primary');
+                setTimeout(() => {
+                    btnCalc.innerHTML = origHtml;
+                    btnCalc.classList.replace('btn-primary', 'btn-outline-primary');
+                }, 1200);
+            });
+        }
+
+        // ── Botón Calcular Balance del Día (Footer) ──
+        const btnCalcFooter = document.getElementById('btnCalcularBalanceFooter');
+        if (btnCalcFooter) {
+            btnCalcFooter.addEventListener('click', function () {
+                recalcularTodasLasFilas(true);
+                const origHtml = btnCalcFooter.innerHTML;
+                btnCalcFooter.innerHTML = '<i class="fas fa-check me-1"></i>¡Calculado!';
+                btnCalcFooter.classList.replace('btn-outline-primary', 'btn-primary');
+                setTimeout(() => {
+                    btnCalcFooter.innerHTML = origHtml;
+                    btnCalcFooter.classList.replace('btn-primary', 'btn-outline-primary');
+                }, 1200);
+            });
+        }
+
+        // ── Botón Recalcular en encabezado de columna ──
+        const btnHeaderCalc = document.getElementById('btnHeaderCalcular');
+        if (btnHeaderCalc) {
+            btnHeaderCalc.addEventListener('click', function (e) {
+                e.preventDefault();
+                recalcularTodasLasFilas(true);
+            });
+        }
+
+        // ── Botón Cargar Habitual (08:00 - 17:00) en lote ──
+        const btnAuto = document.getElementById('btnAutocompletarHabitual');
+        if (btnAuto) {
+            btnAuto.addEventListener('click', function () {
+                document.querySelectorAll('.fila-asistencia').forEach(function (tr) {
+                    const tipoSel = tr.querySelector('.select-tipo-dia');
+                    const inpIng = tr.querySelector('.input-ingreso');
+                    const inpSal = tr.querySelector('.input-salida');
+
+                    if (tipoSel && (tipoSel.value === 'normal' || tipoSel.value === 'compensacion')) {
+                        const pactIng = (inpIng && inpIng.dataset.pactadoIng) || '08:00';
+                        const pactSal = (inpSal && inpSal.dataset.pactadoSal) || '17:00';
+                        if (inpIng) inpIng.value = pactIng;
+                        if (inpSal) inpSal.value = pactSal;
+                        recalcularFila(tr);
+                    }
+                });
+                recalcularTodasLasFilas(true);
+            });
+        }
+
+        // ── Normalizar todos los inputs antes de enviar el formulario ──
+        const formPlanilla = document.getElementById('formPlanillaDiaria');
+        if (formPlanilla) {
+            formPlanilla.addEventListener('submit', function () {
+                document.querySelectorAll('.input-ingreso, .input-salida').forEach(function (inp) {
+                    normalizarHoraInput(inp);
+                });
+            });
+        }
+
+        // ── Toggle Sábados en Modal Nuevo y Editar ──
+        window.toggleSabadosNuevo = function (checked) {
+            document.querySelectorAll('.bloque-sabado-nuevo').forEach(el => {
+                el.style.display = checked ? 'block' : 'none';
+            });
+        };
+        window.toggleSabadosEdit = function (checked) {
+            document.querySelectorAll('.bloque-sabado-edit').forEach(el => {
+                el.style.display = checked ? 'block' : 'none';
+            });
+        };
+
+        // ── Modal Editar Personal ──
+        const modalEditEl = document.getElementById('modalEditarPersonal');
+        const modalEdit = modalEditEl ? new bootstrap.Modal(modalEditEl) : null;
+        const formEdit = document.getElementById('formEditarPersonal');
+
+        document.querySelectorAll('.btn-editar-personal').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const d = this.dataset;
+                if (formEdit) formEdit.action = `/administracion/personal/${d.id}/editar`;
+                const eN = document.getElementById('editNombre'); if (eN) eN.value = d.nombre;
+                const eA = document.getElementById('editApellido'); if (eA) eA.value = d.apellido;
+                const eD = document.getElementById('editDni'); if (eD) eD.value = d.dni;
+                const eT = document.getElementById('editTelefono'); if (eT) eT.value = d.telefono;
+                const eP = document.getElementById('editPuesto'); if (eP) eP.value = d.puesto;
+                const eI = document.getElementById('editIngreso'); if (eI) eI.value = d.ingreso;
+                const eS = document.getElementById('editSalida'); if (eS) eS.value = d.salida;
+                const trabajaSab = (d.trabajaSab === '1');
+                const checkSab = document.getElementById('editTrabajaSabados');
+                if (checkSab) {
+                    checkSab.checked = trabajaSab;
+                    window.toggleSabadosEdit(trabajaSab);
+                }
+                const eIS = document.getElementById('editIngresoSab'); if (eIS) eIS.value = d.ingresoSab;
+                const eSS = document.getElementById('editSalidaSab'); if (eSS) eSS.value = d.salidaSab;
+                const eNot = document.getElementById('editNotas'); if (eNot) eNot.value = d.notas;
+                if (modalEdit) modalEdit.show();
+            });
+        });
+
+        // ── Modal Historial de Banco de Horas ──
+        const modalHistEl = document.getElementById('modalHistorialPersonal');
+        const modalHist = modalHistEl ? new bootstrap.Modal(modalHistEl) : null;
+        const histTitulo = document.getElementById('historialTitulo');
+        const histSub = document.getElementById('historialSubtitulo');
+        const histBody = document.getElementById('historialBody');
+
+        document.querySelectorAll('.btn-ver-historial').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const pid = this.dataset.personalId;
+                const nombre = this.dataset.personalNombre;
+
+                if (histTitulo) histTitulo.textContent = `Historial: ${nombre}`;
+                if (histSub) histSub.textContent = 'Cargando balance y registros cronológicos...';
+                if (histBody) {
+                    histBody.innerHTML = `
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2 text-primary"></i>
+                            <p class="mb-0">Cargando historial de asistencias y compensaciones...</p>
+                        </div>`;
+                }
+                if (modalHist) modalHist.show();
+
+                fetch(`/administracion/personal/${pid}/historial`)
+                    .then(res => res.json())
+                    .then(data => {
+                        const p = data.personal;
+                        if (histSub) histSub.textContent = `Saldo actual: ${p.saldo_formateado} (${p.saldo_estado === 'a_favor' ? 'A favor' : (p.saldo_estado === 'adeudado' ? 'Adeudado' : 'Al día')}) • Puesto: ${p.puesto}`;
+
+                        if (!data.historial || data.historial.length === 0) {
+                            if (histBody) {
+                                histBody.innerHTML = `
+                                    <div class="alert alert-light border text-center py-5 text-muted">
+                                        <i class="fas fa-calendar-times fa-3x mb-3 text-secondary"></i>
+                                        <p class="mb-0 fs-6">Aún no hay registros de asistencia cargados para este empleado.</p>
+                                    </div>`;
+                            }
+                            return;
                         }
 
-                        rows += `
-                            <tr>
-                                <td class="fw-semibold">
-                                    ${item.fecha}
-                                    <br><small class="text-muted">${item.dia_nombre}</small>
-                                </td>
-                                <td>${tipoBadge}</td>
-                                <td>
-                                    <span class="fw-bold">${item.hora_ingreso}</span> a <span class="fw-bold">${item.hora_salida}</span>
-                                    <br><small class="text-muted">Pactado: ${item.hora_ingreso_pactada} - ${item.hora_salida_pactada}</small>
-                                </td>
-                                <td class="text-center">${item.horas_trabajadas}</td>
-                                <td class="text-center">
-                                    <span class="badge ${badgeClass} fs-6 py-1 px-2">
-                                        ${item.diferencia_formateada}
-                                    </span>
-                                </td>
-                                <td>${item.observaciones ? '<small class="text-dark">' + item.observaciones + '</small>' : '<span class="text-muted">—</span>'}</td>
-                            </tr>`;
+                        let rows = '';
+                        data.historial.forEach(item => {
+                            const difMins = item.diferencia_minutos;
+                            let badgeClass = 'bg-secondary';
+                            if (difMins > 0) badgeClass = 'bg-success';
+                            else if (difMins < 0) badgeClass = 'bg-danger';
+
+                            let tipoBadge = `<span class="badge bg-light text-dark border">${item.tipo_dia}</span>`;
+                            if (item.tipo_dia === 'compensacion') {
+                                tipoBadge = `<span class="badge bg-primary text-white"><i class="fas fa-exchange-alt me-1"></i>Compensación</span>`;
+                            } else if (item.tipo_dia === 'normal') {
+                                tipoBadge = `<span class="badge bg-light text-dark border">Normal</span>`;
+                            } else if (item.tipo_dia === 'franco') {
+                                tipoBadge = `<span class="badge bg-secondary text-white">Franco</span>`;
+                            }
+
+                            rows += `
+                                <tr>
+                                    <td class="fw-semibold">
+                                        ${item.fecha}
+                                        <br><small class="text-muted">${item.dia_nombre}</small>
+                                    </td>
+                                    <td>${tipoBadge}</td>
+                                    <td>
+                                        <span class="fw-bold">${item.hora_ingreso}</span> a <span class="fw-bold">${item.hora_salida}</span>
+                                        <br><small class="text-muted">Pactado: ${item.hora_ingreso_pactada} - ${item.hora_salida_pactada}</small>
+                                    </td>
+                                    <td class="text-center">${item.horas_trabajadas}</td>
+                                    <td class="text-center">
+                                        <span class="badge ${badgeClass} fs-6 py-1 px-2">
+                                            ${item.diferencia_formateada}
+                                        </span>
+                                    </td>
+                                    <td>${item.observaciones ? '<small class="text-dark">' + item.observaciones + '</small>' : '<span class="text-muted">—</span>'}</td>
+                                </tr>`;
+                        });
+
+                        if (histBody) {
+                            histBody.innerHTML = `
+                                <div class="card border-0 shadow-sm">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover align-middle mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Fecha</th>
+                                                    <th>Tipo</th>
+                                                    <th>Horario Real / Pactado</th>
+                                                    <th class="text-center">Horas Trabajadas</th>
+                                                    <th class="text-center">Diferencia</th>
+                                                    <th>Observaciones / Motivo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>${rows}</tbody>
+                                        </table>
+                                    </div>
+                                </div>`;
+                        }
+                    })
+                    .catch(err => {
+                        if (histBody) histBody.innerHTML = `<div class="alert alert-danger">Error al cargar historial: ${err.message}</div>`;
                     });
-
-                    histBody.innerHTML = `
-                        <div class="card border-0 shadow-sm">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Fecha</th>
-                                            <th>Tipo</th>
-                                            <th>Horario Real / Pactado</th>
-                                            <th class="text-center">Horas Trabajadas</th>
-                                            <th class="text-center">Diferencia</th>
-                                            <th>Observaciones / Motivo</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>${rows}</tbody>
-                                </table>
-                            </div>
-                        </div>`;
-                })
-                .catch(err => {
-                    histBody.innerHTML = `<div class="alert alert-danger">Error al cargar historial: ${err.message}</div>`;
-                });
+            });
         });
-    });
 
-    // ── Modal Ajuste Manual ──
-    const modalAjusteEl = document.getElementById('modalAjusteManual');
-    const modalAjuste = new bootstrap.Modal(modalAjusteEl);
-    const formAjuste = document.getElementById('formAjusteManual');
-    const txtAjusteNombre = document.getElementById('ajustePersonalNombre');
-    const txtAjusteSaldo = document.getElementById('ajustePersonalSaldo');
+        // ── Modal Ajuste Manual ──
+        const modalAjusteEl = document.getElementById('modalAjusteManual');
+        const modalAjuste = modalAjusteEl ? new bootstrap.Modal(modalAjusteEl) : null;
+        const formAjuste = document.getElementById('formAjusteManual');
+        const txtAjusteNombre = document.getElementById('ajustePersonalNombre');
+        const txtAjusteSaldo = document.getElementById('ajustePersonalSaldo');
 
-    document.querySelectorAll('.btn-ajuste-manual').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const pid = this.dataset.personalId;
-            const nombre = this.dataset.personalNombre;
-            const saldo = this.dataset.saldoActual;
+        document.querySelectorAll('.btn-ajuste-manual').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const pid = this.dataset.personalId;
+                const nombre = this.dataset.personalNombre;
+                const saldo = this.dataset.saldoActual;
 
-            formAjuste.action = `/administracion/personal/${pid}/ajustar-banco`;
-            txtAjusteNombre.textContent = nombre;
-            txtAjusteSaldo.textContent = `Saldo actual en banco: ${saldo}`;
-            modalAjuste.show();
+                if (formAjuste) formAjuste.action = `/administracion/personal/${pid}/ajustar-banco`;
+                if (txtAjusteNombre) txtAjusteNombre.textContent = nombre;
+                if (txtAjusteSaldo) txtAjusteSaldo.textContent = `Saldo actual en banco: ${saldo}`;
+                if (modalAjuste) modalAjuste.show();
+            });
         });
-    });
 
-});
+        // Ejecutar cálculo inicial para sincronizar todas las filas
+        recalcularTodasLasFilas(false);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPersonalScript);
+    } else {
+        initPersonalScript();
+    }
+
+})();
 </script>
 {% endblock %}

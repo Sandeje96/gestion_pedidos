@@ -27,7 +27,7 @@
         <!-- BOLETA DEL DÍA -->
         <div class="card mb-3 border-primary">
             <div class="card-header bg-primary text-white">
-                <i class="fas fa-file-invoice"></i> Boleta del Día — {{ hoy.strftime('%d/%m/%Y') }}
+                <i class="fas fa-file-invoice"></i> Boleta del Día — {{ boleta_hoy.fecha_entrega.strftime('%d/%m/%Y') if boleta_hoy else hoy.strftime('%d/%m/%Y') }}
             </div>
             <div class="card-body">
 
@@ -66,7 +66,7 @@
                                    value="{{ "%.2f"|format(boleta_hoy.monto_boleta|float) if boleta_hoy else '' }}"
                                    required>
                         </div>
-                        <div class="form-text">Importe que el cliente debe abonar por los productos de hoy.</div>
+                        <div class="form-text">Importe que el cliente debe abonar por los productos del viaje actual (se mantiene activa hasta cerrar la ruta).</div>
                     </div>
                     <div class="mb-3">
                         <label for="descripcion" class="form-label">Detalle (opcional)</label>
@@ -115,21 +115,29 @@
                             <th>Monto</th>
                             <th>Saldo</th>
                             <th>Estado</th>
-                            {% if current_user.es_gerente() %}
                             <th class="text-end">Acciones</th>
-                            {% endif %}
                         </tr></thead>
                         <tbody>
                         {% for b in boletas_cc %}
                         <tr>
-                            <td>{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                {{ b.fecha_entrega.strftime('%d/%m/%Y') }}
+                                {% if b.descripcion %}
+                                    <div class="text-muted small fst-italic">{{ b.descripcion }}</div>
+                                {% endif %}
+                            </td>
                             <td>${{ "%.2f"|format(b.monto_boleta|float) }}</td>
                             <td class="fw-bold text-warning">${{ "%.2f"|format(b.saldo_pendiente|float) }}</td>
                             <td>
                                 <span class="badge bg-warning text-dark">{{ b.estado|capitalize }}</span>
                             </td>
-                            {% if current_user.es_gerente() %}
-                            <td class="text-end">
+                            <td class="text-end text-nowrap">
+                                <form method="POST" action="{{ url_for('ventas.pasar_a_boleta_dia', boleta_id=b.id) }}" class="d-inline" onsubmit="return confirm('¿Pasar esta boleta del {{ b.fecha_entrega.strftime('%d/%m/%Y') }} para que figure como Boleta del Día?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" title="Pasar a Boleta del Día">
+                                        <i class="fas fa-arrow-up"></i>
+                                    </button>
+                                </form>
+                                {% if current_user.es_gerente() %}
                                 <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" title="Modificar boleta" data-bs-toggle="modal" data-bs-target="#modalEditarCC{{ b.id }}">
                                     <i class="fas fa-pencil-alt"></i>
                                 </button>
@@ -138,8 +146,8 @@
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
+                                {% endif %}
                             </td>
-                            {% endif %}
                         </tr>
                         {% endfor %}
                         </tbody>

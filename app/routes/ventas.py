@@ -288,7 +288,6 @@ def clientes():
     )
 
 
-
 @ventas_bp.route('/cliente/<int:cliente_id>/editar', methods=['GET', 'POST'])
 @vendedor_requerido
 def editar_cliente(cliente_id):
@@ -1031,8 +1030,8 @@ def stock():
 def boletas():
     """
     Lista todos los clientes activos (no sucursales) agrupados por ruta,
-    con el estado de su boleta del día y el saldo de cuenta corriente.
-    Solo accesible por el usuario Vendedor.
+    con el estado de su boleta activa del viaje y el saldo de cuenta corriente.
+    Solo accesible por el usuario Vendedor o Gerente.
     """
     hoy = date.today()
 
@@ -1046,13 +1045,13 @@ def boletas():
     # Para cada cliente, obtener boleta activa y saldo CC
     datos_clientes = []
     for cliente in clientes:
-        # Boleta de HOY solamente (fecha_entrega == hoy)
-        # Si no hay boleta hoy, no se muestra en la columna Boleta hoy
+        # Boleta activa del viaje (es_cuenta_corriente == False)
+        # Se mantiene como Boleta hoy hasta que Ventas cierre la ruta o el cliente
         boleta_hoy = (
             Boleta.query
             .filter(
                 Boleta.cliente_id == cliente.id,
-                Boleta.fecha_entrega == hoy
+                Boleta.es_cuenta_corriente == False
             )
             .order_by(Boleta.fecha_creacion.desc())
             .first()
@@ -1076,13 +1075,13 @@ def boletas():
         ).scalar()
         cobrado_hoy = float(pagos_sesion) if pagos_sesion else 0.0
 
-        # Monto de la boleta de hoy (0 si no hay boleta de hoy)
+        # Monto de la boleta activa del viaje (0 si no hay boleta activa)
         monto_hoy = float(boleta_hoy.monto_boleta) if boleta_hoy else 0.0
 
         # Total a cobrar = lo que debe AHORA + lo que ya pagó en la sesión
         total_a_cobrar = deuda_actual + cobrado_hoy
 
-        # Cuenta Corriente = todo lo que se debe que NO es la boleta de hoy
+        # Cuenta Corriente = todo lo que se debe que NO es la boleta activa del viaje
         saldo_cc = total_a_cobrar - monto_hoy
         if saldo_cc < 0:
             saldo_cc = 0.0
@@ -1164,20 +1163,20 @@ def boletas():
 @vendedor_o_gerente_requerido
 def gestionar_boleta(cliente_id):
     """
-    Ver y gestionar la boleta del día de un cliente específico.
-    Permite crear una boleta nueva o editar la del día si ya existe.
+    Ver y gestionar la boleta activa del día/viaje de un cliente específico.
+    Permite crear una boleta nueva o editar la activa si ya existe.
     También muestra el historial completo de cobros del repartidor.
-    Solo accesible por el usuario Vendedor.
+    Solo accesible por el usuario Vendedor o Gerente.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
     hoy = date.today()
 
-    # Boleta activa de hoy
+    # Boleta activa del viaje (es_cuenta_corriente=False)
     boleta_hoy = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
+            Boleta.es_cuenta_corriente == False,
             Boleta.estado.in_(['pendiente', 'parcial'])
         )
         .order_by(Boleta.fecha_creacion.desc())
@@ -1185,16 +1184,16 @@ def gestionar_boleta(cliente_id):
     )
 
     # Cuenta corriente (boletas anteriores pendientes)
-    boletas_cc = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
-        )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
+    query_cc = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.estado.in_(['pendiente', 'parcial'])
     )
+    if boleta_hoy:
+        query_cc = query_cc.filter(Boleta.id != boleta_hoy.id)
+    else:
+        query_cc = query_cc.filter(Boleta.es_cuenta_corriente == True)
+
+    boletas_cc = query_cc.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
     saldo_cc = sum(float(b.saldo_pendiente) for b in boletas_cc)
 
     # Historial de cobros del repartidor para este cliente
@@ -1235,10 +1234,10 @@ def gestionar_boleta(cliente_id):
 @vendedor_o_gerente_requerido
 def guardar_boleta(cliente_id):
     """
-    Crear o actualizar la boleta del día para un cliente.
-    Si ya existe una boleta pendiente/parcial del día, la actualiza.
-    Si no existe, crea una nueva.
-    Solo accesible por el usuario Vendedor.
+    Crear o actualizar la boleta activa del día/viaje para un cliente.
+    Si ya existe una boleta pendiente/parcial activa (es_cuenta_corriente=False), la actualiza.
+    Si no existe, crea una nueva con es_cuenta_corriente=False.
+    Solo accesible por el usuario Vendedor o Gerente.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
     hoy = date.today()
@@ -1254,12 +1253,12 @@ def guardar_boleta(cliente_id):
         flash('El monto ingresado no es válido.', 'danger')
         return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
 
-    # Buscar boleta existente del día
+    # Buscar boleta activa del viaje (no cerrada en CC)
     boleta = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
+            Boleta.es_cuenta_corriente == False,
             Boleta.estado.in_(['pendiente', 'parcial'])
         )
         .order_by(Boleta.fecha_creacion.desc())
@@ -1267,14 +1266,21 @@ def guardar_boleta(cliente_id):
     )
 
     if boleta:
-        # Actualizar boleta existente
+        # Actualizar boleta existente (respetando pagos parciales si los hubiera)
+        cobrado_previo = float(boleta.total_cobrado())
         boleta.monto_boleta = monto
-        boleta.saldo_pendiente = monto
+        boleta.saldo_pendiente = max(0.0, monto - cobrado_previo)
+        if boleta.saldo_pendiente == 0 and monto > 0:
+            boleta.estado = 'cobrada'
+        elif cobrado_previo > 0:
+            boleta.estado = 'parcial'
+        else:
+            boleta.estado = 'pendiente'
         boleta.descripcion = descripcion
         boleta.fecha_actualizacion = datetime.utcnow()
         accion = 'actualizada'
     else:
-        # Crear boleta nueva
+        # Crear boleta nueva activa para este viaje
         boleta = Boleta(
             cliente_id=cliente_id,
             fecha_entrega=hoy,
@@ -1282,6 +1288,7 @@ def guardar_boleta(cliente_id):
             saldo_pendiente=monto,
             descripcion=descripcion,
             estado='pendiente',
+            es_cuenta_corriente=False,
             creado_por_id=current_user.id
         )
         db.session.add(boleta)
@@ -1301,8 +1308,8 @@ def guardar_boleta(cliente_id):
 @vendedor_o_gerente_requerido
 def cargar_saldo_inicial(cliente_id):
     """
-    Carga una boleta con fecha de ayer para que figure directamente 
-    en la cuenta corriente del cliente como saldo inicial / deuda anterior.
+    Carga una boleta directamente en la cuenta corriente del cliente
+    (es_cuenta_corriente=True) como saldo inicial / deuda anterior.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
     
@@ -1319,7 +1326,7 @@ def cargar_saldo_inicial(cliente_id):
         flash('El monto ingresado no es válido.', 'danger')
         return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
         
-    # Creamos la boleta con fecha de ayer para que entre en Cuenta Corriente (fecha < hoy)
+    # Creamos la boleta con fecha de ayer y marcada explícitamente como Cuenta Corriente
     ayer = date.today() - timedelta(days=1)
     
     boleta = Boleta(
@@ -1329,6 +1336,7 @@ def cargar_saldo_inicial(cliente_id):
         saldo_pendiente=monto,
         descripcion=descripcion,
         estado='pendiente',
+        es_cuenta_corriente=True,
         creado_por_id=current_user.id
     )
     db.session.add(boleta)
@@ -1343,6 +1351,39 @@ def cargar_saldo_inicial(cliente_id):
     return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
 
 
+@ventas_bp.route('/boleta/<int:boleta_id>/pasar_a_boleta_dia', methods=['POST'])
+@vendedor_o_gerente_requerido
+def pasar_a_boleta_dia(boleta_id):
+    """
+    Permite a Ventas o Gerencia pasar una boleta que estaba en Cuenta Corriente
+    para que figure nuevamente como la Boleta del Día / Viaje actual (es_cuenta_corriente=False).
+    """
+    boleta = Boleta.query.get_or_404(boleta_id)
+    cliente_id = boleta.cliente_id
+
+    try:
+        # Si había otra boleta activa como boleta del día, pasarla a CC para que solo quede esta activa
+        Boleta.query.filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.id != boleta.id,
+            Boleta.es_cuenta_corriente == False
+        ).update({'es_cuenta_corriente': True}, synchronize_session=False)
+
+        boleta.es_cuenta_corriente = False
+        boleta.fecha_actualizacion = datetime.utcnow()
+        db.session.commit()
+        flash(
+            f'La boleta del {boleta.fecha_entrega.strftime("%d/%m/%Y")} '
+            f'(${float(boleta.saldo_pendiente):,.2f}) ahora figura como Boleta del Día.',
+            'success'
+        )
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al cambiar estado de la boleta: {str(e)}', 'danger')
+
+    return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
+
+
 # ─────────────────────────────────────────────────────────
 # SECCIÓN: ACCIONES EXCLUSIVAS DE GERENCIA EN BOLETAS Y CC
 # ─────────────────────────────────────────────────────────
@@ -1352,10 +1393,9 @@ def cargar_saldo_inicial(cliente_id):
 def registrar_pago_gerente(cliente_id):
     """
     Permite exclusivamente al Gerente registrar un cobro o pago para el cliente.
-    Aplica primero a la boleta del día y el remanente a la cuenta corriente.
+    Aplica primero a la boleta activa del día/viaje y el remanente a la cuenta corriente.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
-    hoy = date.today()
 
     def parse_decimal(field_name, default=Decimal('0')):
         raw = request.form.get(field_name, '').strip().replace(',', '.')
@@ -1386,12 +1426,12 @@ def registrar_pago_gerente(cliente_id):
         flash('El total recibido debe ser mayor a $0.', 'warning')
         return redirect(url_for('ventas.gestionar_boleta', cliente_id=cliente_id))
 
-    # Boleta actual del día
+    # Boleta activa del viaje
     boleta_actual = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
+            Boleta.es_cuenta_corriente == False,
             Boleta.estado.in_(['pendiente', 'parcial'])
         )
         .order_by(Boleta.fecha_creacion.desc())
@@ -1399,16 +1439,16 @@ def registrar_pago_gerente(cliente_id):
     )
 
     # Boletas de CC pendientes (más antiguas primero)
-    boletas_cc = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
-        )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
+    query_cc = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.estado.in_(['pendiente', 'parcial'])
     )
+    if boleta_actual:
+        query_cc = query_cc.filter(Boleta.id != boleta_actual.id)
+    else:
+        query_cc = query_cc.filter(Boleta.es_cuenta_corriente == True)
+
+    boletas_cc = query_cc.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
 
     remanente = total_recibido
     aplicado_boleta = Decimal('0')
@@ -1545,7 +1585,6 @@ def anular_pago_gerente(pago_id):
     """
     pago = PagoBoleta.query.get_or_404(pago_id)
     cliente_id = pago.cliente_id
-    hoy = date.today()
 
     try:
         # Revertir lo aplicado a la boleta del día
@@ -1564,10 +1603,10 @@ def anular_pago_gerente(pago_id):
                 Boleta.query
                 .filter(
                     Boleta.cliente_id == cliente_id,
-                    Boleta.fecha_entrega < hoy,
+                    Boleta.es_cuenta_corriente == True,
                     Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
                 )
-                .order_by(Boleta.fecha_entrega.desc())
+                .order_by(Boleta.fecha_entrega.desc(), Boleta.id.desc())
                 .all()
             )
             for b in boletas_cc:
@@ -1624,8 +1663,8 @@ def resetear_cliente_dia(cliente_id):
     """
     Cierra la sesión activa del cliente.
     1. Captura snapshot de billetera por repartidor (CierreRuta) ANTES de archivar.
-    2. Mueve la boleta de hoy a 'ayer' → deja de aparecer como 'Boleta hoy'.
-       El saldo pendiente queda como Cuenta Corriente automáticamente.
+    2. Marca la boleta activa como es_cuenta_corriente=True → deja de aparecer como 'Boleta hoy'
+       y conserva su fecha_entrega original. El saldo pendiente queda como Cuenta Corriente automáticamente.
     3. Marca todos sus pagos activos como procesado=True (archivados) →
        el resumen del repartidor se resetea a $0.
     """
@@ -1634,8 +1673,6 @@ def resetear_cliente_dia(cliente_id):
     import uuid
 
     cliente = Cliente.query.get_or_404(cliente_id)
-    hoy = date.today()
-    ayer = hoy - timedelta(days=1)
     ruta_nombre = cliente.ruta or 'Sin ruta'
     lote_cierre = uuid.uuid4().hex[:12]
 
@@ -1678,11 +1715,11 @@ def resetear_cliente_dia(cliente_id):
             p.cierre_ruta_id = cierre.id
             p.procesado = True
 
-    # 1. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
+    # 1. Pasar boletas activas del cliente a Cuenta Corriente (conservando su fecha real)
     Boleta.query.filter(
         Boleta.cliente_id == cliente_id,
-        Boleta.fecha_entrega == hoy
-    ).update({'fecha_entrega': ayer}, synchronize_session=False)
+        Boleta.es_cuenta_corriente == False
+    ).update({'es_cuenta_corriente': True}, synchronize_session=False)
 
     db.session.commit()
 
@@ -1696,16 +1733,14 @@ def resetear_ruta_dia(ruta_nombre):
     """
     Cierra la sesión activa para todos los clientes de una ruta.
     1. Captura snapshot de billetera por repartidor (CierreRuta) vinculando cobros y gastos.
-    2. Mueve todas las boletas de hoy a 'ayer' → dejan de aparecer como 'Boleta hoy'.
-       El saldo pendiente queda automáticamente en Cuenta Corriente.
+    2. Marca todas las boletas activas de la ruta como es_cuenta_corriente=True → dejan de aparecer
+       como 'Boleta hoy' y su saldo pendiente queda automáticamente en Cuenta Corriente.
     3. Marca todos los pagos y gastos activos involucrados como procesado=True con su cierre_ruta_id.
     """
     from app.models.gasto_repartidor import GastoRepartidor
     from app.models.cierre_ruta import CierreRuta
     import uuid
 
-    hoy = date.today()
-    ayer = hoy - timedelta(days=1)
     lote_cierre = uuid.uuid4().hex[:12]
 
     # 1. Obtener todos los clientes activos de esta ruta
@@ -1789,11 +1824,11 @@ def resetear_ruta_dia(ruta_nombre):
             g.cierre_ruta_id = cierre.id
             g.procesado = True
 
-    # 6. Mover boletas de hoy a ayer (pasan a ser Cuenta Corriente)
+    # 6. Pasar todas las boletas activas de la ruta a Cuenta Corriente (conservando su fecha real)
     boletas_movidas = Boleta.query.filter(
         Boleta.cliente_id.in_(clientes_ids),
-        Boleta.fecha_entrega == hoy
-    ).update({'fecha_entrega': ayer}, synchronize_session=False)
+        Boleta.es_cuenta_corriente == False
+    ).update({'es_cuenta_corriente': True}, synchronize_session=False)
 
     db.session.commit()
 
@@ -1909,4 +1944,3 @@ def reporte_producto():
         hay_resultados=len(pedidos) > 0,
         se_busco=(bool(producto_filtro) or bool(fecha_desde_str) or bool(fecha_hasta_str))
     )
-

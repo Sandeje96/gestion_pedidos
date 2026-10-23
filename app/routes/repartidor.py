@@ -71,35 +71,33 @@ def cobro_cliente(cliente_id):
     """
     Vista de cobro para un cliente específico.
     Muestra:
-      - BOLETA ACTUAL: la boleta pendiente/parcial más reciente del día de hoy.
-      - CUENTA CORRIENTE: boletas anteriores (no de hoy) con saldo pendiente.
+      - BOLETA ACTUAL: la boleta activa del viaje (es_cuenta_corriente=False),
+        sin importar si fue cargada hoy o el día anterior, hasta que Ventas cierre la ruta.
+      - CUENTA CORRIENTE: boletas anteriores (es_cuenta_corriente=True) con saldo pendiente.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
 
-    # ── VERIFICAR PAGOS HOY (sesión activa, procesado=False) ──
+    # ── VERIFICAR PAGOS EN LA SESIÓN ACTIVA (procesado=False) ──
     from datetime import datetime
     OFFSET_ARG = timedelta(hours=3)
     ahora_utc = datetime.utcnow()
     ahora_arg = ahora_utc - OFFSET_ARG
-    inicio_dia_arg = ahora_arg.replace(hour=0, minute=0, second=0, microsecond=0)
-    inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
     hoy = ahora_arg.date()  # Fecha argentina local
 
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
         PagoBoleta.cobrado_por_id == current_user.id,  # Solo cuenta cobros propios del repartidor
-        PagoBoleta.fecha_cobro >= inicio_hoy_utc,
         PagoBoleta.procesado == False
     ).count()
 
     ya_cobro_hoy = (pagos_hoy > 0)
 
-    # ── BOLETA ACTUAL ──
+    # ── BOLETA ACTUAL (no cerrada por Ventas) ──
     boleta_actual = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy
+            Boleta.es_cuenta_corriente == False
         )
         .order_by(Boleta.fecha_creacion.desc())
         .first()
@@ -107,30 +105,30 @@ def cobro_cliente(cliente_id):
 
     # ── CUENTA CORRIENTE ──
     if ya_cobro_hoy:
-        # Si ya cobró hoy, toda la deuda (incluso la de hoy) pasa a ser Cuenta Corriente visualmente
+        # Si ya cobró en este viaje, toda la deuda restante (incluso la boleta actual) pasa a verse en Cuenta Corriente
         boletas_cc = (
             Boleta.query
             .filter(
                 Boleta.cliente_id == cliente_id,
-                Boleta.fecha_entrega <= hoy,
                 Boleta.estado.in_(['pendiente', 'parcial'])
             )
-            .order_by(Boleta.fecha_entrega.asc())
+            .order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc())
             .all()
         )
         monto_boleta_actual = 0.0
     else:
-        # Comportamiento normal (no cobró hoy)
-        boletas_cc = (
-            Boleta.query
-            .filter(
-                Boleta.cliente_id == cliente_id,
-                Boleta.fecha_entrega < hoy,
-                Boleta.estado.in_(['pendiente', 'parcial'])
-            )
-            .order_by(Boleta.fecha_entrega.asc())
-            .all()
+        # Comportamiento normal (aún no visitó/cobró al cliente en este viaje)
+        query_cc = Boleta.query.filter(
+            Boleta.cliente_id == cliente_id,
+            Boleta.estado.in_(['pendiente', 'parcial'])
         )
+        if boleta_actual:
+            query_cc = query_cc.filter(Boleta.id != boleta_actual.id)
+        else:
+            query_cc = query_cc.filter(Boleta.es_cuenta_corriente == True)
+
+        boletas_cc = query_cc.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
+
         if boleta_actual and boleta_actual.estado in ['pendiente', 'parcial']:
             monto_boleta_actual = float(boleta_actual.saldo_pendiente)
         else:
@@ -185,7 +183,7 @@ def registrar_pago(cliente_id):
     Procesa el pago registrado por el Repartidor.
 
     Lógica de aplicación:
-      1. Primero se aplica a la boleta del día (boleta_actual).
+      1. Primero se aplica a la boleta del día/viaje activo (boleta_actual, es_cuenta_corriente=False).
       2. El remanente se aplica a las boletas de cuenta corriente (de más antigua a más reciente).
       3. Si sobra dinero → se registra como saldo_favor.
     """
@@ -226,30 +224,28 @@ def registrar_pago(cliente_id):
         flash('El total recibido debe ser mayor a $0.', 'warning')
         return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
 
-    hoy = date.today()
-
-    # ── Boleta actual y CC ──
+    # ── Boleta actual (activa del viaje) y CC ──
     boleta_actual = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
+            Boleta.es_cuenta_corriente == False,
             Boleta.estado.in_(['pendiente', 'parcial'])
         )
         .order_by(Boleta.fecha_creacion.desc())
         .first()
     )
 
-    boletas_cc = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
-        )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
+    query_cc = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.estado.in_(['pendiente', 'parcial'])
     )
+    if boleta_actual:
+        query_cc = query_cc.filter(Boleta.id != boleta_actual.id)
+    else:
+        query_cc = query_cc.filter(Boleta.es_cuenta_corriente == True)
+
+    boletas_cc = query_cc.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
 
     # ── Distribuir el pago ──
     remanente = total_recibido
@@ -320,38 +316,30 @@ def todo_a_cuenta_corriente(cliente_id):
     """
     Registra que toda la deuda del cliente queda pendiente en cuenta corriente.
     Funciona en dos casos:
-      1. Hay boleta del día → esa boleta queda como CC (se acumula a las anteriores).
+      1. Hay boleta activa del viaje → esa boleta queda como CC (se acumula a las anteriores).
       2. Solo hay deudas anteriores (CC puras) → se asienta la visita sin cobro.
     No se cobra nada: se asienta un PagoBoleta con total_recibido=0 como
     constancia de la visita.
     """
     cliente = Cliente.query.get_or_404(cliente_id)
-    # Calcular fecha argentina local (UTC-3)
-    OFFSET_ARG = timedelta(hours=3)
-    ahora_utc = datetime.utcnow()
-    ahora_arg = ahora_utc - OFFSET_ARG
-    inicio_dia_arg = ahora_arg.replace(hour=0, minute=0, second=0, microsecond=0)
-    inicio_hoy_utc = inicio_dia_arg + OFFSET_ARG
-    hoy = ahora_arg.date()
 
-    # Verificar que no se haya operado ya hoy en esta sesión activa (solo cobros propios del repartidor)
+    # Verificar que no se haya operado ya en esta sesión activa (solo cobros propios del repartidor)
     pagos_hoy = PagoBoleta.query.filter(
         PagoBoleta.cliente_id == cliente_id,
-        PagoBoleta.cobrado_por_id == current_user.id,  # Solo cuenta cobros propios del repartidor
-        PagoBoleta.fecha_cobro >= inicio_hoy_utc,
+        PagoBoleta.cobrado_por_id == current_user.id,
         PagoBoleta.procesado == False
     ).count()
 
     if pagos_hoy > 0:
-        flash('Ya se registró una operación para este cliente hoy.', 'warning')
+        flash('Ya se registró una operación para este cliente en este viaje.', 'warning')
         return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
 
-    # Boleta del día (puede no existir)
+    # Boleta activa del viaje (puede no existir)
     boleta_actual = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
+            Boleta.es_cuenta_corriente == False,
             Boleta.estado.in_(['pendiente', 'parcial'])
         )
         .order_by(Boleta.fecha_creacion.desc())
@@ -359,23 +347,23 @@ def todo_a_cuenta_corriente(cliente_id):
     )
 
     # Boletas de CC anteriores
-    boletas_cc = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
-        )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
+    query_cc = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.estado.in_(['pendiente', 'parcial'])
     )
+    if boleta_actual:
+        query_cc = query_cc.filter(Boleta.id != boleta_actual.id)
+    else:
+        query_cc = query_cc.filter(Boleta.es_cuenta_corriente == True)
+
+    boletas_cc = query_cc.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
 
     # Necesitamos al menos alguna deuda para registrar
     if not boleta_actual and not boletas_cc:
         flash('Este cliente no tiene deudas pendientes.', 'warning')
         return redirect(url_for('repartidor.cobro_cliente', cliente_id=cliente_id))
 
-    # Referencia: usar boleta del día si existe, sino la más antigua de CC
+    # Referencia: usar boleta actual si existe, sino la más antigua de CC
     boleta_ref = boleta_actual if boleta_actual else boletas_cc[0]
 
     # Calcular monto total pendiente para el mensaje
@@ -662,6 +650,7 @@ def limpiar_gastos():
     flash('Viaje limpiado con éxito. Los gastos volvieron a cero.', 'success')
     return redirect(url_for('repartidor.gastos'))
 
+
 @repartidor_bp.route('/cliente/<int:cliente_id>/editar-pago/<int:pago_id>', methods=['GET'])
 @repartidor_requerido
 def editar_pago_form(cliente_id, pago_id):
@@ -746,32 +735,28 @@ def editar_pago(cliente_id, pago_id):
         return redirect(url_for('repartidor.editar_pago_form', cliente_id=cliente_id, pago_id=pago_id))
 
     # ── PASO 1: Revertir saldos de boletas afectadas por el pago original ──
-    # El pago original aplicó aplicado_boleta a una boleta y aplicado_cc a boletas de CC.
-    # Recuperamos esas boletas y devolvemos sus saldos.
-    hoy = (datetime.utcnow() - timedelta(hours=3)).date()
-
     boleta_actual = (
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy
+            Boleta.es_cuenta_corriente == False
         )
         .order_by(Boleta.fecha_creacion.desc())
         .first()
     )
 
-    boletas_cc = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
-        )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
+    query_cc_rev = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.estado.in_(['pendiente', 'parcial', 'cobrada'])
     )
+    if boleta_actual:
+        query_cc_rev = query_cc_rev.filter(Boleta.id != boleta_actual.id)
+    else:
+        query_cc_rev = query_cc_rev.filter(Boleta.es_cuenta_corriente == True)
 
-    # Revertir aplicado_boleta sobre la boleta del día
+    boletas_cc = query_cc_rev.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
+
+    # Revertir aplicado_boleta sobre la boleta activa del viaje
     remanente_revertir = Decimal(str(pago.aplicado_boleta))
     if boleta_actual and remanente_revertir > 0:
         boleta_actual.saldo_pendiente = Decimal(str(boleta_actual.saldo_pendiente)) + remanente_revertir
@@ -805,22 +790,23 @@ def editar_pago(cliente_id, pago_id):
         Boleta.query
         .filter(
             Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega == hoy,
+            Boleta.es_cuenta_corriente == False,
             Boleta.estado.in_(['pendiente', 'parcial'])
         )
         .order_by(Boleta.fecha_creacion.desc())
         .first()
     )
-    boletas_cc_fresh = (
-        Boleta.query
-        .filter(
-            Boleta.cliente_id == cliente_id,
-            Boleta.fecha_entrega < hoy,
-            Boleta.estado.in_(['pendiente', 'parcial'])
-        )
-        .order_by(Boleta.fecha_entrega.asc())
-        .all()
+
+    query_cc_fresh = Boleta.query.filter(
+        Boleta.cliente_id == cliente_id,
+        Boleta.estado.in_(['pendiente', 'parcial'])
     )
+    if boleta_actual_fresh:
+        query_cc_fresh = query_cc_fresh.filter(Boleta.id != boleta_actual_fresh.id)
+    else:
+        query_cc_fresh = query_cc_fresh.filter(Boleta.es_cuenta_corriente == True)
+
+    boletas_cc_fresh = query_cc_fresh.order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc()).all()
 
     # Aplicar a boleta actual
     if boleta_actual_fresh and remanente > 0:

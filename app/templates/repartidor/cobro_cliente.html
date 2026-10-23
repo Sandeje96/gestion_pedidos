@@ -62,18 +62,112 @@
 .card-boleta  .card-monto { color: #1a6b3c; }
 .card-cc      .card-monto { color: #c8860a; }
 
-/* Detalle CC */
-.cc-fila {
+/* ── DESPLEGABLE DE CUENTA CORRIENTE ── */
+.cc-clickable {
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: rgba(200, 134, 10, 0.1);
+}
+.cc-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  font-size: 0.9rem;
 }
-.cc-fila:last-child { border-bottom: none; }
-.cc-fila .cc-fecha { color: #666; }
-.cc-fila .cc-monto { font-weight: bold; color: #c8860a; }
+.cc-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fff8ec;
+  border: 1px solid #f0c97a;
+  border-radius: 6px;
+  color: #9a6504;
+  font-size: 0.88rem;
+  font-weight: bold;
+  width: 100%;
+  justify-content: space-between;
+}
+.cc-flecha {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 0.85rem;
+}
+.cc-abierto .cc-flecha {
+  transform: rotate(180deg);
+}
+.cc-desplegable {
+  display: none;
+  margin-top: 12px;
+  border-top: 2px dashed #e6d3a7;
+  padding-top: 10px;
+}
+.cc-desplegable.visible {
+  display: block;
+}
+.cc-item {
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-left: 4px solid #c8860a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.cc-item:last-child {
+  margin-bottom: 0;
+}
+.cc-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.cc-item-fecha {
+  font-weight: bold;
+  color: #333;
+  font-size: 0.95rem;
+}
+.cc-item-saldo {
+  font-weight: bold;
+  color: #c8860a;
+  font-size: 1.05rem;
+}
+.cc-item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #666;
+}
+.cc-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+.cc-badge-pendiente {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+.cc-badge-parcial {
+  background: #cce5ff;
+  color: #004085;
+  border: 1px solid #b8daff;
+}
+.cc-item-desc {
+  margin-top: 5px;
+  font-size: 0.83rem;
+  color: #555;
+  font-style: italic;
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #eee;
+}
 
 /* ── FORMULARIO ── */
 .seccion-titulo {
@@ -251,32 +345,71 @@
      BOLETA ACTUAL
      ══════════════════════ -->
 <div class="card-resumen card-boleta">
-  <div class="card-etiqueta">Boleta de hoy — {{ hoy.strftime('%d/%m/%Y') }}</div>
+  <div class="card-etiqueta">
+    Boleta de hoy — {{ boleta_actual.fecha_entrega.strftime('%d/%m/%Y') if boleta_actual and not ya_cobro_hoy else hoy.strftime('%d/%m/%Y') }}
+  </div>
   <div class="card-monto">${{ monto_boleta_actual|formato_peso }}</div>
   {% if ya_cobro_hoy %}
     <div class="card-nota text-success fw-bold" style="color: #1a6b3c;"><i class="fas fa-check-circle me-1"></i>Visita del día completada.</div>
     <div class="card-nota">El saldo restante se trasladó a Cuenta Corriente.</div>
-  {% elif not boleta_actual %}
-    <div class="card-nota">Sin boleta cargada para hoy.</div>
-  {% elif boleta_actual.estado == 'parcial' %}
-    <div class="card-nota">Pago parcial registrado anteriormente.</div>
-  {% elif boleta_actual.descripcion %}
-    <div class="card-nota">{{ boleta_actual.descripcion }}</div>
+  {% elif not boleta_actual or boleta_actual.estado == 'cobrada' %}
+    <div class="card-nota">Sin boleta pendiente para este viaje.</div>
+  {% else %}
+    {% if boleta_actual.estado == 'parcial' %}
+      <div class="card-nota">Pago parcial registrado (Monto original: ${{ boleta_actual.monto_boleta|float|formato_peso }}).</div>
+    {% endif %}
+    {% if boleta_actual.descripcion %}
+      <div class="card-nota" style="color: #333; font-weight: 500;">{{ boleta_actual.descripcion }}</div>
+    {% endif %}
   {% endif %}
 </div>
 
 <!-- ══════════════════════
-     CUENTA CORRIENTE
+     CUENTA CORRIENTE (DESPLEGABLE AL HACER CLIC)
      ══════════════════════ -->
-<div class="card-resumen card-cc">
-  <div class="card-etiqueta">Cuenta corriente — deudas anteriores</div>
-  <div class="card-monto">${{ saldo_cc|formato_peso }}</div>
+<div class="card-resumen card-cc {% if boletas_cc %}cc-clickable{% endif %}"
+     id="cardCuentaCorriente"
+     {% if boletas_cc %}onclick="toggleDetalleCC()"{% endif %}>
+  <div class="cc-header-row">
+    <div>
+      <div class="card-etiqueta">Cuenta corriente — deudas anteriores</div>
+      <div class="card-monto">${{ saldo_cc|formato_peso }}</div>
+    </div>
+  </div>
+
   {% if boletas_cc %}
-    <div style="margin-top: 12px;">
+    <div class="cc-toggle-btn" id="btnToggleCC">
+      <span id="textoToggleCC">
+        Ver detalle de {{ boletas_cc|length }} cuenta{{ 's' if boletas_cc|length != 1 else '' }} corriente{{ 's' if boletas_cc|length != 1 else '' }}
+      </span>
+      <span class="cc-flecha">&#9660;</span>
+    </div>
+
+    <div class="cc-desplegable" id="detalleCC" onclick="event.stopPropagation();">
       {% for b in boletas_cc %}
-      <div class="cc-fila">
-        <span class="cc-fecha">{{ b.fecha_entrega.strftime('%d/%m/%Y') }}</span>
-        <span class="cc-monto">${{ b.saldo_pendiente|float|formato_peso }}</span>
+      <div class="cc-item">
+        <div class="cc-item-top">
+          <span class="cc-item-fecha">
+            #{{ loop.index }} &middot; Boleta del {{ b.fecha_entrega.strftime('%d/%m/%Y') }}
+          </span>
+          <span class="cc-item-saldo">${{ b.saldo_pendiente|float|formato_peso }}</span>
+        </div>
+        <div class="cc-item-meta">
+          <span>
+            {% if b.estado == 'parcial' %}
+              <span class="cc-badge cc-badge-parcial">Pago parcial</span>
+              <span style="margin-left: 4px;">Orig.: ${{ b.monto_boleta|float|formato_peso }}</span>
+            {% else %}
+              <span class="cc-badge cc-badge-pendiente">Pendiente</span>
+            {% endif %}
+          </span>
+          {% if not b.es_cuenta_corriente %}
+            <span style="color: #1a6b3c; font-weight: bold;">Boleta del viaje</span>
+          {% endif %}
+        </div>
+        {% if b.descripcion %}
+        <div class="cc-item-desc">{{ b.descripcion }}</div>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
@@ -406,6 +539,24 @@
 {% block extra_js %}
 <script>
   var DEUDA = {{ total_deuda }};
+  var CANT_CC = {{ boletas_cc|length }};
+
+  function toggleDetalleCC() {
+    var detalle = document.getElementById('detalleCC');
+    var card = document.getElementById('cardCuentaCorriente');
+    var texto = document.getElementById('textoToggleCC');
+    if (!detalle || !card) return;
+
+    var abriendo = !detalle.classList.contains('visible');
+    detalle.classList.toggle('visible', abriendo);
+    card.classList.toggle('cc-abierto', abriendo);
+
+    if (texto) {
+      var plural = CANT_CC !== 1 ? 's' : '';
+      texto.textContent = (abriendo ? 'Ocultar detalle de ' : 'Ver detalle de ') +
+                          CANT_CC + ' cuenta' + plural + ' corriente' + plural;
+    }
+  }
 
   function num(id) {
     var v = parseFloat(document.getElementById(id).value);

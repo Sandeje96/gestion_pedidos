@@ -107,7 +107,8 @@ def create_app(config_name='development'):
         db.create_all()
         
         # Migraciones automáticas de base de datos para producción (PostgreSQL) y local (SQLite)
-        from sqlalchemy import text
+        from sqlalchemy import text, inspect
+        from datetime import datetime, timedelta
         
         # 1. Agregar columna 'destinatario'
         try:
@@ -251,6 +252,7 @@ def create_app(config_name='development'):
             db.session.commit()
         except Exception as e_bf:
             db.session.rollback()
+
         # 13. Agregar columna 'lote_cierre' en cierres_ruta
         try:
             db.session.execute(text("ALTER TABLE cierres_ruta ADD COLUMN IF NOT EXISTS lote_cierre VARCHAR(36)"))
@@ -286,6 +288,57 @@ def create_app(config_name='development'):
                 db.session.commit()
             except Exception:
                 db.session.rollback()
+
+        # 16. Agregar columna 'es_cuenta_corriente' en boletas y clasificar histórico
+        try:
+            cols_boletas = [c['name'] for c in inspect(db.engine).get_columns('boletas')]
+            nueva_col_cc = 'es_cuenta_corriente' not in cols_boletas
+            if nueva_col_cc:
+                try:
+                    db.session.execute(text("ALTER TABLE boletas ADD COLUMN IF NOT EXISTS es_cuenta_corriente BOOLEAN DEFAULT FALSE NOT NULL"))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    db.session.execute(text("ALTER TABLE boletas ADD COLUMN es_cuenta_corriente BOOLEAN DEFAULT FALSE NOT NULL"))
+                    db.session.commit()
+
+                # Clasificación inicial de boletas existentes:
+                # - Boletas de hace 2 o más días: son Cuenta Corriente (es_cuenta_corriente=True)
+                # - Boletas de ayer: si se cargaron como Saldo Inicial o si su ruta ya se cerró después de crearse,
+                #   son Cuenta Corriente. Si fueron cargadas ayer como Boleta del Día para el reparto de hoy,
+                #   quedan como Boleta Actual (es_cuenta_corriente=False).
+                from app.models.boleta import Boleta
+                hoy_arg = (datetime.utcnow() - timedelta(hours=3)).date()
+                ayer_arg = hoy_arg - timedelta(days=1)
+
+                boletas_antiguas = Boleta.query.filter(Boleta.fecha_entrega < hoy_arg).all()
+                for b in boletas_antiguas:
+                    if b.fecha_entrega < ayer_arg:
+                        b.es_cuenta_corriente = True
+                    else:
+                        # fecha_entrega == ayer_arg
+                        fecha_creacion_arg = (b.fecha_creacion - timedelta(hours=3)).date() if b.fecha_creacion else ayer_arg
+                        es_saldo_inicial = (
+                            fecha_creacion_arg > b.fecha_entrega
+                            or (b.descripcion and 'saldo inicial' in b.descripcion.lower())
+                            or (b.descripcion and 'deuda anterior' in b.descripcion.lower())
+                        )
+                        ruta_cli = b.cliente.ruta if b.cliente else None
+                        cierre_posterior = False
+                        if ruta_cli and b.fecha_creacion:
+                            cierre_posterior = CierreRuta.query.filter(
+                                CierreRuta.ruta == ruta_cli,
+                                CierreRuta.fecha_cierre > b.fecha_creacion
+                            ).count() > 0
+
+                        if es_saldo_inicial or cierre_posterior:
+                            b.es_cuenta_corriente = True
+                        else:
+                            b.es_cuenta_corriente = False
+                db.session.commit()
+        except Exception as e_bcc:
+            db.session.rollback()
+            print(f"Migración es_cuenta_corriente en boletas: {e_bcc}")
 
         # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stocks idénticos
         try:

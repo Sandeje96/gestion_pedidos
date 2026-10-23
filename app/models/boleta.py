@@ -33,6 +33,8 @@ class Boleta(db.Model):
     estado = db.Column(db.String(20), nullable=False, default='pendiente', index=True)
     # saldo_pendiente se recalcula cada vez que se registra un pago
     saldo_pendiente = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    # Indica si la boleta pertenece a Cuenta Corriente (True) o si es la Boleta Actual activa del viaje (False)
+    es_cuenta_corriente = db.Column(db.Boolean, nullable=False, default=False, index=True)
 
     creado_por_id = db.Column(
         db.Integer, db.ForeignKey('usuarios.id'), nullable=True
@@ -68,6 +70,7 @@ class Boleta(db.Model):
             'descripcion': self.descripcion,
             'estado': self.estado,
             'saldo_pendiente': float(self.saldo_pendiente),
+            'es_cuenta_corriente': self.es_cuenta_corriente,
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
         }
 

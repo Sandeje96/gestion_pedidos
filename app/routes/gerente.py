@@ -817,6 +817,14 @@ def historial_producto(producto_id):
     })
 
 
+@gerente_bp.route('/stock/producto/<int:producto_id>/movimientos')
+@gerente_requerido
+def movimientos_producto_gerente(producto_id):
+    from app.routes.administracion import movimientos_producto
+    return movimientos_producto(producto_id)
+
+
+
 @gerente_bp.route('/stock/producto/<int:producto_id>/editar-stock', methods=['POST'])
 @gerente_requerido
 def editar_stock_producto(producto_id):

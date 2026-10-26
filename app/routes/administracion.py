@@ -17,7 +17,8 @@ from app.models.personal import Personal, RegistroAsistencia, formatear_minutos
 from app.routes.fabrica import _descontar_stock_pedido, _preview_materias_primas, _registrar_movimientos_mp, _validar_stock_materias_primas
 from datetime import datetime, date, timedelta
 from functools import wraps
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
+from decimal import Decimal
 import json
 
 # Crear el Blueprint
@@ -527,6 +528,210 @@ def stock():
         productos=productos,
         semanales_dict=semanales_dict
     )
+
+
+@administracion_bp.route('/stock/producto/<int:producto_id>/movimientos')
+@login_required
+def movimientos_producto(producto_id):
+    """
+    Endpoint AJAX: devuelve el historial completo de movimientos de stock de un producto:
+    - Descuentos de stock por pedidos completados a clientes.
+    - Ingresos por produccion diaria.
+    - Reajustes y correcciones formales de inventario.
+    - Pedidos pendientes de despacho.
+    - Resumen acumulado agrupado por cliente.
+    """
+    if not (current_user.es_administracion() or current_user.es_gerente() or current_user.es_operario() or getattr(current_user, 'rol', '') == 'fabrica'):
+        return jsonify({'error': 'No tienes permisos para ver estos movimientos'}), 403
+
+    producto = Producto.query.get_or_404(producto_id)
+    mp_vinc = producto.get_materia_prima_vinculada()
+    stock_actual_val = float(mp_vinc.stock_actual if mp_vinc else (producto.stock_actual or 0))
+    unidad_str = producto.unidad or (mp_vinc.unidad if mp_vinc else 'unidades')
+
+    OFFSET_ARG = timedelta(hours=3)
+
+    # 1. Pedidos asociados al producto
+    pedidos = Pedido.query.filter(
+        or_(
+            Pedido.producto_id == producto.id,
+            and_(
+                Pedido.producto_id.is_(None),
+                func.lower(func.trim(Pedido.producto_nombre)) == producto.nombre.strip().lower()
+            )
+        )
+    ).all()
+
+    descuentos_pedidos = []
+    pedidos_pendientes = []
+    clientes_dict = {}
+
+    total_descontado_clientes = Decimal('0')
+
+    for ped in pedidos:
+        cant_val = float(ped.cantidad or 0)
+        cli_nombre = ped.cliente.nombre if ped.cliente else 'Cliente no especificado'
+        cli_ruta = ped.cliente.ruta if (ped.cliente and ped.cliente.ruta) else 'Sin ruta'
+        cli_id = ped.cliente_id if ped.cliente_id else 0
+        cli_tel = ped.cliente.telefono if (ped.cliente and ped.cliente.telefono) else ''
+
+        # Fecha referencial con hora argentina (UTC-3)
+        fecha_ref = ped.fecha_completado or ped.fecha_actualizacion or ped.fecha_creacion
+        fecha_arg = (fecha_ref - OFFSET_ARG) if fecha_ref else None
+        fecha_str = fecha_arg.strftime('%d/%m/%Y %H:%M') if fecha_arg else '—'
+        fecha_iso = fecha_arg.isoformat() if fecha_arg else ''
+
+        presentacion_detalle = ''
+        if ped.presentacion:
+            if ped.cantidad_envases:
+                presentacion_detalle = f"{float(ped.cantidad_envases):g} env. de {ped.presentacion}"
+            else:
+                presentacion_detalle = f"{ped.presentacion}"
+
+        item_pedido = {
+            'tipo': 'descuento_pedido' if ped.estado == 'completado' else 'pedido_pendiente',
+            'tipo_label': 'Descuento Pedido' if ped.estado == 'completado' else f"Pedido {ped.estado.capitalize()}",
+            'signo': '-' if ped.estado == 'completado' else '⏳',
+            'cantidad': cant_val,
+            'unidad': ped.unidad or unidad_str,
+            'fecha': fecha_str,
+            'fecha_iso': fecha_iso,
+            'pedido_id': ped.id,
+            'cliente_id': cli_id,
+            'cliente_nombre': cli_nombre,
+            'cliente_ruta': cli_ruta,
+            'cliente_telefono': cli_tel,
+            'presentacion': presentacion_detalle,
+            'estado': ped.estado,
+            'despachado': ped.despachado,
+            'operario_nombre': ped.operario_responsable.nombre if ped.operario_responsable else 'Fábrica',
+            'notas': ped.observaciones_fabrica or ped.notas_vendedor or '',
+            'descripcion': f"Despacho a cliente: {cli_nombre}"
+        }
+
+        if ped.estado == 'completado':
+            total_descontado_clientes += Decimal(str(cant_val))
+            descuentos_pedidos.append(item_pedido)
+
+            ckey = cli_id if cli_id else cli_nombre
+            if ckey not in clientes_dict:
+                clientes_dict[ckey] = {
+                    'cliente_id': cli_id,
+                    'nombre': cli_nombre,
+                    'ruta': cli_ruta,
+                    'telefono': cli_tel,
+                    'total_cantidad': 0.0,
+                    'pedidos_count': 0,
+                    'ultimo_despacho': fecha_str,
+                    'ultimo_despacho_iso': fecha_iso
+                }
+            clientes_dict[ckey]['total_cantidad'] += cant_val
+            clientes_dict[ckey]['pedidos_count'] += 1
+            if fecha_iso > clientes_dict[ckey]['ultimo_despacho_iso']:
+                clientes_dict[ckey]['ultimo_despacho'] = fecha_str
+                clientes_dict[ckey]['ultimo_despacho_iso'] = fecha_iso
+        elif ped.estado in ['pendiente', 'en_proceso', 'parcial']:
+            pedidos_pendientes.append(item_pedido)
+
+    # 2. Producciones
+    producciones = ProduccionDiaria.query.filter_by(
+        producto_id=producto.id
+    ).all()
+
+    ingresos_produccion = []
+    total_producido = Decimal('0')
+
+    for prod in producciones:
+        cant_val = float(prod.cantidad or 0)
+        total_producido += Decimal(str(cant_val))
+
+        fecha_ref = prod.fecha_creacion or (datetime.combine(prod.fecha_produccion, datetime.min.time()) if prod.fecha_produccion else None)
+        fecha_arg = (fecha_ref - OFFSET_ARG) if fecha_ref else None
+        fecha_str = fecha_arg.strftime('%d/%m/%Y %H:%M') if fecha_arg else (prod.fecha_produccion.strftime('%d/%m/%Y') if prod.fecha_produccion else '—')
+        fecha_iso = fecha_arg.isoformat() if fecha_arg else (prod.fecha_produccion.isoformat() if prod.fecha_produccion else '')
+
+        ingresos_produccion.append({
+            'tipo': 'ingreso_produccion',
+            'tipo_label': 'Producción (+)',
+            'signo': '+',
+            'cantidad': cant_val,
+            'unidad': prod.unidad or unidad_str,
+            'fecha': fecha_str,
+            'fecha_iso': fecha_iso,
+            'produccion_id': prod.id,
+            'usuario_nombre': prod.usuario.nombre if prod.usuario else 'Operario',
+            'notas': prod.observaciones or '',
+            'descripcion': f"Lote de producción #{prod.id}"
+        })
+
+    # 3. Reajustes / Correcciones de stock
+    reajustes = []
+    if mp_vinc:
+        movimientos_mp = MovimientoMateriaPrima.query.filter_by(
+            materia_prima_id=mp_vinc.id
+        ).filter(
+            MovimientoMateriaPrima.tipo.in_(['reajuste', 'ajuste'])
+        ).all()
+
+        for m in movimientos_mp:
+            if m.descripcion and 'Despacho de Pedido #' in m.descripcion:
+                continue
+
+            fecha_arg = (m.fecha_creacion - OFFSET_ARG) if m.fecha_creacion else None
+            fecha_str = fecha_arg.strftime('%d/%m/%Y %H:%M') if fecha_arg else '—'
+            fecha_iso = fecha_arg.isoformat() if fecha_arg else ''
+
+            stock_ant = float(m.stock_anterior) if m.stock_anterior is not None else None
+            stock_res = float(m.stock_resultante) if m.stock_resultante is not None else None
+            dif = (stock_res - stock_ant) if (stock_ant is not None and stock_res is not None) else float(m.cantidad or 0)
+            signo = '+' if dif > 0 else ('-' if dif < 0 else '±')
+
+            reajustes.append({
+                'tipo': 'reajuste',
+                'tipo_label': 'Reajuste' if m.tipo == 'reajuste' else 'Ajuste Manual',
+                'signo': signo,
+                'cantidad': abs(dif),
+                'unidad': mp_vinc.unidad or unidad_str,
+                'fecha': fecha_str,
+                'fecha_iso': fecha_iso,
+                'stock_anterior': stock_ant,
+                'stock_resultante': stock_res,
+                'usuario_nombre': m.usuario.nombre if m.usuario else 'Sistema',
+                'notas': m.descripcion or '',
+                'descripcion': 'Corrección de inventario'
+            })
+
+    # Consolidar todos los movimientos confirmados
+    todos_movimientos = descuentos_pedidos + ingresos_produccion + reajustes
+    todos_movimientos.sort(key=lambda x: x.get('fecha_iso', ''), reverse=True)
+
+    # Clientes ordenados por volumen consumido descendente
+    clientes_resumen = list(clientes_dict.values())
+    clientes_resumen.sort(key=lambda x: x['total_cantidad'], reverse=True)
+
+    tot_desc_float = float(total_descontado_clientes)
+    for c in clientes_resumen:
+        c['porcentaje'] = round((c['total_cantidad'] / tot_desc_float * 100), 1) if tot_desc_float > 0 else 0
+
+    return jsonify({
+        'producto': {
+            'id': producto.id,
+            'nombre': producto.nombre,
+            'unidad': unidad_str,
+            'stock_actual': stock_actual_val,
+            'total_descontado': tot_desc_float,
+            'total_pedidos_completados': len(descuentos_pedidos),
+            'total_producido': float(total_producido),
+            'total_lotes_produccion': len(ingresos_produccion),
+            'total_reajustes': len(reajustes),
+            'total_clientes_distintos': len(clientes_resumen),
+            'total_pedidos_pendientes': len(pedidos_pendientes)
+        },
+        'clientes_resumen': clientes_resumen,
+        'movimientos': todos_movimientos,
+        'pedidos_pendientes': sorted(pedidos_pendientes, key=lambda x: x.get('fecha_iso', ''), reverse=True)
+    })
+
 
 # ─────────────────────────────────────────────
 # ─────────────────────────────────────────────

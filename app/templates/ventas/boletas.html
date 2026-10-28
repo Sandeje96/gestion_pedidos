@@ -336,7 +336,11 @@
                   data-ruta="{{ ruta|lower }}"
                   id="fila-{{ d.cliente.id }}">
                 <td>
-                  <strong>{{ d.cliente.nombre }}</strong>
+                  <strong>
+                    <a href="{{ url_for('ventas.movimientos_cliente', cliente_id=d.cliente.id) }}" class="text-decoration-none text-dark" title="Ver movimientos del cliente">
+                      {{ d.cliente.nombre }}
+                    </a>
+                  </strong>
                   {% if d.cliente.telefono %}
                     <br><small class="text-muted">
                       <i class="fas fa-phone fa-xs me-1"></i>{{ d.cliente.telefono }}
@@ -404,8 +408,12 @@
                 <td>
                   <div class="d-flex gap-1">
                     <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=d.cliente.id) }}"
-                       class="btn btn-sm btn-outline-primary" title="Gestionar">
+                       class="btn btn-sm btn-outline-primary" title="Gestionar boleta">
                       <i class="fas fa-edit"></i>
+                    </a>
+                    <a href="{{ url_for('ventas.movimientos_cliente', cliente_id=d.cliente.id) }}"
+                       class="btn btn-sm btn-outline-info" title="Ver movimientos y extracto de cuenta">
+                      <i class="fas fa-receipt"></i>
                     </a>
                     {% if d.boleta_hoy or d.cobrado_hoy > 0 %}
                     <form action="{{ url_for('ventas.resetear_cliente_dia', cliente_id=d.cliente.id) }}" method="POST" class="m-0">

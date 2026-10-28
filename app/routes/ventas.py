@@ -1230,6 +1230,125 @@ def gestionar_boleta(cliente_id):
     )
 
 
+@ventas_bp.route('/cliente/<int:cliente_id>/movimientos')
+@vendedor_o_gerente_requerido
+def movimientos_cliente(cliente_id):
+    """
+    Historial cronológico completo de movimientos (cuenta corriente) de un cliente.
+    Detalla cada débito (boleta/entrega), crédito (cobro/pago recibido) y el saldo resultante
+    después de cada operación para un control estricto de caja y saldos.
+    """
+    cliente = Cliente.query.get_or_404(cliente_id)
+
+    boletas = Boleta.query.filter_by(cliente_id=cliente.id).all()
+    pagos = PagoBoleta.query.filter_by(cliente_id=cliente.id).all()
+
+    movimientos_raw = []
+
+    for b in boletas:
+        hora_local = (b.fecha_creacion - timedelta(hours=3)).time() if b.fecha_creacion else datetime.min.time()
+        fecha_dt = datetime.combine(b.fecha_entrega or date.today(), hora_local)
+
+        creador_nombre = 'Sistema'
+        if b.creado_por:
+            creador_nombre = b.creado_por.nombre_completo or b.creado_por.username
+
+        movimientos_raw.append({
+            'tipo': 'boleta',
+            'id': b.id,
+            'fecha': fecha_dt,
+            'fecha_entrega': b.fecha_entrega,
+            'comprobante': f'Boleta #{b.id}',
+            'detalle': b.descripcion or 'Entrega de mercadería',
+            'debito': Decimal(str(b.monto_boleta or 0)),
+            'credito': Decimal('0.00'),
+            'responsable': creador_nombre,
+            'estado': b.estado,
+            'saldo_pendiente_boleta': Decimal(str(b.saldo_pendiente or 0)),
+            'es_cuenta_corriente': b.es_cuenta_corriente,
+            'objeto': b
+        })
+
+    for p in pagos:
+        fecha_dt = (p.fecha_cobro - timedelta(hours=3)) if p.fecha_cobro else (datetime.utcnow() - timedelta(hours=3))
+
+        metodos = []
+        if p.efectivo and p.efectivo > 0:
+            metodos.append(f"Efectivo: ${float(p.efectivo):,.2f}")
+        if p.transferencia and p.transferencia > 0:
+            metodos.append(f"Transf.: ${float(p.transferencia):,.2f}")
+        if p.cheque and p.cheque > 0:
+            ch_str = f"Cheque: ${float(p.cheque):,.2f}"
+            if p.fecha_cobro_cheque:
+                ch_str += f" (Cobro: {p.fecha_cobro_cheque.strftime('%d/%m/%Y')})"
+            metodos.append(ch_str)
+
+        detalle_pago = " + ".join(metodos) if metodos else "Cobro registrado"
+        if p.notas:
+            detalle_pago += f" — {p.notas}"
+
+        cobrador_nombre = 'Repartidor'
+        if p.cobrado_por:
+            cobrador_nombre = p.cobrado_por.nombre_completo or p.cobrado_por.username
+
+        movimientos_raw.append({
+            'tipo': 'pago',
+            'id': p.id,
+            'fecha': fecha_dt,
+            'fecha_entrega': fecha_dt.date(),
+            'comprobante': f'Cobro #{p.id}',
+            'detalle': detalle_pago,
+            'debito': Decimal('0.00'),
+            'credito': Decimal(str(p.total_recibido or 0)),
+            'efectivo': Decimal(str(p.efectivo or 0)),
+            'transferencia': Decimal(str(p.transferencia or 0)),
+            'cheque': Decimal(str(p.cheque or 0)),
+            'responsable': cobrador_nombre,
+            'procesado': p.procesado,
+            'cierre_ruta_id': p.cierre_ruta_id,
+            'objeto': p
+        })
+
+    movimientos_cronologicos = sorted(
+        movimientos_raw,
+        key=lambda m: (m['fecha'], 0 if m['tipo'] == 'boleta' else 1, m['id'])
+    )
+
+    saldo_acumulado = Decimal('0.00')
+    total_debito = Decimal('0.00')
+    total_credito = Decimal('0.00')
+    total_efectivo = Decimal('0.00')
+    total_transferencia = Decimal('0.00')
+    total_cheque = Decimal('0.00')
+
+    for idx, m in enumerate(movimientos_cronologicos, 1):
+        saldo_acumulado += (m['debito'] - m['credito'])
+        m['nro'] = idx
+        m['saldo'] = saldo_acumulado
+        total_debito += m['debito']
+        total_credito += m['credito']
+        if m['tipo'] == 'pago':
+            total_efectivo += m['efectivo']
+            total_transferencia += m['transferencia']
+            total_cheque += m['cheque']
+
+    saldo_final = saldo_acumulado
+
+    return render_template(
+        'ventas/movimientos_cliente.html',
+        title=f'Movimientos — {cliente.nombre}',
+        cliente=cliente,
+        movimientos=movimientos_cronologicos,
+        total_debito=total_debito,
+        total_credito=total_credito,
+        saldo_final=saldo_final,
+        total_efectivo=total_efectivo,
+        total_transferencia=total_transferencia,
+        total_cheque=total_cheque,
+        hoy=date.today()
+    )
+
+
 @ventas_bp.route('/cliente/<int:cliente_id>/boleta/guardar', methods=['POST'])
 @vendedor_o_gerente_requerido
 def guardar_boleta(cliente_id):

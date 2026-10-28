@@ -5,9 +5,16 @@
 <!-- ── ENCABEZADO ── -->
 <div class="row mb-3">
     <div class="col">
-        <a href="{{ url_for('ventas.boletas') }}" class="btn btn-sm btn-outline-secondary mb-2">
-            <i class="fas fa-arrow-left"></i> Volver a Boletas
-        </a>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div>
+                <a href="{{ url_for('ventas.boletas') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver a Boletas
+                </a>
+                <a href="{{ url_for('ventas.movimientos_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-info ms-2">
+                    <i class="fas fa-receipt me-1"></i> Ver Movimientos / Cuenta Corriente
+                </a>
+            </div>
+        </div>
         <h4><i class="fas fa-file-invoice-dollar"></i> {{ cliente.nombre }}</h4>
         <p class="text-muted mb-0">
             <i class="fas fa-route me-1"></i>{{ cliente.ruta }}
@@ -99,9 +106,14 @@
         <div class="card mb-3 {% if saldo_cc > 0 %}border-warning{% else %}border-success{% endif %}">
             <div class="card-header {% if saldo_cc > 0 %}bg-warning text-dark{% else %}bg-success text-white{% endif %} d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-history"></i> Cuenta Corriente</span>
-                {% if current_user.es_gerente() %}
-                <span class="badge bg-dark text-light small"><i class="fas fa-user-shield me-1"></i>Edición habilitada</span>
-                {% endif %}
+                <div class="d-flex align-items-center gap-2">
+                    <a href="{{ url_for('ventas.movimientos_cliente', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-dark" style="font-size: 0.78rem; padding: 0.15rem 0.5rem;" title="Ver todos los movimientos y extracto">
+                        <i class="fas fa-list me-1"></i> Ver movimientos
+                    </a>
+                    {% if current_user.es_gerente() %}
+                    <span class="badge bg-dark text-light small"><i class="fas fa-user-shield me-1"></i>Edición habilitada</span>
+                    {% endif %}
+                </div>
             </div>
             <div class="card-body">
                 {% if boletas_cc %}

@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+  .kpi-card {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.15s ease-in-out;
+  }
+  .kpi-card:hover {
+    transform: translateY(-2px);
+  }
+  .table-movimientos th {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background-color: #f8f9fa;
+    vertical-align: middle;
+  }
+  .table-movimientos td {
+    vertical-align: middle;
+    font-size: 0.92rem;
+  }
+  .badge-comprobante {
+    font-size: 0.8rem;
+    padding: 0.35em 0.65em;
+  }
+  .metodo-pill {
+    font-size: 0.78rem;
+    padding: 0.2em 0.55em;
+    border-radius: 4px;
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    display: inline-block;
+    margin-right: 4px;
+    margin-bottom: 2px;
+  }
+  @media print {
+    nav.navbar, .no-print, .btn, .breadcrumb, footer {
+      display: none !important;
+    }
+    body {
+      background-color: #fff !important;
+      font-size: 11pt;
+    }
+    .container, .container-fluid {
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .card {
+      border: 1px solid #ccc !important;
+      box-shadow: none !important;
+    }
+    .table-movimientos th {
+      background-color: #eee !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3">
+
+  <!-- ── BARRA DE NAVEGACIÓN Y ACCIONES ── -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 no-print">
+    <div>
+      <a href="{{ url_for('ventas.boletas') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Volver a Boletas
+      </a>
+      <a href="{{ url_for('ventas.gestionar_boleta', cliente_id=cliente.id) }}" class="btn btn-sm btn-outline-primary ms-1">
+        <i class="fas fa-edit me-1"></i> Gestionar Boleta / Cobros
+      </a>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-outline-dark" onclick="window.print()">
+        <i class="fas fa-print me-1"></i> Imprimir Extracto
+      </button>
+    </div>
+  </div>
+
+  <!-- ── TARJETA DE INFORMACIÓN DEL CLIENTE ── -->
+  <div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-3">
+      <div class="row align-items-center">
+        <div class="col-md-7">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h3 class="mb-0 fw-bold text-dark">
+              <i class="fas fa-user text-primary me-2"></i>{{ cliente.nombre }}
+            </h3>
+            <span class="badge bg-primary fs-6">{{ cliente.ruta }}</span>
+            {% if not cliente.activo %}
+              <span class="badge bg-secondary">Inactivo</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small mt-2 d-flex flex-wrap gap-3">
+            {% if cliente.direccion %}
+              <span><i class="fas fa-map-marker-alt text-danger me-1"></i>{{ cliente.direccion }}</span>
+            {% endif %}
+            {% if cliente.telefono %}
+              <span><i class="fas fa-phone text-success me-1"></i>{{ cliente.telefono }}</span>
+            {% endif %}
+            {% if cliente.notas %}
+              <span><i class="fas fa-sticky-note text-warning me-1"></i>{{ cliente.notas }}</span>
+            {% endif %}
+            <span><i class="fas fa-calendar-alt text-muted me-1"></i>Alta: {{ cliente.fecha_creacion.strftime('%d/%m/%Y') if cliente.fecha_creacion else '—' }}</span>
+          </div>
+        </div>
+        <div class="col-md-5 text-md-end mt-3 mt-md-0">
+          <div class="small text-muted text-uppercase fw-semibold">Saldo Actual de Cuenta Corriente</div>
+          {% if saldo_final > 0 %}
+            <div class="display-6 fw-bold text-danger">${{ saldo_final|formato_peso }}</div>
+            <div class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1">
+              <i class="fas fa-exclamation-triangle me-1"></i> Saldo pendiente adeudado
+            </div>
+          {% elif saldo_final == 0 %}
+            <div class="display-6 fw-bold text-success">$0,00</div>
+            <div class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1">
+              <i class="fas fa-check-circle me-1"></i> Cuenta al día / Saldada
+            </div>
+          {% else %}
+            <div class="display-6 fw-bold text-primary">${{ (-saldo_final)|formato_peso }}</div>
+            <div class="badge bg-info-subtle text-primary border border-primary-subtle px-3 py-1">
+              <i class="fas fa-info-circle me-1"></i> Saldo a favor del cliente
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TARJETAS KPI RESUMEN ── -->
+  <div class="row g-3 mb-4">
+    <!-- Total Facturado (Débitos) -->
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card kpi-card bg-white h-100 border-start border-4 border-danger">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold">Total Boletas (Débito)</div>
+              <div class="fs-4 fw-bold text-dark mt-1">${{ total_debito|formato_peso }}</div>
+            </div>
+            <div class="rounded-circle bg-danger bg-opacity-10 p-3 text-danger">
+              <i class="fas fa-file-invoice fa-lg"></i>
+            </div>
+          </div>
+          <div class="small text-muted mt-2">
+            Mercadería entregada / facturada al cliente
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Cobrado (Créditos) -->
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card kpi-card bg-white h-100 border-start border-4 border-success">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold">Total Pagos (Crédito)</div>
+              <div class="fs-4 fw-bold text-success mt-1">${{ total_credito|formato_peso }}</div>
+            </div>
+            <div class="rounded-circle bg-success bg-opacity-10 p-3 text-success">
+              <i class="fas fa-hand-holding-dollar fa-lg"></i>
+            </div>
+          </div>
+          <div class="small text-muted mt-2">
+            Monto total cobrado y percibido
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desglose de Cobros por Medio -->
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card kpi-card bg-white h-100 border-start border-4 border-info">
+        <div class="card-body">
+          <div class="text-muted small text-uppercase fw-bold mb-2">Desglose de Cobranzas</div>
+          <div class="d-flex flex-column gap-1 small">
+            <div class="d-flex justify-content-between">
+              <span><i class="fas fa-money-bill-wave text-success me-1"></i> Efectivo:</span>
+              <strong class="text-dark">${{ total_efectivo|formato_peso }}</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span><i class="fas fa-university text-primary me-1"></i> Transf.:</span>
+              <strong class="text-dark">${{ total_transferencia|formato_peso }}</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span><i class="fas fa-money-check text-warning me-1"></i> Cheques:</span>
+              <strong class="text-dark">${{ total_cheque|formato_peso }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumen de Movimientos -->
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="card kpi-card bg-white h-100 border-start border-4 border-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold">Cantidad de Movimientos</div>
+              <div class="fs-4 fw-bold text-primary mt-1">{{ movimientos|length }}</div>
+            </div>
+            <div class="rounded-circle bg-primary bg-opacity-10 p-3 text-primary">
+              <i class="fas fa-list-ol fa-lg"></i>
+            </div>
+          </div>
+          <div class="small text-muted mt-2">
+            Historial completo registrado
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BARRA DE HERRAMIENTAS / FILTROS ── -->
+  <div class="card mb-3 border-0 shadow-sm no-print">
+    <div class="card-body py-2">
+      <div class="row g-2 align-items-center">
+        <!-- Búsqueda en vivo -->
+        <div class="col-12 col-md-4">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+            <input type="text" id="inputBuscar" class="form-control" placeholder="Buscar por detalle, comprobante o responsable..." onkeyup="filtrarMovimientos()">
+          </div>
+        </div>
+
+        <!-- Filtro por Tipo -->
+        <div class="col-12 col-md-5 d-flex gap-1">
+          <button type="button" class="btn btn-sm btn-outline-secondary active btn-filtro" id="btn-filtro-todos" onclick="filtrarTipo('todos')">
+            Todos ({{ movimientos|length }})
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger btn-filtro" id="btn-filtro-boleta" onclick="filtrarTipo('boleta')">
+            <i class="fas fa-file-invoice me-1"></i> Boletas / Débitos
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-success btn-filtro" id="btn-filtro-pago" onclick="filtrarTipo('pago')">
+            <i class="fas fa-hand-holding-dollar me-1"></i> Cobros / Créditos
+          </button>
+        </div>
+
+        <!-- Botón Invertir Orden -->
+        <div class="col-12 col-md-3 text-md-end">
+          <button type="button" class="btn btn-sm btn-outline-dark" onclick="invertirOrden()" id="btnInvertirOrden">
+            <i class="fas fa-arrow-down-wide-short me-1" id="btn-orden-icon"></i>
+            <span id="btn-orden-texto">Ver más recientes primero</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TABLA DE EXTRACTO DE CUENTA Y MOVIMIENTOS ── -->
+  <div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover table-movimientos align-middle mb-0" id="tabla-movimientos">
+        <thead>
+          <tr>
+            <th style="width: 50px;" class="text-center">#</th>
+            <th style="width: 140px;">Fecha / Hora</th>
+            <th style="width: 140px;">Comprobante</th>
+            <th>Concepto / Detalle / Medio de Pago</th>
+            <th class="text-end" style="width: 140px;">Débito (+)</th>
+            <th class="text-end" style="width: 140px;">Crédito (-)</th>
+            <th class="text-end" style="width: 150px;">Saldo Acumulado</th>
+            <th style="width: 140px;">Registrado por</th>
+            <th style="width: 110px;" class="text-center">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-movimientos">
+          {% if movimientos %}
+            {% for m in movimientos %}
+            <tr class="fila-movimiento" data-tipo="{{ m.tipo }}" data-texto="{{ (m.comprobante ~ ' ' ~ m.detalle ~ ' ' ~ m.responsable ~ ' ' ~ m.fecha.strftime('%d/%m/%Y'))|lower }}">
+              <!-- Número de secuencia -->
+              <td class="text-center text-muted fw-semibold small">{{ m.nro }}</td>
+
+              <!-- Fecha y hora -->
+              <td>
+                <span class="fw-semibold text-dark">{{ m.fecha.strftime('%d/%m/%Y') }}</span>
+                <br>
+                <small class="text-muted"><i class="far fa-clock fa-xs me-1"></i>{{ m.fecha.strftime('%H:%M') }} hs</small>
+              </td>
+
+              <!-- Comprobante / Tipo -->
+              <td>
+                {% if m.tipo == 'boleta' %}
+                  <span class="badge bg-primary badge-comprobante">
+                    <i class="fas fa-file-invoice me-1"></i> {{ m.comprobante }}
+                  </span>
+                {% else %}
+                  <span class="badge bg-success badge-comprobante">
+                    <i class="fas fa-hand-holding-dollar me-1"></i> {{ m.comprobante }}
+                  </span>
+                {% endif %}
+              </td>
+
+              <!-- Detalle -->
+              <td>
+                {% if m.tipo == 'boleta' %}
+                  <div class="text-dark">{{ m.detalle }}</div>
+                  {% if m.saldo_pendiente_boleta > 0 and m.saldo_pendiente_boleta < m.debito %}
+                    <small class="text-muted fst-italic">Saldo remanente de esta boleta: ${{ m.saldo_pendiente_boleta|formato_peso }}</small>
+                  {% endif %}
+                {% else %}
+                  <div class="text-dark">
+                    {% if m.efectivo > 0 %}
+                      <span class="metodo-pill"><i class="fas fa-money-bill-wave me-1"></i>Efectivo: ${{ m.efectivo|formato_peso }}</span>
+                    {% endif %}
+                    {% if m.transferencia > 0 %}
+                      <span class="metodo-pill" style="background-color: #e3f2fd; color: #1565c0;"><i class="fas fa-university me-1"></i>Transf.: ${{ m.transferencia|formato_peso }}</span>
+                    {% endif %}
+                    {% if m.cheque > 0 %}
+                      <span class="metodo-pill" style="background-color: #fff3e0; color: #e65100;">
+                        <i class="fas fa-money-check me-1"></i>Cheque: ${{ m.cheque|formato_peso }}
+                        {% if m.objeto.fecha_cobro_cheque %} (Cobro: {{ m.objeto.fecha_cobro_cheque.strftime('%d/%m/%Y') }}){% endif %}
+                      </span>
+                    {% endif %}
+                  </div>
+                  {% if m.objeto.notas %}
+                    <small class="text-muted d-block mt-1"><i class="fas fa-comment-dots fa-xs me-1"></i>{{ m.objeto.notas }}</small>
+                  {% endif %}
+                {% endif %}
+              </td>
+
+              <!-- Débito (Monto facturado / cargado) -->
+              <td class="text-end">
+                {% if m.debito > 0 %}
+                  <span class="fw-bold text-danger">${{ m.debito|formato_peso }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+
+              <!-- Crédito (Monto pagado / cobrado) -->
+              <td class="text-end">
+                {% if m.credito > 0 %}
+                  <span class="fw-bold text-success">${{ m.credito|formato_peso }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+
+              <!-- Saldo acumulado tras el movimiento -->
+              <td class="text-end">
+                {% if m.saldo > 0 %}
+                  <span class="fw-bold text-danger">${{ m.saldo|formato_peso }}</span>
+                {% elif m.saldo == 0 %}
+                  <span class="fw-bold text-success">$0,00</span>
+                {% else %}
+                  <span class="fw-bold text-primary">-${{ (-m.saldo)|formato_peso }}</span>
+                {% endif %}
+              </td>
+
+              <!-- Responsable -->
+              <td>
+                <small class="text-dark fw-semibold">
+                  <i class="fas fa-user-circle text-secondary me-1"></i>{{ m.responsable }}
+                </small>
+              </td>
+
+              <!-- Estado -->
+              <td class="text-center">
+                {% if m.tipo == 'boleta' %}
+                  {% if m.estado == 'cobrada' %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle small">Cobrada</span>
+                  {% elif m.estado == 'parcial' %}
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small">Parcial</span>
+                  {% else %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle small">Pendiente</span>
+                  {% endif %}
+                {% else %}
+                  {% if m.procesado %}
+                    <span class="badge bg-light text-muted border small" title="Cobro rendido y archivado en cierre de ruta">
+                      <i class="fas fa-archive me-1"></i>Cerrado
+                    </span>
+                  {% else %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle small" title="Cobro en sesión activa del repartidor">
+                      <i class="fas fa-cash-register me-1"></i>En caja
+                    </span>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr id="fila-vacia">
+              <td colspan="9" class="text-center py-5 text-muted">
+                <i class="fas fa-receipt fa-3x mb-3 text-secondary opacity-50 d-block"></i>
+                <h5 class="fw-normal">No hay movimientos registrados para este cliente</h5>
+                <p class="small mb-0">Cuando se creen boletas o se registren cobros, aparecerán detallados en este extracto de cuenta.</p>
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+        {% if movimientos %}
+        <tfoot class="table-light border-top border-2">
+          <tr class="fw-bold">
+            <td colspan="4" class="text-end text-uppercase">Totales Generales:</td>
+            <td class="text-end text-danger fs-6">${{ total_debito|formato_peso }}</td>
+            <td class="text-end text-success fs-6">${{ total_credito|formato_peso }}</td>
+            <td class="text-end fs-6 {% if saldo_final > 0 %}text-danger{% elif saldo_final == 0 %}text-success{% else %}text-primary{% endif %}">
+              ${{ saldo_final|formato_peso }}
+            </td>
+            <td colspan="2">
+              <small class="text-muted fw-normal">
+                {% if saldo_final > 0 %}
+                  (Saldo deudor)
+                {% elif saldo_final == 0 %}
+                  (Cuenta al día)
+                {% else %}
+                  (Saldo a favor)
+                {% endif %}
+              </small>
+            </td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── SCRIPT PARA FILTROS EN TIEMPO REAL E INVERSIÓN DE ORDEN ── -->
+<script>
+let filtroTipoActual = 'todos';
+
+function filtrarTipo(tipo) {
+  filtroTipoActual = tipo;
+  document.querySelectorAll('.btn-filtro').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('btn-filtro-' + tipo);
+  if (btn) btn.classList.add('active');
+  aplicarFiltros();
+}
+
+function filtrarMovimientos() {
+  aplicarFiltros();
+}
+
+function aplicarFiltros() {
+  const query = (document.getElementById('inputBuscar').value || '').trim().toLowerCase();
+  const filas = document.querySelectorAll('#tbody-movimientos tr.fila-movimiento');
+
+  filas.forEach(fila => {
+    const tipo = fila.getAttribute('data-tipo');
+    const texto = fila.getAttribute('data-texto') || '';
+    
+    const coincideTipo = (filtroTipoActual === 'todos') || (tipo === filtroTipoActual);
+    const coincideTexto = !query || texto.includes(query);
+
+    if (coincideTipo && coincideTexto) {
+      fila.style.display = '';
+    } else {
+      fila.style.display = 'none';
+    }
+  });
+}
+
+function invertirOrden() {
+  const tbody = document.getElementById('tbody-movimientos');
+  const filas = Array.from(tbody.querySelectorAll('tr.fila-movimiento'));
+  if (filas.length <= 1) return;
+
+  filas.reverse();
+  filas.forEach(f => tbody.appendChild(f));
+
+  const btnTexto = document.getElementById('btn-orden-texto');
+  const btnIcon = document.getElementById('btn-orden-icon');
+
+  if (btnTexto.innerText.includes('recientes')) {
+    btnTexto.innerText = 'Ver más antiguos primero';
+    btnIcon.className = 'fas fa-arrow-up-wide-short me-1';
+  } else {
+    btnTexto.innerText = 'Ver más recientes primero';
+    btnIcon.className = 'fas fa-arrow-down-wide-short me-1';
+  }
+}
+</script>
+{% endblock %}

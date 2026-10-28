@@ -71,6 +71,75 @@
 .cliente-fila.total-cliente .cf-valor { color: #1a6b3c; font-size: 1rem; }
 .cliente-fila.cc-tag { background: #fdf5e6; }
 .cliente-fila.cc-tag .cf-label { color: #c8860a; font-style: italic; }
+.cliente-fila.fila-transferencia {
+  align-items: center;
+  transition: background 0.2s;
+}
+.cliente-fila.fila-transferencia.transf-pendiente {
+  background: #fff9ec;
+  border-left: 4px solid #e67e22;
+}
+.cliente-fila.fila-transferencia.transf-ok {
+  background: #eefaf2;
+  border-left: 4px solid #1a6b3c;
+}
+.transf-control-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.transf-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 2px solid #ccc;
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: bold;
+  color: #555;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.transf-pendiente .transf-check-label {
+  border-color: #e67e22;
+  color: #b95804;
+  background: #fff;
+}
+.transf-ok .transf-check-label {
+  border-color: #1a6b3c;
+  background: #1a6b3c;
+  color: #fff;
+}
+.transf-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #1a6b3c;
+  cursor: pointer;
+  margin: 0;
+}
+.banner-control-transf {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.banner-control-transf.pendiente {
+  background: #fff3cd;
+  color: #856404;
+  border: 2px solid #ffeeba;
+}
+.banner-control-transf.completo {
+  background: #d4edda;
+  color: #155724;
+  border: 2px solid #c3e6cb;
+}
 .res-card {
   background: #fff;
   border: 2px solid #ddd;
@@ -296,6 +365,18 @@
 <!-- VISTA POR CLIENTE -->
 <div id="vistaClientes" style="display:none;">
 
+  {% if total_clientes_transf is defined and total_clientes_transf > 0 %}
+  <div id="bannerControlTransf" class="banner-control-transf {{ 'completo' if clientes_transf_controladas == total_clientes_transf else 'pendiente' }}">
+    <span id="textoBannerTransf">
+      {% if clientes_transf_controladas == total_clientes_transf %}
+        &#9989; Todas las transferencias controladas ({{ clientes_transf_controladas }}/{{ total_clientes_transf }})
+      {% else %}
+        &#9888; Control de transferencias: {{ clientes_transf_controladas }} de {{ total_clientes_transf }} verificadas
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
   {# Agrupar pagos por ruta y cliente usando resumen_por_cliente #}
   {% if resumen_por_cliente %}
     {% set ruta_actual = namespace(nombre='') %}
@@ -319,9 +400,29 @@
         </div>
         {% endif %}
         {% if item.transferencia > 0 %}
-        <div class="cliente-fila">
+        <div class="cliente-fila fila-transferencia {{ 'transf-ok' if item.transferencia_controlada else 'transf-pendiente' }}" id="fila-transf-{{ item.cliente_id }}">
           <span class="cf-label">Transferencia</span>
-          <span class="cf-valor">${{ item.transferencia|formato_peso }}</span>
+          <div class="transf-control-wrap">
+            <span class="cf-valor">${{ item.transferencia|formato_peso }}</span>
+            {% if current_user.es_gerente() %}
+            <label class="transf-check-label" title="Clickear para controlar transferencia">
+              <input type="checkbox"
+                     class="transf-checkbox"
+                     data-cliente-id="{{ item.cliente_id }}"
+                     {% if item.transferencia_controlada %}checked{% endif %}
+                     onchange="toggleTransferenciaControlada(this, {{ item.cliente_id }})">
+              <span id="txt-transf-{{ item.cliente_id }}">{{ 'Controlada' if item.transferencia_controlada else 'Controlar' }}</span>
+            </label>
+            {% else %}
+            <span class="transf-check-label" style="cursor:default; opacity:0.9;" title="Solo el usuario Gerente puede marcar las transferencias como controladas">
+              {% if item.transferencia_controlada %}
+                &#10003; Controlada
+              {% else %}
+                &#8987; Falta control Gerente
+              {% endif %}
+            </span>
+            {% endif %}
+          </div>
         </div>
         {% endif %}
         {% if item.cheque > 0 %}
@@ -362,6 +463,78 @@
     document.getElementById('tabGeneral').className   = 'sub-tab' + (vista === 'general'   ? ' activo' : '');
     document.getElementById('tabRutas').className     = 'sub-tab' + (vista === 'rutas'     ? ' activo' : '');
     document.getElementById('tabClientes').className  = 'sub-tab' + (vista === 'clientes'  ? ' activo' : '');
+    try { sessionStorage.setItem('repartidorResumenTab', vista); } catch (e) {}
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      if (window.location.hash === '#clientes') {
+        mostrar('clientes');
+        return;
+      }
+      const savedTab = sessionStorage.getItem('repartidorResumenTab');
+      if (savedTab && ['general', 'rutas', 'clientes'].includes(savedTab)) {
+        mostrar(savedTab);
+      }
+    } catch (e) {}
+  });
+
+  function actualizarBannerTransferencias() {
+    const checkboxes = document.querySelectorAll('.transf-checkbox');
+    const total = checkboxes.length;
+    if (total === 0) return;
+    let controladas = 0;
+    checkboxes.forEach(function(cb) {
+      if (cb.checked) controladas++;
+    });
+    const banner = document.getElementById('bannerControlTransf');
+    const texto = document.getElementById('textoBannerTransf');
+    if (banner && texto) {
+      if (controladas === total) {
+        banner.className = 'banner-control-transf completo';
+        texto.innerHTML = '&#9989; Todas las transferencias controladas (' + controladas + '/' + total + ')';
+      } else {
+        banner.className = 'banner-control-transf pendiente';
+        texto.innerHTML = '&#9888; Control de transferencias: ' + controladas + ' de ' + total + ' verificadas';
+      }
+    }
+  }
+
+  function toggleTransferenciaControlada(checkbox, clienteId) {
+    const nuevoEstado = checkbox.checked;
+    const fila = document.getElementById('fila-transf-' + clienteId);
+    const txt = document.getElementById('txt-transf-' + clienteId);
+    checkbox.disabled = true;
+
+    fetch('/repartidor/cliente/' + clienteId + '/controlar-transferencia', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ controlada: nuevoEstado })
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('No se pudo actualizar el estado');
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data.success) throw new Error(data.error || 'Error al guardar');
+      if (fila) {
+        fila.classList.toggle('transf-ok', data.controlada);
+        fila.classList.toggle('transf-pendiente', !data.controlada);
+      }
+      if (txt) {
+        txt.textContent = data.controlada ? 'Controlada' : 'Controlar';
+      }
+      actualizarBannerTransferencias();
+    })
+    .catch(function(err) {
+      checkbox.checked = !nuevoEstado;
+      alert('Error al guardar el control de transferencia: ' + err.message);
+    })
+    .finally(function() {
+      checkbox.disabled = false;
+    });
   }
 
   function descargarPDFRutas() {

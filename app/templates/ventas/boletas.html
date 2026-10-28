@@ -151,15 +151,28 @@
 <!-- ── ENCABEZADO ── -->
 <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
   <div>
+    {% if current_user.es_gerente() %}
+    <a href="{{ url_for('gerente.dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">
+      <i class="fas fa-arrow-left"></i> Panel de Gerencia
+    </a>
+    {% else %}
     <a href="{{ url_for('ventas.dashboard') }}" class="btn btn-sm btn-outline-secondary mb-2">
       <i class="fas fa-arrow-left"></i> Panel de Ventas
     </a>
+    {% endif %}
     <h4 class="mb-0"><i class="fas fa-file-invoice-dollar"></i> Boletas y Cobros</h4>
     <p class="text-muted small mb-0">
       {{ hoy.strftime('%A %d de %B de %Y') }} &mdash;
-      Exclusivo para Ventas y Repartidor
+      Exclusivo para Ventas y Gerencia
     </p>
   </div>
+  {% if current_user.es_gerente() %}
+  <div>
+    <a href="{{ url_for('repartidor.resumen') }}#clientes" class="btn btn-success shadow-sm">
+      <i class="fas fa-clipboard-check me-1"></i> Ver Resumen Repartidor (Controlar Transferencias)
+    </a>
+  </div>
+  {% endif %}
 </div>
 
 {% if datos_por_ruta %}
@@ -306,6 +319,12 @@
             ${{ r.total_debe|formato_peso }}
           </span>
           {% endif %}
+          <!-- Transferencias pendientes de control -->
+          {% if r.transferencias_pendientes is defined and r.transferencias_pendientes > 0 %}
+          <span class="badge bg-warning text-dark border border-warning" title="Faltan controlar transferencias en esta ruta">
+            <i class="fas fa-university me-1"></i>{{ r.transferencias_pendientes }} transf. sin controlar
+          </span>
+          {% endif %}
         </span>
       </button>
     </h2>
@@ -371,6 +390,13 @@
                 <td class="text-end text-success">
                   {% if d.cobrado_hoy > 0 %}
                     <span class="fw-bold">${{ d.cobrado_hoy|formato_peso }}</span>
+                    {% if d.tiene_transferencia_hoy %}
+                      {% if d.transferencia_controlada %}
+                        <br><small class="text-success"><i class="fas fa-check-circle me-1"></i>Transf. controlada</small>
+                      {% else %}
+                        <br><small class="text-danger fw-semibold"><i class="fas fa-exclamation-circle me-1"></i>Falta controlar transf.</small>
+                      {% endif %}
+                    {% endif %}
                   {% else %}
                     <span class="text-muted small">$0,00</span>
                   {% endif %}
@@ -418,7 +444,7 @@
                     {% if d.boleta_hoy or d.cobrado_hoy > 0 %}
                     <form action="{{ url_for('ventas.resetear_cliente_dia', cliente_id=d.cliente.id) }}" method="POST" class="m-0">
                       <button type="submit" class="btn btn-sm btn-outline-danger" title="Cerrar el día y pasar a CC"
-                              onclick="return confirm('¿Seguro que querés dar por cerrado el día para {{ d.cliente.nombre }}? El saldo pendiente pasará a Cuenta Corriente.')">
+                              {% if not (d.tiene_transferencia_hoy and not d.transferencia_controlada) %}onclick="return confirm('¿Seguro que querés dar por cerrado el día para {{ d.cliente.nombre }}? El saldo pendiente pasará a Cuenta Corriente.')"{% endif %}>
                         <i class="fas fa-broom"></i>
                       </button>
                     </form>
@@ -438,10 +464,20 @@
           {% if r.con_boleta > 0 or r.total_a_cobrar > 0 %}
           <form action="{{ url_for('ventas.resetear_ruta_dia', ruta_nombre=ruta) }}" method="POST" class="m-0 ms-3">
             <button type="submit" class="btn btn-sm btn-outline-danger" 
-                    onclick="return confirm('¿Estás seguro de cerrar el día para TODOS los clientes de la ruta {{ ruta }}? Todos los saldos pendientes se pasarán a Cuenta Corriente.')">
+                    {% if not (r.transferencias_pendientes is defined and r.transferencias_pendientes > 0) %}onclick="return confirm('¿Estás seguro de cerrar el día para TODOS los clientes de la ruta {{ ruta }}? Todos los saldos pendientes se pasarán a Cuenta Corriente.')"{% endif %}>
               <i class="fas fa-broom me-1"></i> Cerrar día para esta ruta
             </button>
           </form>
+          {% if r.transferencias_pendientes is defined and r.transferencias_pendientes > 0 %}
+          <span class="text-danger small fw-semibold">
+            <i class="fas fa-exclamation-triangle me-1"></i>Faltan controlar {{ r.transferencias_pendientes }} transferencia{{ 's' if r.transferencias_pendientes != 1 else '' }}
+          </span>
+          {% if current_user.es_gerente() %}
+          <a href="{{ url_for('repartidor.resumen') }}#clientes" class="btn btn-sm btn-warning text-dark fw-semibold">
+            <i class="fas fa-clipboard-check me-1"></i>Controlar transferencias
+          </a>
+          {% endif %}
+          {% endif %}
           {% endif %}
 
           {% if r.total_a_cobrar > 0 %}
@@ -634,9 +670,15 @@
       sessionStorage.removeItem('boletasAccordions');
     }
 
-    // Restaurar scroll
+    // Restaurar scroll (salvo que haya una alerta de error/advertencia en la parte superior)
     const savedScroll = sessionStorage.getItem('boletasScrollY');
-    if (savedScroll !== null) {
+    const alertaError = document.querySelector('.alert-danger, .alert-warning');
+    if (alertaError) {
+      sessionStorage.removeItem('boletasScrollY');
+      setTimeout(function() {
+        alertaError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    } else if (savedScroll !== null) {
       setTimeout(function() {
         window.scrollTo(0, parseInt(savedScroll, 10));
         sessionStorage.removeItem('boletasScrollY');

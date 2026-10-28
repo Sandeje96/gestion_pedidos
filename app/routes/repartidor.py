@@ -32,6 +32,17 @@ def repartidor_requerido(f):
     return decorated_function
 
 
+def repartidor_o_gerente_requerido(f):
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not (current_user.es_repartidor() or current_user.es_gerente()):
+            flash('No tienes permisos para acceder a esta sección', 'danger')
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 @repartidor_bp.route('/dashboard')
 @repartidor_requerido
 def dashboard():
@@ -403,7 +414,7 @@ def todo_a_cuenta_corriente(cliente_id):
 
 
 @repartidor_bp.route('/resumen')
-@repartidor_requerido
+@repartidor_o_gerente_requerido
 def resumen():
     """
     Resumen del viaje activo del repartidor:
@@ -420,14 +431,24 @@ def resumen():
     hoy = (datetime.utcnow() - OFFSET_ARG).date()
 
     # Todos los cobros de la sesión activa (procesado=False)
-    pagos_hoy = (
-        PagoBoleta.query
-        .filter(
-            PagoBoleta.cobrado_por_id == current_user.id,
-            PagoBoleta.procesado == False
+    if current_user.es_gerente():
+        pagos_hoy = PagoBoleta.query.filter(PagoBoleta.procesado == False).all()
+        gastos_hoy = GastoRepartidor.query.filter(
+            GastoRepartidor.procesado == False
+        ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
+    else:
+        pagos_hoy = (
+            PagoBoleta.query
+            .filter(
+                PagoBoleta.cobrado_por_id == current_user.id,
+                PagoBoleta.procesado == False
+            )
+            .all()
         )
-        .all()
-    )
+        gastos_hoy = GastoRepartidor.query.filter(
+            GastoRepartidor.repartidor_id == current_user.id,
+            GastoRepartidor.procesado == False
+        ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
 
     # Totales generales
     total_efectivo     = sum(float(p.efectivo)      for p in pagos_hoy)
@@ -435,11 +456,6 @@ def resumen():
     total_cheque       = sum(float(p.cheque)         for p in pagos_hoy)
     total_cobrado      = total_efectivo + total_transferencia + total_cheque
 
-    # Gastos de la sesión activa (procesado=False)
-    gastos_hoy = GastoRepartidor.query.filter(
-        GastoRepartidor.repartidor_id == current_user.id,
-        GastoRepartidor.procesado == False
-    ).order_by(GastoRepartidor.fecha_creacion.asc()).all()
     total_gastos = sum(float(g.monto) for g in gastos_hoy)
 
     neto_efectivo = total_efectivo - total_gastos
@@ -484,24 +500,35 @@ def resumen():
 
     # Agrupado por cliente (para la pestaña "Por cliente")
     clientes_dict = defaultdict(lambda: {
+        'cliente_id': 0,
         'nombre': '', 'ruta': '', 'efectivo': 0.0,
-        'transferencia': 0.0, 'cheque': 0.0, 'total': 0.0, 'es_cc': False
+        'transferencia': 0.0, 'cheque': 0.0, 'total': 0.0, 'es_cc': False,
+        'transferencia_controlada': True
     })
     for p in pagos_hoy:
         cid = p.cliente_id
         ruta = p.cliente.ruta if p.cliente and p.cliente.ruta else 'Sin ruta'
+        clientes_dict[cid]['cliente_id'] = cid
         clientes_dict[cid]['nombre'] = p.cliente.nombre if p.cliente else f'Cliente #{cid}'
         clientes_dict[cid]['ruta']   = ruta
         clientes_dict[cid]['efectivo']      += float(p.efectivo)
         clientes_dict[cid]['transferencia'] += float(p.transferencia)
         clientes_dict[cid]['cheque']        += float(p.cheque)
         clientes_dict[cid]['total']         += float(p.total_recibido)
+        if float(p.transferencia or 0) > 0 and not p.transferencia_controlada:
+            clientes_dict[cid]['transferencia_controlada'] = False
         if p.notas == 'Todo a cuenta corriente' and float(p.total_recibido) == 0:
             clientes_dict[cid]['es_cc'] = True
 
     resumen_por_cliente = sorted(
         clientes_dict.values(),
         key=lambda x: (x['ruta'], x['nombre'])
+    )
+
+    total_clientes_transf = sum(1 for item in resumen_por_cliente if item['transferencia'] > 0)
+    clientes_transf_controladas = sum(
+        1 for item in resumen_por_cliente
+        if item['transferencia'] > 0 and item['transferencia_controlada']
     )
 
     return render_template(
@@ -519,8 +546,49 @@ def resumen():
         gastos_hoy=gastos_hoy,
         resumen_rutas=resumen_rutas,
         resumen_por_cliente=resumen_por_cliente,
-        total_visitas=len(pagos_hoy)
+        total_visitas=len(pagos_hoy),
+        total_clientes_transf=total_clientes_transf,
+        clientes_transf_controladas=clientes_transf_controladas
     )
+
+
+@repartidor_bp.route('/cliente/<int:cliente_id>/controlar-transferencia', methods=['POST'])
+@login_required
+def controlar_transferencia(cliente_id):
+    """
+    Marca o desmarca como controlada la transferencia de un cliente en la sesión activa.
+    Exclusivo para el usuario Gerente al controlar la rendición en /repartidor/resumen.
+    """
+    if not current_user.es_gerente():
+        return jsonify({
+            'success': False,
+            'error': 'Solo el usuario Gerente tiene permisos para controlar y validar transferencias.'
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    controlada = bool(data.get('controlada', False))
+
+    pagos_transf = PagoBoleta.query.filter(
+        PagoBoleta.cliente_id == cliente_id,
+        PagoBoleta.procesado == False,
+        PagoBoleta.transferencia > 0
+    ).all()
+    if not pagos_transf:
+        return jsonify({'success': False, 'error': 'No se encontró pago por transferencia activo para este cliente.'}), 404
+
+    for p in pagos_transf:
+        p.transferencia_controlada = controlada
+
+    try:
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'cliente_id': cliente_id,
+            'controlada': controlada
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @repartidor_bp.route('/gastos', methods=['GET', 'POST'])

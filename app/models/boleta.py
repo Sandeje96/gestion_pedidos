@@ -116,6 +116,8 @@ class PagoBoleta(db.Model):
     # Indica si este pago fue cerrado por Ventas (cierre de ruta).
     # False = sesión activa (se muestra en resumen). True = sesión cerrada (archivado).
     procesado = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    # Indica si el pago por transferencia fue controlado por el Gerente
+    transferencia_controlada = db.Column(db.Boolean, nullable=False, default=False)
     # Vínculo con el CierreRuta donde se archivó este cobro
     cierre_ruta_id = db.Column(
         db.Integer, db.ForeignKey('cierres_ruta.id'), nullable=True, index=True
@@ -144,4 +146,5 @@ class PagoBoleta(db.Model):
             'notas': self.notas,
             'fecha_cobro': self.fecha_cobro.isoformat() if self.fecha_cobro else None,
             'cierre_ruta_id': self.cierre_ruta_id,
+            'transferencia_controlada': self.transferencia_controlada,
         }

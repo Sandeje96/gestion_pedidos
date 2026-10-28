@@ -340,6 +340,28 @@ def create_app(config_name='development'):
             db.session.rollback()
             print(f"Migración es_cuenta_corriente en boletas: {e_bcc}")
 
+        # 17. Agregar columna 'transferencia_controlada' en pagos_boleta
+        try:
+            cols_pagos = [c['name'] for c in inspect(db.engine).get_columns('pagos_boleta')]
+            if 'transferencia_controlada' not in cols_pagos:
+                try:
+                    db.session.execute(text("ALTER TABLE pagos_boleta ADD COLUMN IF NOT EXISTS transferencia_controlada BOOLEAN DEFAULT FALSE NOT NULL"))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    db.session.execute(text("ALTER TABLE pagos_boleta ADD COLUMN transferencia_controlada BOOLEAN DEFAULT FALSE NOT NULL"))
+                    db.session.commit()
+                # Marcar como controladas las transferencias de rutas que ya fueron cerradas históricamente
+                from app.models.boleta import PagoBoleta
+                PagoBoleta.query.filter(
+                    PagoBoleta.procesado == True,
+                    PagoBoleta.transferencia > 0
+                ).update({'transferencia_controlada': True}, synchronize_session=False)
+                db.session.commit()
+        except Exception as e_tc:
+            db.session.rollback()
+            print(f"Migración transferencia_controlada en pagos_boleta: {e_tc}")
+
         # 7. Auto-vincular materias primas con productos de mismo nombre y sincronizar stocks idénticos
         try:
             from app.models.producto import Producto

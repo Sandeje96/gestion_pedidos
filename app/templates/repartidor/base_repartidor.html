@@ -91,12 +91,31 @@
 <body>
 
   <div class="topbar">
+    {% if current_user.es_gerente() %}
+    <span class="topbar-title">&#x1F69A; Control Repartidor — {{ current_user.nombre }} (Gerente)</span>
+    <div style="display:flex; gap:8px;">
+      <a href="{{ url_for('ventas.boletas') }}" class="btn-salir" style="background:rgba(255,255,255,0.28); font-weight:bold;">&larr; Boletas / Cerrar Ruta</a>
+      <a href="/auth/logout" class="btn-salir">Salir</a>
+    </div>
+    {% else %}
     <span class="topbar-title">&#x1F69A; Repartidor — {{ current_user.nombre }}</span>
     <a href="/auth/logout" class="btn-salir">Salir</a>
+    {% endif %}
   </div>
 
   <!-- NAVEGACION -->
   <div class="repartidor-nav">
+    {% if current_user.es_gerente() %}
+    <a href="{{ url_for('repartidor.resumen') }}" class="active">
+      Resumen y Control Transf.
+    </a>
+    <a href="{{ url_for('ventas.boletas') }}">
+      Boletas y Cerrar Ruta
+    </a>
+    <a href="{{ url_for('gerente.dashboard') }}">
+      Panel Gerencia
+    </a>
+    {% else %}
     <a href="{{ url_for('repartidor.dashboard') }}" class="{% if request.endpoint == 'repartidor.dashboard' or request.endpoint == 'repartidor.cobro_cliente' %}active{% endif %}">
       Rutas / Cobros
     </a>
@@ -109,6 +128,7 @@
     <a href="{{ url_for('repartidor.historial_gastos') }}" class="{% if request.endpoint == 'repartidor.historial_gastos' %}active{% endif %}" title="Historial">
       &#x1F4DC; Historial
     </a>
+    {% endif %}
   </div>
 
   <!-- Mensajes flash -->

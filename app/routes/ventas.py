@@ -1098,6 +1098,15 @@ def boletas():
             # Convertir de UTC a GMT-3 (Argentina)
             ultimo_cobro_fecha = ultimo_cobro.fecha_cobro - timedelta(hours=3)
 
+        # Estado de control de transferencias activas del cliente
+        pagos_transf_activos = PagoBoleta.query.filter(
+            PagoBoleta.cliente_id == cliente.id,
+            PagoBoleta.procesado == False,
+            PagoBoleta.transferencia > 0
+        ).all()
+        tiene_transferencia_hoy = len(pagos_transf_activos) > 0
+        transferencia_controlada = all(p.transferencia_controlada for p in pagos_transf_activos) if tiene_transferencia_hoy else True
+
         datos_clientes.append({
             'cliente': cliente,
             'boleta_hoy': boleta_hoy,
@@ -1108,6 +1117,8 @@ def boletas():
             'debe': deuda_actual,
             'ultimo_cobro': ultimo_cobro,
             'ultimo_cobro_fecha': ultimo_cobro_fecha,
+            'tiene_transferencia_hoy': tiene_transferencia_hoy,
+            'transferencia_controlada': transferencia_controlada,
         })
 
     # Agrupar por ruta, ordenadas alfabéticamente
@@ -1127,6 +1138,9 @@ def boletas():
             'total_a_cobrar': sum(d['total_a_cobrar'] for d in datos),
             'total_debe': sum(d['debe'] for d in datos),
             'con_cc': sum(1 for d in datos if d['saldo_cc'] > 0),
+            'transferencias_pendientes': sum(
+                1 for d in datos if d['tiene_transferencia_hoy'] and not d['transferencia_controlada']
+            ),
         }
 
     # Lista plana de nombres para autocompletado
@@ -1610,7 +1624,8 @@ def registrar_pago_gerente(cliente_id):
         aplicado_cc=aplicado_cc,
         saldo_favor=saldo_favor,
         cobrado_por_id=current_user.id,
-        notas=notas
+        notas=notas,
+        transferencia_controlada=True
     )
     db.session.add(pago)
 
@@ -1801,6 +1816,19 @@ def resetear_cliente_dia(cliente_id):
         PagoBoleta.procesado == False
     ).all()
 
+    # Verificar que todas las transferencias activas del cliente hayan sido controladas por el Gerente
+    transferencias_sin_controlar = [
+        p for p in pagos_activos
+        if float(p.transferencia or 0) > 0 and not p.transferencia_controlada
+    ]
+    if transferencias_sin_controlar:
+        flash(
+            f'No se puede cerrar el día para {cliente.nombre}: faltan controlar pagos por transferencia. '
+            f'Por favor verificá y marcá el check en el resumen del repartidor.',
+            'danger'
+        )
+        return redirect(url_for('ventas.boletas'))
+
     # Agrupar cobros por repartidor
     cobros_por_rep = defaultdict(list)
     for p in pagos_activos:
@@ -1879,6 +1907,24 @@ def resetear_ruta_dia(ruta_nombre):
         PagoBoleta.cliente_id.in_(clientes_ids),
         PagoBoleta.procesado == False
     ).all()
+
+    # Verificar que todas las transferencias activas de la ruta hayan sido controladas por el Gerente
+    transferencias_sin_controlar = [
+        p for p in pagos_activos
+        if float(p.transferencia or 0) > 0 and not p.transferencia_controlada
+    ]
+    if transferencias_sin_controlar:
+        nombres_pendientes = sorted({
+            p.cliente.nombre if p.cliente else f'Cliente #{p.cliente_id}'
+            for p in transferencias_sin_controlar
+        })
+        lista_clientes = ', '.join(nombres_pendientes)
+        flash(
+            f'No se puede cerrar la ruta {ruta_nombre}: faltan controlar transferencias ({lista_clientes}). '
+            f'Por favor verificá y completá todos los checks de transferencia en el resumen del repartidor.',
+            'danger'
+        )
+        return redirect(url_for('ventas.boletas'))
 
     # 3. Gastos activos de esta ruta
     gastos_ruta_activos = GastoRepartidor.query.filter(

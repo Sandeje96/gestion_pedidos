@@ -1792,7 +1792,7 @@ def anular_boleta(boleta_id):
 
 
 @ventas_bp.route('/cliente/<int:cliente_id>/resetear_dia', methods=['POST'])
-@vendedor_o_gerente_requerido
+@gerente_requerido
 def resetear_cliente_dia(cliente_id):
     """
     Cierra la sesión activa del cliente.
@@ -1875,7 +1875,7 @@ def resetear_cliente_dia(cliente_id):
 
 
 @ventas_bp.route('/ruta/<ruta_nombre>/resetear_dia', methods=['POST'])
-@vendedor_o_gerente_requerido
+@gerente_requerido
 def resetear_ruta_dia(ruta_nombre):
     """
     Cierra la sesión activa para todos los clientes de una ruta.

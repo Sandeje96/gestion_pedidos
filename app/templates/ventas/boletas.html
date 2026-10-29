@@ -441,7 +441,7 @@
                        class="btn btn-sm btn-outline-info" title="Ver movimientos y extracto de cuenta">
                       <i class="fas fa-receipt"></i>
                     </a>
-                    {% if d.boleta_hoy or d.cobrado_hoy > 0 %}
+                    {% if current_user.es_gerente() and (d.boleta_hoy or d.cobrado_hoy > 0) %}
                     <form action="{{ url_for('ventas.resetear_cliente_dia', cliente_id=d.cliente.id) }}" method="POST" class="m-0">
                       <button type="submit" class="btn btn-sm btn-outline-danger" title="Cerrar el día y pasar a CC"
                               {% if not (d.tiene_transferencia_hoy and not d.transferencia_controlada) %}onclick="return confirm('¿Seguro que querés dar por cerrado el día para {{ d.cliente.nombre }}? El saldo pendiente pasará a Cuenta Corriente.')"{% endif %}>
@@ -461,7 +461,7 @@
           <span><strong>{{ r.con_boleta }}</strong> con boleta hoy</span>
           <span><strong>{{ r.sin_boleta }}</strong> sin boleta</span>
           
-          {% if r.con_boleta > 0 or r.total_a_cobrar > 0 %}
+          {% if current_user.es_gerente() and (r.con_boleta > 0 or r.total_a_cobrar > 0) %}
           <form action="{{ url_for('ventas.resetear_ruta_dia', ruta_nombre=ruta) }}" method="POST" class="m-0 ms-3">
             <button type="submit" class="btn btn-sm btn-outline-danger" 
                     {% if not (r.transferencias_pendientes is defined and r.transferencias_pendientes > 0) %}onclick="return confirm('¿Estás seguro de cerrar el día para TODOS los clientes de la ruta {{ ruta }}? Todos los saldos pendientes se pasarán a Cuenta Corriente.')"{% endif %}>
@@ -472,11 +472,9 @@
           <span class="text-danger small fw-semibold">
             <i class="fas fa-exclamation-triangle me-1"></i>Faltan controlar {{ r.transferencias_pendientes }} transferencia{{ 's' if r.transferencias_pendientes != 1 else '' }}
           </span>
-          {% if current_user.es_gerente() %}
           <a href="{{ url_for('repartidor.resumen') }}#clientes" class="btn btn-sm btn-warning text-dark fw-semibold">
             <i class="fas fa-clipboard-check me-1"></i>Controlar transferencias
           </a>
-          {% endif %}
           {% endif %}
           {% endif %}
 

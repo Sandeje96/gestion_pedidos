@@ -380,6 +380,19 @@ def create_app(config_name='development'):
             print(f"Auto-vinculación y sincronización inicial de stocks: {e_vinc}")
 
 
+        # Limpieza: pedidos archivados no deben conservar notificaciones sin leer
+        try:
+            db.session.execute(text(
+                "UPDATE pedidos SET visto_por_vendedor = TRUE, visto_por_fabrica = TRUE, "
+                "esperando_contestacion = FALSE "
+                "WHERE archivado = TRUE AND (visto_por_vendedor = FALSE OR visto_por_fabrica = FALSE "
+                "OR esperando_contestacion = TRUE)"
+            ))
+            db.session.commit()
+        except Exception as e_notif:
+            db.session.rollback()
+            print(f"Limpieza de notificaciones archivadas: {e_notif}")
+
     # ── Filtros Jinja2 personalizados ──
     def formato_peso(value, decimales=2):
         """Formatea un número con punto como separador de miles y coma para decimales.

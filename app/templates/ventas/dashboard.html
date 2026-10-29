@@ -132,7 +132,7 @@
                                     {# Verificar si hay respuestas nuevas de fábrica en esta ruta #}
                                     {% set tiene_nuevos_ruta = namespace(value=False) %}
                                     {% for cliente in clientes %}
-                                        {% for pedido in cliente.pedidos %}
+                                        {% for pedido in cliente.pedidos.filter_by(archivado=False) %}
                                             {% if pedido.observaciones_fabrica and not pedido.visto_por_vendedor %}
                                                 {% set tiene_nuevos_ruta.value = True %}
                                             {% endif %}
@@ -233,7 +233,7 @@
                                                     
                                                     {# Verificar si el cliente tiene observaciones nuevas de fábrica #}
                                                     {% set tiene_nuevos = namespace(value=False) %}
-                                                    {% for pedido in cliente.pedidos %}
+                                                    {% for pedido in cliente.pedidos.filter_by(archivado=False) %}
                                                         {% if pedido.observaciones_fabrica and not pedido.visto_por_vendedor %}
                                                             {% set tiene_nuevos.value = True %}
                                                         {% endif %}

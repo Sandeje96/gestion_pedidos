@@ -193,3 +193,7 @@ class Pedido(db.Model):
         self.archivado = True
         self.fecha_archivado = datetime.utcnow()
         self.semana_archivado = semana
+        # Limpiar notificaciones pendientes para que no queden "pegadas"
+        self.visto_por_vendedor = True
+        self.visto_por_fabrica = True
+        self.esperando_contestacion = False

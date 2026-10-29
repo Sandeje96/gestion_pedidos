@@ -1265,7 +1265,7 @@ def movimientos_cliente(cliente_id):
 
         creador_nombre = 'Sistema'
         if b.creado_por:
-            creador_nombre = b.creado_por.nombre_completo or b.creado_por.username
+            creador_nombre = b.creado_por.nombre or b.creado_por.username
 
         movimientos_raw.append({
             'tipo': 'boleta',
@@ -1303,7 +1303,7 @@ def movimientos_cliente(cliente_id):
 
         cobrador_nombre = 'Repartidor'
         if p.cobrado_por:
-            cobrador_nombre = p.cobrado_por.nombre_completo or p.cobrado_por.username
+            cobrador_nombre = p.cobrado_por.nombre or p.cobrado_por.username
 
         movimientos_raw.append({
             'tipo': 'pago',

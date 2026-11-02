@@ -82,18 +82,33 @@
 .ruta-bloque[open] summary { border-bottom: 2px solid #ccc; background: #f0f0f0; }
 
 .ruta-bloque summary .ruta-nombre { flex: 1; }
-.ruta-bloque summary .ruta-monto {
-  font-size: 0.95rem;
+.ruta-montos-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-right: 10px;
+}
+.ruta-bloque summary .ruta-badge {
+  font-size: 0.82rem;
   font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.ruta-badge-boletas {
+  color: #0d47a1;
+  background: #e8f1fb;
+  border: 1px solid #b6d4fe;
+}
+.ruta-badge-cobrado {
   color: #1a6b3c;
   background: #eaf5ee;
   border: 1px solid #b8dfc6;
-  padding: 4px 10px;
-  border-radius: 6px;
-  margin-right: 10px;
-  white-space: nowrap;
 }
-.ruta-bloque summary .ruta-monto.sin-monto {
+.ruta-bloque summary .ruta-badge.sin-monto {
   color: #777;
   background: #f5f5f5;
   border-color: #ddd;
@@ -174,11 +189,17 @@
   <div id="listaRutas">
     {% for ruta, clientes in clientes_por_ruta.items() %}
     {% set monto_ruta = monto_por_ruta.get(ruta, 0.0) %}
+    {% set cobrado_ruta = cobrado_por_ruta.get(ruta, 0.0) %}
     <details class="ruta-bloque" data-ruta="{{ ruta|lower }}" data-clientes="{{ clientes|map(attribute='nombre')|join(' ')|lower }}">
       <summary>
         <span class="ruta-nombre">{{ ruta }}</span>
-        <span class="ruta-monto {% if monto_ruta <= 0 %}sin-monto{% endif %}" title="Monto a cobrar de boletas de hoy (sin cuentas corrientes)">
-          ${{ monto_ruta|formato_peso }}
+        <span class="ruta-montos-wrap">
+          <span class="ruta-badge ruta-badge-boletas {% if monto_ruta <= 0 %}sin-monto{% endif %}" title="Monto total de boletas de hoy (sin cuentas corrientes)">
+            Boletas hoy: ${{ monto_ruta|formato_peso }}
+          </span>
+          <span class="ruta-badge ruta-badge-cobrado {% if cobrado_ruta <= 0 %}sin-monto{% endif %}" title="Total cobrado actualmente en esta ruta">
+            Cobrado: ${{ cobrado_ruta|formato_peso }}
+          </span>
         </span>
         <span class="ruta-count">{{ clientes|length }} cliente{{ 's' if clientes|length != 1 else '' }}</span>
         <span class="ruta-flecha">&#9660;</span>

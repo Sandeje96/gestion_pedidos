@@ -82,11 +82,29 @@
 .ruta-bloque[open] summary { border-bottom: 2px solid #ccc; background: #f0f0f0; }
 
 .ruta-bloque summary .ruta-nombre { flex: 1; }
+.ruta-bloque summary .ruta-monto {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #1a6b3c;
+  background: #eaf5ee;
+  border: 1px solid #b8dfc6;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-right: 10px;
+  white-space: nowrap;
+}
+.ruta-bloque summary .ruta-monto.sin-monto {
+  color: #777;
+  background: #f5f5f5;
+  border-color: #ddd;
+  font-weight: normal;
+}
 .ruta-bloque summary .ruta-count {
   font-size: 0.85rem;
   font-weight: normal;
   color: #666;
   margin-right: 10px;
+  white-space: nowrap;
 }
 .ruta-bloque summary .ruta-flecha {
   font-size: 1rem;
@@ -155,9 +173,13 @@
 
   <div id="listaRutas">
     {% for ruta, clientes in clientes_por_ruta.items() %}
+    {% set monto_ruta = monto_por_ruta.get(ruta, 0.0) %}
     <details class="ruta-bloque" data-ruta="{{ ruta|lower }}" data-clientes="{{ clientes|map(attribute='nombre')|join(' ')|lower }}">
       <summary>
         <span class="ruta-nombre">{{ ruta }}</span>
+        <span class="ruta-monto {% if monto_ruta <= 0 %}sin-monto{% endif %}" title="Monto a cobrar de boletas de hoy (sin cuentas corrientes)">
+          ${{ monto_ruta|formato_peso }}
+        </span>
         <span class="ruta-count">{{ clientes|length }} cliente{{ 's' if clientes|length != 1 else '' }}</span>
         <span class="ruta-flecha">&#9660;</span>
       </summary>

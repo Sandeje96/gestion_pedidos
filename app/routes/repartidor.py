@@ -67,10 +67,52 @@ def dashboard():
     total_rutas = len(clientes_por_ruta)
     total_clientes = len(clientes)
 
+    # Calcular monto a cobrar por ruta y por cliente considerando SOLO las boletas de hoy / viaje activo
+    # (es_cuenta_corriente == False), desestimando las cuentas corrientes.
+    # Si el repartidor ya registró la visita a ese cliente en esta sesión (procesado == False),
+    # el monto de su boleta de hoy ya fue operado (cobrado o pasado a CC), por lo que ya no suma como pendiente de hoy.
+    clientes_ids = [c.id for c in clientes]
+    boletas_hoy_por_cliente = {}
+    monto_por_ruta = {ruta: 0.0 for ruta in clientes_por_ruta.keys()}
+
+    if clientes_ids:
+        clientes_operados_ids = {
+            row[0] for row in db.session.query(PagoBoleta.cliente_id).filter(
+                PagoBoleta.cliente_id.in_(clientes_ids),
+                PagoBoleta.cobrado_por_id == current_user.id,
+                PagoBoleta.procesado == False
+            ).all()
+        }
+
+        boletas_activas = (
+            Boleta.query
+            .filter(
+                Boleta.cliente_id.in_(clientes_ids),
+                Boleta.es_cuenta_corriente == False,
+                Boleta.estado.in_(['pendiente', 'parcial'])
+            )
+            .order_by(Boleta.fecha_creacion.asc())
+            .all()
+        )
+        # Nos quedamos con la boleta activa más reciente de cada cliente que aún no fue operado en el viaje
+        for b in boletas_activas:
+            if b.cliente_id not in clientes_operados_ids:
+                boletas_hoy_por_cliente[b.cliente_id] = float(b.saldo_pendiente)
+
+        for ruta, lista_clientes in clientes_por_ruta.items():
+            monto_por_ruta[ruta] = sum(
+                boletas_hoy_por_cliente.get(c.id, 0.0) for c in lista_clientes
+            )
+
+    total_boletas_hoy = sum(monto_por_ruta.values())
+
     return render_template(
         'repartidor/dashboard.html',
         title='Panel de Repartidor',
         clientes_por_ruta=clientes_por_ruta,
+        monto_por_ruta=monto_por_ruta,
+        boletas_hoy_por_cliente=boletas_hoy_por_cliente,
+        total_boletas_hoy=total_boletas_hoy,
         total_rutas=total_rutas,
         total_clientes=total_clientes
     )

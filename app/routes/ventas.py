@@ -1173,6 +1173,193 @@ def boletas():
     )
 
 
+@ventas_bp.route('/boletas/pdf-cuenta-corriente')
+@vendedor_o_gerente_requerido
+def pdf_cuenta_corriente():
+    """
+    Vista / Generador de PDF detallado de Cuentas Corrientes por ruta.
+    Detalla para cada cliente con saldo en Cuenta Corriente todas las entregas
+    anteriores pendientes o con pago parcial, montos originales, abonos y saldo actual.
+    """
+    from collections import defaultdict
+
+    ahora_arg = datetime.utcnow() - timedelta(hours=3)
+    hoy = ahora_arg.date()
+    ruta_filtro = request.args.get('ruta', '').strip()
+    auto_descargar = request.args.get('descargar', '0') == '1'
+
+    clientes = (
+        Cliente.query
+        .filter(Cliente.activo == True, Cliente.ruta != 'SUCURSALES')
+        .order_by(Cliente.ruta, Cliente.nombre)
+        .all()
+    )
+
+    rutas_todas = sorted({c.ruta for c in clientes if c.ruta})
+    clientes_ids = [c.id for c in clientes]
+
+    # Traer todas las boletas pendientes o parciales de estos clientes en una sola consulta
+    boletas_pendientes = []
+    if clientes_ids:
+        boletas_pendientes = (
+            Boleta.query
+            .filter(
+                Boleta.cliente_id.in_(clientes_ids),
+                Boleta.estado.in_(['pendiente', 'parcial'])
+            )
+            .order_by(Boleta.fecha_entrega.asc(), Boleta.id.asc())
+            .all()
+        )
+
+    boletas_por_cliente = defaultdict(list)
+    for b in boletas_pendientes:
+        boletas_por_cliente[b.cliente_id].append(b)
+
+    # Traer últimos cobros por cliente
+    ultimos_cobros_por_cliente = {}
+    if clientes_ids:
+        todos_pagos = (
+            PagoBoleta.query
+            .filter(PagoBoleta.cliente_id.in_(clientes_ids))
+            .order_by(PagoBoleta.fecha_cobro.desc(), PagoBoleta.id.desc())
+            .all()
+        )
+        for p in todos_pagos:
+            if p.cliente_id not in ultimos_cobros_por_cliente:
+                ultimos_cobros_por_cliente[p.cliente_id] = p
+
+    datos_cc_por_ruta = defaultdict(list)
+    resumen_todas_rutas = {
+        r: {'clientes_con_cc': 0, 'total_cc': 0.0, 'total_boletas_cc': 0}
+        for r in rutas_todas
+    }
+
+    for cliente in clientes:
+        b_lista = boletas_por_cliente.get(cliente.id, [])
+        if not b_lista:
+            continue
+
+        # Identificar si existe una boleta activa del viaje (es_cuenta_corriente == False)
+        no_cc = [b for b in b_lista if not b.es_cuenta_corriente]
+        boleta_hoy = None
+        if no_cc:
+            boleta_hoy = sorted(
+                no_cc,
+                key=lambda x: (x.fecha_creacion or datetime.min, x.id),
+                reverse=True
+            )[0]
+
+        # Las boletas de Cuenta Corriente son todas las pendientes/parciales excepto la activa del viaje
+        boletas_cc = [
+            b for b in b_lista
+            if (boleta_hoy is None and b.es_cuenta_corriente) or (boleta_hoy is not None and b.id != boleta_hoy.id)
+        ]
+
+        detalle_entregas = []
+        for b in boletas_cc:
+            saldo_pend = float(b.saldo_pendiente or 0)
+            if saldo_pend <= 0:
+                continue
+            monto_orig = float(b.monto_boleta or 0)
+            abonado = max(0.0, monto_orig - saldo_pend)
+            detalle_entregas.append({
+                'id': b.id,
+                'fecha_entrega': b.fecha_entrega,
+                'descripcion': b.descripcion or 'Entrega anterior',
+                'estado': b.estado,
+                'monto_original': monto_orig,
+                'monto_abonado': abonado,
+                'saldo_pendiente': saldo_pend,
+            })
+
+        saldo_cc = sum(item['saldo_pendiente'] for item in detalle_entregas)
+        if saldo_cc <= 0:
+            continue
+
+        monto_hoy_pendiente = float(boleta_hoy.saldo_pendiente or 0) if boleta_hoy else 0.0
+
+        # Último cobro informativo
+        ult_pago = ultimos_cobros_por_cliente.get(cliente.id)
+        ultimo_cobro_info = None
+        if ult_pago:
+            fecha_local = (ult_pago.fecha_cobro - timedelta(hours=3)) if ult_pago.fecha_cobro else None
+            metodos = []
+            if ult_pago.efectivo and float(ult_pago.efectivo) > 0:
+                metodos.append('Efectivo')
+            if ult_pago.transferencia and float(ult_pago.transferencia) > 0:
+                metodos.append('Transf.')
+            if ult_pago.cheque and float(ult_pago.cheque) > 0:
+                metodos.append('Cheque')
+            ultimo_cobro_info = {
+                'fecha': fecha_local,
+                'monto': float(ult_pago.total_recibido or 0),
+                'metodos': ' + '.join(metodos) if metodos else 'Cobro',
+                'notas': ult_pago.notas
+            }
+
+        # Actualizar resumen global de la ruta (para los botones de filtro)
+        r_nom = cliente.ruta
+        if r_nom not in resumen_todas_rutas:
+            resumen_todas_rutas[r_nom] = {'clientes_con_cc': 0, 'total_cc': 0.0, 'total_boletas_cc': 0}
+        resumen_todas_rutas[r_nom]['clientes_con_cc'] += 1
+        resumen_todas_rutas[r_nom]['total_cc'] += saldo_cc
+        resumen_todas_rutas[r_nom]['total_boletas_cc'] += len(detalle_entregas)
+
+        # Filtrar si se pidió una ruta específica
+        if ruta_filtro and ruta_filtro.lower() != 'todas' and cliente.ruta != ruta_filtro:
+            continue
+
+        datos_cc_por_ruta[cliente.ruta].append({
+            'cliente': cliente,
+            'entregas_cc': detalle_entregas,
+            'cantidad_entregas': len(detalle_entregas),
+            'total_original_cc': sum(item['monto_original'] for item in detalle_entregas),
+            'total_abonado_cc': sum(item['monto_abonado'] for item in detalle_entregas),
+            'saldo_cc': saldo_cc,
+            'boleta_hoy': boleta_hoy,
+            'monto_hoy_pendiente': monto_hoy_pendiente,
+            'total_general': saldo_cc + monto_hoy_pendiente,
+            'ultimo_cobro': ultimo_cobro_info,
+        })
+
+    datos_cc_por_ruta = dict(sorted(datos_cc_por_ruta.items()))
+
+    resumen_seleccion = {}
+    for r, lista in datos_cc_por_ruta.items():
+        resumen_seleccion[r] = {
+            'cantidad_clientes': len(lista),
+            'cantidad_entregas': sum(item['cantidad_entregas'] for item in lista),
+            'total_original_cc': sum(item['total_original_cc'] for item in lista),
+            'total_abonado_cc': sum(item['total_abonado_cc'] for item in lista),
+            'total_saldo_cc': sum(item['saldo_cc'] for item in lista),
+            'total_boleta_hoy': sum(item['monto_hoy_pendiente'] for item in lista),
+            'total_general': sum(item['total_general'] for item in lista),
+        }
+
+    total_global_cc = sum(v['total_saldo_cc'] for v in resumen_seleccion.values())
+    total_global_clientes = sum(v['cantidad_clientes'] for v in resumen_seleccion.values())
+    total_global_entregas = sum(v['cantidad_entregas'] for v in resumen_seleccion.values())
+
+    titulo_ruta = ruta_filtro if (ruta_filtro and ruta_filtro.lower() != 'todas') else 'Todas las Rutas'
+
+    return render_template(
+        'ventas/pdf_cuenta_corriente.html',
+        title=f'PDF Cuentas Corrientes — {titulo_ruta}',
+        datos_cc_por_ruta=datos_cc_por_ruta,
+        resumen_seleccion=resumen_seleccion,
+        resumen_todas_rutas=resumen_todas_rutas,
+        rutas_todas=rutas_todas,
+        ruta_filtro=ruta_filtro if (ruta_filtro and ruta_filtro.lower() != 'todas') else '',
+        titulo_ruta=titulo_ruta,
+        total_global_cc=total_global_cc,
+        total_global_clientes=total_global_clientes,
+        total_global_entregas=total_global_entregas,
+        ahora_arg=ahora_arg,
+        hoy=hoy,
+        auto_descargar=auto_descargar
+    )
+
+
 @ventas_bp.route('/cliente/<int:cliente_id>/boleta', methods=['GET', 'POST'])
 @vendedor_o_gerente_requerido
 def gestionar_boleta(cliente_id):

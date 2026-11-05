@@ -1,0 +1,617 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+  /* ── ESTILOS DE BARRA DE CONTROLES (NO SE IMPRIME NI SALE EN PDF) ── */
+  .toolbar-pdf {
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .ruta-pill {
+    border-radius: 20px;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── CONTENEDOR DEL DOCUMENTO PDF / IMPRESIÓN ── */
+  #documentoPDF {
+    background: #ffffff;
+    color: #111827;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .ruta-pdf-section {
+    margin-bottom: 28px;
+  }
+  .ruta-pdf-section:last-child {
+    margin-bottom: 0;
+  }
+  .ruta-page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  /* Encabezado del reporte por ruta */
+  .pdf-header-box {
+    border: 2px solid #1e293b;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    background: #f8fafc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .pdf-header-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .pdf-header-sub {
+    font-size: 0.82rem;
+    color: #475569;
+    margin-top: 2px;
+  }
+  .pdf-header-kpis {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .pdf-kpi-item {
+    text-align: right;
+    padding-left: 14px;
+    border-left: 2px solid #cbd5e1;
+  }
+  .pdf-kpi-item:first-child {
+    border-left: none;
+    padding-left: 0;
+  }
+  .pdf-kpi-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    font-weight: 700;
+  }
+  .pdf-kpi-val {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+  }
+  .pdf-kpi-val.deuda {
+    color: #b91c1c;
+    font-size: 1.3rem;
+  }
+
+  /* Bloque individual de cada cliente */
+  .cliente-cc-block {
+    border: 1.5px solid #94a3b8;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    background: #ffffff;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .cliente-cc-header {
+    background: #1e293b;
+    color: #ffffff;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cliente-cc-nombre {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cliente-cc-num {
+    background: #334155;
+    color: #e2e8f0;
+    font-size: 0.76rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .cliente-cc-meta {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    margin-top: 2px;
+  }
+  .cliente-cc-total-box {
+    text-align: right;
+  }
+  .cliente-cc-total-lbl {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #cbd5e1;
+    display: block;
+  }
+  .cliente-cc-total-val {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #fde047;
+  }
+
+  /* Tabla de entregas anteriores del cliente */
+  .tabla-entregas-cc {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.83rem;
+  }
+  .tabla-entregas-cc thead th {
+    background: #f1f5f9;
+    color: #334155;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+    padding: 6px 10px;
+    border-bottom: 1px solid #cbd5e1;
+  }
+  .tabla-entregas-cc tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+    vertical-align: middle;
+  }
+  .tabla-entregas-cc tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .tabla-entregas-cc tfoot td {
+    background: #fffbeb;
+    padding: 6px 10px;
+    border-top: 1.5px solid #cbd5e1;
+    font-weight: 700;
+    font-size: 0.84rem;
+  }
+
+  .badge-estado-cc {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .badge-pendiente-cc {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+  }
+  .badge-parcial-cc {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+  }
+
+  /* Pie del cliente: último cobro y renglón de anotación en viaje */
+  .cliente-cc-footer {
+    background: #f8fafc;
+    border-top: 1px solid #cbd5e1;
+    padding: 6px 12px;
+    font-size: 0.76rem;
+    color: #475569;
+  }
+  .renglon-anotacion {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px dashed #94a3b8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: #0f172a;
+    font-weight: 600;
+    font-size: 0.78rem;
+  }
+  .casilla-check {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 1.3px solid #334155;
+    margin-right: 3px;
+    vertical-align: middle;
+  }
+
+  /* Resumen final de la ruta */
+  .resumen-ruta-final {
+    border: 2px solid #0f172a;
+    border-radius: 6px;
+    background: #f8fafc;
+    padding: 10px 16px;
+    margin-top: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  @media print {
+    nav.navbar, .no-print, footer, .btn {
+      display: none !important;
+    }
+    body {
+      background: #fff !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .container, .container-fluid {
+      max-width: 100% !important;
+      width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    #documentoPDF {
+      border: none !important;
+      padding: 0 !important;
+    }
+    .cliente-cc-header,
+    .tabla-entregas-cc thead th,
+    .tabla-entregas-cc tfoot td,
+    .pdf-header-box,
+    .badge-pendiente-cc,
+    .badge-parcial-cc {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── BARRA DE HERRAMIENTAS (SOLO EN PANTALLA) ── -->
+<div class="toolbar-pdf no-print">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <a href="{{ url_for('ventas.boletas') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Volver a Boletas y Cobros
+      </a>
+      <h5 class="mb-0 fw-bold ms-1">
+        <i class="fas fa-file-pdf text-danger me-1"></i>
+        Planilla PDF de Cuentas Corrientes por Ruta
+      </h5>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <div class="form-check form-switch me-2 mb-0">
+        <input class="form-check-input" type="checkbox" id="toggleRenglonManual" checked onchange="cambiarRenglonManual(this.checked)">
+        <label class="form-check-label small fw-semibold" for="toggleRenglonManual">
+          Incluir renglón para anotar cobro en viaje
+        </label>
+      </div>
+
+      {% if datos_cc_por_ruta %}
+      <button type="button" id="btnDescargarPDF" class="btn btn-success fw-bold shadow-sm" onclick="descargarPDFCuentaCorriente()">
+        <i class="fas fa-download me-1"></i> Descargar PDF
+      </button>
+      <button type="button" class="btn btn-dark fw-semibold shadow-sm" onclick="window.print()">
+        <i class="fas fa-print me-1"></i> Imprimir
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Selector rápido de Ruta -->
+  <div class="d-flex align-items-center flex-wrap gap-2 pt-2 border-top">
+    <span class="small text-muted fw-bold text-uppercase me-1">
+      <i class="fas fa-filter me-1"></i>Seleccionar Ruta:
+    </span>
+
+    <a href="{{ url_for('ventas.pdf_cuenta_corriente') }}"
+       class="ruta-pill {% if not ruta_filtro %}bg-primary text-white{% else %}bg-light text-dark border{% endif %}">
+      <i class="fas fa-layer-group"></i>
+      Todas las rutas
+    </a>
+
+    {% for r_nom in rutas_todas %}
+      {% set info_r = resumen_todas_rutas.get(r_nom, {'clientes_con_cc': 0, 'total_cc': 0.0}) %}
+      <a href="{{ url_for('ventas.pdf_cuenta_corriente', ruta=r_nom) }}"
+         class="ruta-pill {% if ruta_filtro == r_nom %}bg-primary text-white{% else %}bg-light text-dark border{% endif %}">
+        <i class="fas fa-route"></i>
+        {{ r_nom }}
+        <span class="badge {% if ruta_filtro == r_nom %}bg-white text-primary{% elif info_r.clientes_con_cc > 0 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+          {{ info_r.clientes_con_cc }} CC (${{ info_r.total_cc|formato_peso(0) }})
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if datos_cc_por_ruta %}
+
+<!-- ── CONTENEDOR DEL DOCUMENTO QUE SE EXPORTA A PDF ── -->
+<div id="documentoPDF">
+
+  {% for ruta, clientes_cc in datos_cc_por_ruta.items() %}
+  {% set r_info = resumen_seleccion[ruta] %}
+
+  <div class="ruta-pdf-section {% if not loop.first %}ruta-page-break{% endif %}">
+
+    <!-- ENCABEZADO DE LA RUTA -->
+    <div class="pdf-header-box">
+      <div>
+        <div class="pdf-header-title">
+          CUENTAS CORRIENTES — RUTA: {{ ruta }}
+        </div>
+        <div class="pdf-header-sub">
+          Detalle de entregas anteriores pendientes de cobro &nbsp;|&nbsp;
+          Emitido: <strong>{{ ahora_arg.strftime('%d/%m/%Y %H:%M') }} hs</strong>
+        </div>
+      </div>
+
+      <div class="pdf-header-kpis">
+        <div class="pdf-kpi-item">
+          <div class="pdf-kpi-label">Clientes con CC</div>
+          <div class="pdf-kpi-val">{{ r_info.cantidad_clientes }}</div>
+        </div>
+        <div class="pdf-kpi-item">
+          <div class="pdf-kpi-label">Boletas Anteriores</div>
+          <div class="pdf-kpi-val">{{ r_info.cantidad_entregas }}</div>
+        </div>
+        <div class="pdf-kpi-item">
+          <div class="pdf-kpi-label">Total Cuenta Cte. Ruta</div>
+          <div class="pdf-kpi-val deuda">${{ r_info.total_saldo_cc|formato_peso }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LISTADO DE CLIENTES CON CUENTA CORRIENTE EN ESTA RUTA -->
+    {% for item in clientes_cc %}
+    <div class="cliente-cc-block">
+
+      <!-- Cabecera del Cliente -->
+      <div class="cliente-cc-header">
+        <div>
+          <div class="cliente-cc-nombre">
+            <span class="cliente-cc-num">#{{ loop.index }}</span>
+            <span>{{ item.cliente.nombre }}</span>
+          </div>
+          {% if item.cliente.direccion or item.cliente.telefono or item.cliente.notas %}
+          <div class="cliente-cc-meta">
+            {% if item.cliente.direccion %}
+              <span>Dir: {{ item.cliente.direccion }}</span>
+            {% endif %}
+            {% if item.cliente.telefono %}
+              {% if item.cliente.direccion %} &nbsp;·&nbsp; {% endif %}
+              <span>Tel: {{ item.cliente.telefono }}</span>
+            {% endif %}
+            {% if item.cliente.notas %}
+              {% if item.cliente.direccion or item.cliente.telefono %} &nbsp;·&nbsp; {% endif %}
+              <span>Nota: {{ item.cliente.notas }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="cliente-cc-total-box">
+          <span class="cliente-cc-total-lbl">Saldo Cuenta Corriente</span>
+          <span class="cliente-cc-total-val">${{ item.saldo_cc|formato_peso }}</span>
+          {% if item.monto_hoy_pendiente > 0 %}
+          <div style="font-size: 0.72rem; color: #93c5fd;">
+            + Boleta del día: ${{ item.monto_hoy_pendiente|formato_peso }} (Total: ${{ item.total_general|formato_peso }})
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Tabla detallada de entregas anteriores (boletas en CC) -->
+      <table class="tabla-entregas-cc">
+        <thead>
+          <tr>
+            <th style="width: 115px;">Fecha Entrega</th>
+            <th>Comprobante / Detalle de Entrega Anterior</th>
+            <th style="width: 110px;" class="text-center">Estado</th>
+            <th style="width: 130px;" class="text-end">Monto Original</th>
+            <th style="width: 130px;" class="text-end">Abonado</th>
+            <th style="width: 140px;" class="text-end">Saldo Pendiente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in item.entregas_cc %}
+          <tr>
+            <td class="fw-semibold">
+              {{ e.fecha_entrega.strftime('%d/%m/%Y') if e.fecha_entrega else '—' }}
+            </td>
+            <td>
+              <strong>Boleta #{{ e.id }}</strong>
+              {% if e.descripcion %}
+                <span class="text-muted"> — {{ e.descripcion }}</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if e.estado == 'parcial' %}
+                <span class="badge-estado-cc badge-parcial-cc">Pago Parcial</span>
+              {% else %}
+                <span class="badge-estado-cc badge-pendiente-cc">Pendiente</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              ${{ e.monto_original|formato_peso }}
+            </td>
+            <td class="text-end">
+              {% if e.monto_abonado > 0 %}
+                <span class="text-success fw-semibold">${{ e.monto_abonado|formato_peso }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-bold" style="color: #b91c1c;">
+              ${{ e.saldo_pendiente|formato_peso }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if item.entregas_cc|length > 1 %}
+        <tfoot>
+          <tr>
+            <td colspan="3" class="text-end text-uppercase">
+              Subtotal {{ item.cliente.nombre }} ({{ item.cantidad_entregas }} entregas anteriores):
+            </td>
+            <td class="text-end">${{ item.total_original_cc|formato_peso }}</td>
+            <td class="text-end text-success">
+              {% if item.total_abonado_cc > 0 %}${{ item.total_abonado_cc|formato_peso }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end" style="color: #b91c1c; font-size: 0.92rem;">
+              ${{ item.saldo_cc|formato_peso }}
+            </td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+
+      <!-- Pie del cliente: referencia del último cobro y renglón de anotación en ruta -->
+      <div class="cliente-cc-footer">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div>
+            {% if item.ultimo_cobro %}
+              <strong>Último cobro registrado:</strong>
+              {{ item.ultimo_cobro.fecha.strftime('%d/%m/%Y %H:%M') if item.ultimo_cobro.fecha else '—' }}
+              por <strong>${{ item.ultimo_cobro.monto|formato_peso }}</strong>
+              ({{ item.ultimo_cobro.metodos }})
+              {% if item.ultimo_cobro.notas %} — <em>{{ item.ultimo_cobro.notas }}</em>{% endif %}
+            {% else %}
+              <span class="text-muted">Sin cobros previos registrados en el sistema.</span>
+            {% endif %}
+          </div>
+          <div>
+            <strong>Total a cobrar CC: <span style="color:#b91c1c;">${{ item.saldo_cc|formato_peso }}</span></strong>
+          </div>
+        </div>
+
+        <div class="renglon-anotacion">
+          <span>Cobrado en viaje: $_____________________</span>
+          <span>
+            Medio:
+            <span class="casilla-check"></span>Efectivo &nbsp;
+            <span class="casilla-check"></span>Transf. &nbsp;
+            <span class="casilla-check"></span>Cheque
+          </span>
+          <span>Saldo restante: $_____________________</span>
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+
+    <!-- RESUMEN FINAL DE LA RUTA -->
+    <div class="resumen-ruta-final">
+      <div>
+        <strong class="text-uppercase">Resumen Final — {{ ruta }}</strong>
+        <div class="small text-muted">
+          {{ r_info.cantidad_clientes }} cliente{{ 's' if r_info.cantidad_clientes != 1 else '' }} con deuda en Cuenta Corriente
+          ({{ r_info.cantidad_entregas }} boleta{{ 's' if r_info.cantidad_entregas != 1 else '' }} de entregas anteriores)
+        </div>
+      </div>
+      <div class="text-end">
+        <div class="small text-uppercase fw-bold text-muted">Total Cuenta Corriente {{ ruta }}</div>
+        <div class="fs-4 fw-bold" style="color: #b91c1c;">${{ r_info.total_saldo_cc|formato_peso }}</div>
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+
+</div>
+
+{% else %}
+<div class="alert alert-success shadow-sm">
+  <i class="fas fa-check-circle me-2"></i>
+  {% if ruta_filtro %}
+    No hay clientes con deuda pendiente en Cuenta Corriente para la ruta <strong>{{ ruta_filtro }}</strong>.
+  {% else %}
+    No hay clientes con deuda pendiente en Cuenta Corriente en ninguna ruta.
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+  function cambiarRenglonManual(mostrar) {
+    document.querySelectorAll('.renglon-anotacion').forEach(function(el) {
+      el.style.display = mostrar ? 'flex' : 'none';
+    });
+  }
+
+  function descargarPDFCuentaCorriente() {
+    const docEl = document.getElementById('documentoPDF');
+    if (!docEl) return;
+
+    const btn = document.getElementById('btnDescargarPDF');
+    const textoOriginal = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generando PDF...';
+    }
+
+    const nombreRuta = {{ (ruta_filtro or 'Todas_las_Rutas')|replace(' ', '_')|tojson }};
+    const fechaStr = '{{ hoy.strftime("%d-%m-%Y") }}';
+    const nombreArchivo = 'Cuentas_Corrientes_' + nombreRuta + '_' + fechaStr + '.pdf';
+
+    const opciones = {
+      margin:       [8, 8, 8, 8],
+      filename:     nombreArchivo,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    html2pdf().set(opciones).from(docEl).save().then(function() {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+      }
+    }).catch(function() {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+      }
+    });
+  }
+
+  {% if auto_descargar and datos_cc_por_ruta %}
+  window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      descargarPDFCuentaCorriente();
+    }, 350);
+  });
+  {% endif %}
+</script>
+{% endblock %}

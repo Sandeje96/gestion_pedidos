@@ -166,13 +166,44 @@
       Exclusivo para Ventas y Gerencia
     </p>
   </div>
-  {% if current_user.es_gerente() %}
-  <div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    {% if datos_por_ruta %}
+    <div class="btn-group shadow-sm">
+      <a href="{{ url_for('ventas.pdf_cuenta_corriente') }}" class="btn btn-danger">
+        <i class="fas fa-file-pdf me-1"></i> PDF Cuentas Corrientes
+      </a>
+      <button type="button" class="btn btn-danger dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" title="Elegir ruta para el PDF">
+        <span class="visually-hidden">Seleccionar ruta</span>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow">
+        <li><h6 class="dropdown-header"><i class="fas fa-route me-1"></i> Ver / Descargar por Ruta</h6></li>
+        {% for ruta_nom, r_stat in resumen_rutas.items() %}
+        <li>
+          <a class="dropdown-item d-flex justify-content-between align-items-center gap-3"
+             href="{{ url_for('ventas.pdf_cuenta_corriente', ruta=ruta_nom) }}">
+            <span><i class="fas fa-file-pdf text-danger me-2"></i>{{ ruta_nom }}</span>
+            <span class="badge {% if r_stat.con_cc > 0 %}bg-warning text-dark{% else %}bg-light text-muted border{% endif %}">
+              {{ r_stat.con_cc }} con CC
+            </span>
+          </a>
+        </li>
+        {% endfor %}
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <a class="dropdown-item fw-semibold" href="{{ url_for('ventas.pdf_cuenta_corriente') }}">
+            <i class="fas fa-layer-group text-primary me-2"></i>Todas las rutas
+          </a>
+        </li>
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if current_user.es_gerente() %}
     <a href="{{ url_for('repartidor.resumen') }}#clientes" class="btn btn-success shadow-sm">
       <i class="fas fa-clipboard-check me-1"></i> Ver Resumen Repartidor (Controlar Transferencias)
     </a>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 
 {% if datos_por_ruta %}
@@ -325,6 +356,13 @@
             <i class="fas fa-university me-1"></i>{{ r.transferencias_pendientes }} transf. sin controlar
           </span>
           {% endif %}
+          <!-- Botón directo PDF Cuenta Corriente de la ruta -->
+          <span class="badge bg-dark text-white border border-dark ms-1"
+                style="cursor: pointer;"
+                title="Generar PDF con detalle de Cuentas Corrientes de {{ ruta }}"
+                onclick="event.stopPropagation(); window.location.href='{{ url_for('ventas.pdf_cuenta_corriente', ruta=ruta) }}';">
+            <i class="fas fa-file-pdf text-danger me-1"></i>PDF Cuenta Cte.
+          </span>
         </span>
       </button>
     </h2>
@@ -460,6 +498,10 @@
         <div class="ruta-footer d-flex align-items-center flex-wrap gap-3">
           <span><strong>{{ r.con_boleta }}</strong> con boleta hoy</span>
           <span><strong>{{ r.sin_boleta }}</strong> sin boleta</span>
+
+          <a href="{{ url_for('ventas.pdf_cuenta_corriente', ruta=ruta) }}" class="btn btn-sm btn-outline-danger fw-semibold ms-2">
+            <i class="fas fa-file-pdf me-1"></i> PDF Cuenta Cte. ({{ ruta }})
+          </a>
           
           {% if current_user.es_gerente() and (r.con_boleta > 0 or r.total_a_cobrar > 0) %}
           <form action="{{ url_for('ventas.resetear_ruta_dia', ruta_nombre=ruta) }}" method="POST" class="m-0 ms-3">

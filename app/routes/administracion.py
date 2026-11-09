@@ -193,6 +193,62 @@ def dashboard():
         Pedido.destinatario == 'fabrica',
         Cliente.ruta != 'SUCURSALES'
     ).order_by(Pedido.fecha_creacion.desc()).all()
+
+    # Agrupar pedidos_ventas_fabrica por ruta y por cliente (estructura idéntica a Fábrica)
+    from collections import defaultdict
+    rutas_ventas_temp = defaultdict(lambda: defaultdict(list))
+    for p in pedidos_ventas_fabrica:
+        r_nombre = (p.cliente.ruta or 'Sin Ruta').strip() if p.cliente else 'Sin Ruta'
+        if not r_nombre:
+            r_nombre = 'Sin Ruta'
+        rutas_ventas_temp[r_nombre][p.cliente].append(p)
+
+    rutas_ventas_fabrica = []
+    for r_nombre in sorted(rutas_ventas_temp.keys()):
+        clientes_lista = []
+        clientes_ordenados = sorted(
+            rutas_ventas_temp[r_nombre].items(),
+            key=lambda item: (item[0].nombre or '').lower() if item[0] else ''
+        )
+
+        ruta_total_pedidos = 0
+        ruta_pendientes = 0
+        ruta_sin_despachar = 0
+        ruta_ajustes = 0
+        ruta_litros = 0.0
+
+        for cliente_obj, pedidos_lista in clientes_ordenados:
+            c_pendientes = sum(1 for p in pedidos_lista if p.estado in ['pendiente', 'en_proceso'])
+            c_sin_despachar = sum(1 for p in pedidos_lista if not p.despachado and p.estado != 'cancelado')
+            c_ajustes = sum(1 for p in pedidos_lista if p.ajuste_pendiente)
+            c_litros = sum(float(p.cantidad or 0) for p in pedidos_lista if p.estado != 'cancelado')
+
+            clientes_lista.append({
+                'cliente': cliente_obj,
+                'pedidos': pedidos_lista,
+                'total_pedidos': len(pedidos_lista),
+                'pendientes': c_pendientes,
+                'sin_despachar': c_sin_despachar,
+                'ajustes': c_ajustes,
+                'litros': c_litros,
+            })
+
+            ruta_total_pedidos += len(pedidos_lista)
+            ruta_pendientes += c_pendientes
+            ruta_sin_despachar += c_sin_despachar
+            ruta_ajustes += c_ajustes
+            ruta_litros += c_litros
+
+        rutas_ventas_fabrica.append({
+            'nombre': r_nombre,
+            'clientes': clientes_lista,
+            'total_clientes': len(clientes_lista),
+            'total_pedidos': ruta_total_pedidos,
+            'pendientes': ruta_pendientes,
+            'sin_despachar': ruta_sin_despachar,
+            'ajustes': ruta_ajustes,
+            'litros': ruta_litros,
+        })
     
     # Estadísticas generales
     total_minoristas = len(pedidos_minoristas)
@@ -253,6 +309,7 @@ def dashboard():
         pedidos_mayoristas=pedidos_mayoristas,
         pedidos_fabrica=pedidos_fabrica,
         pedidos_ventas_fabrica=pedidos_ventas_fabrica,
+        rutas_ventas_fabrica=rutas_ventas_fabrica,
         total_minoristas=total_minoristas,
         total_mayoristas=total_mayoristas,
         total_fabrica=total_fabrica,

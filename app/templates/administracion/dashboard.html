@@ -198,7 +198,7 @@
                             <h5 class="mb-0 text-white-50">Despachados</h5>
                             <i class="fas fa-truck fa-2x opacity-50"></i>
                         </div>
-                        <h2 class="mt-2 text-white fw-bold mb-0" id="stat-total-despachados">{{ despachados_minoristas + despachados_mayoristas + despachados_fabrica }}</h2>
+                        <h2 class="mt-2 text-white fw-bold mb-0" id="stat-total-despachados">{{ despachados_minoristas + despachados_mayoristas + despachados_fabrica + despachados_ventas_fabrica }}</h2>
                     </div>
                     <span class="text-white-50 small mt-3">Total cargamentos con salida</span>
                 </div>
@@ -215,7 +215,7 @@
                             <i class="fas fa-truck-loading fa-2x opacity-50"></i>
                         </div>
                         <h2 class="mt-2 text-white fw-bold mb-0" id="stat-pendientes-despacho">
-                            {{ (total_minoristas + total_mayoristas + total_fabrica) - (despachados_minoristas + despachados_mayoristas + despachados_fabrica) }}
+                            {{ (total_minoristas + total_mayoristas + total_fabrica + total_ventas_fabrica) - (despachados_minoristas + despachados_mayoristas + despachados_fabrica + despachados_ventas_fabrica) }}
                         </h2>
                     </div>
                     <span class="text-white-50 small mt-3">Listos para despachar</span>
@@ -783,107 +783,229 @@
                          data-bs-parent="#accordionLoteVentas">
                         <div class="accordion-body p-3">
 
-                            <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="accordionVentasFabrica">
-                                {% for group in pedidos_ventas_fabrica|groupby('cliente.nombre') %}
-                                {% set loop_index = loop.index %}
-                                {% set ns = namespace(pendientes=0, sin_despachar=0) %}
-                                {% for p in group.list %}
-                                    {% if p.estado == 'pendiente' %}{% set ns.pendientes = ns.pendientes + 1 %}{% endif %}
-                                    {% if not p.despachado %}{% set ns.sin_despachar = ns.sin_despachar + 1 %}{% endif %}
-                                {% endfor %}
+                            <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="rutasVentasAccordion">
+                                {% for ruta_data in rutas_ventas_fabrica %}
+                                {% set r_idx = loop.index %}
                                 <div class="accordion-item border-0 border-bottom">
-                                    <h2 class="accordion-header" id="headingVF-{{ loop_index }}">
+                                    <h2 class="accordion-header" id="headingRutaVentas-{{ r_idx }}">
                                         <button class="accordion-button collapsed fw-bold py-3 px-4"
                                                 type="button"
                                                 data-bs-toggle="collapse"
-                                                data-bs-target="#collapseVF-{{ loop_index }}"
+                                                data-bs-target="#collapseRutaVentas-{{ r_idx }}"
                                                 aria-expanded="false"
-                                                aria-controls="collapseVF-{{ loop_index }}"
-                                                style="background-color: #f3f0ff; color: #212529;">
-                                            <i class="fas fa-user-tie me-2" style="color:#6610f2;"></i>
-                                            {{ group.grouper }}
-                                            <span class="badge rounded-pill ms-3 font-monospace text-white" style="background:#6610f2;">{{ group.list|length }} pedido(s)</span>
-                                            {% if ns.pendientes > 0 %}
-                                            <span class="badge bg-warning text-dark rounded-pill ms-2 font-monospace"><i class="fas fa-clock"></i> {{ ns.pendientes }} pendientes</span>
-                                            {% endif %}
-                                            {% if ns.sin_despachar > 0 %}
-                                            <span class="badge bg-danger text-white rounded-pill ms-2 font-monospace"><i class="fas fa-truck-loading"></i> {{ ns.sin_despachar }} por despachar</span>
-                                            {% else %}
-                                            <span class="badge bg-success text-white rounded-pill ms-2 font-monospace"><i class="fas fa-check"></i> Todo despachado</span>
-                                            {% endif %}
+                                                aria-controls="collapseRutaVentas-{{ r_idx }}"
+                                                style="background: linear-gradient(135deg, #f8f9fa, #f1f3f9); color: #212529;">
+                                            <div class="d-flex align-items-center flex-wrap gap-2 w-100">
+                                                <span><i class="fas fa-map-marked-alt text-primary me-2"></i><strong>{{ ruta_data.nombre }}</strong></span>
+                                                <span class="badge bg-primary rounded-pill ms-2">{{ ruta_data.total_clientes }} cliente(s)</span>
+                                                <span class="badge rounded-pill text-white ms-1" style="background:#6610f2;">{{ ruta_data.total_pedidos }} pedido(s)</span>
+                                                {% if ruta_data.ajustes > 0 %}
+                                                <span class="badge bg-danger rounded-pill ms-1 font-monospace animate-pulse"><i class="fas fa-exchange-alt me-1"></i>{{ ruta_data.ajustes }} ajuste(s)</span>
+                                                {% endif %}
+                                                {% if ruta_data.pendientes > 0 %}
+                                                <span class="badge bg-warning text-dark rounded-pill ms-1 font-monospace"><i class="fas fa-clock me-1"></i>{{ ruta_data.pendientes }} pendientes</span>
+                                                {% endif %}
+                                                {% if ruta_data.sin_despachar > 0 %}
+                                                <span class="badge bg-danger text-white rounded-pill ms-1 font-monospace"><i class="fas fa-truck-loading me-1"></i>{{ ruta_data.sin_despachar }} por despachar</span>
+                                                {% else %}
+                                                <span class="badge bg-success text-white rounded-pill ms-1 font-monospace"><i class="fas fa-check me-1"></i>Todo despachado</span>
+                                                {% endif %}
+                                                {% if ruta_data.litros > 0 %}
+                                                <span class="badge bg-secondary rounded-pill ms-auto me-3 font-monospace"><i class="fas fa-tint me-1"></i>{{ "%.1f"|format(ruta_data.litros) }} lts</span>
+                                                {% endif %}
+                                            </div>
                                         </button>
                                     </h2>
-                                    <div id="collapseVF-{{ loop_index }}"
+                                    <div id="collapseRutaVentas-{{ r_idx }}"
                                          class="accordion-collapse collapse"
-                                         aria-labelledby="headingVF-{{ loop_index }}"
-                                         data-bs-parent="#accordionVentasFabrica">
-                                        <div class="accordion-body p-0">
-                                            <div class="table-responsive">
-                                                <table class="table table-hover align-middle mb-0">
-                                                    <thead class="table-light text-uppercase font-monospace text-muted small">
-                                                        <tr>
-                                                            <th class="py-3 px-4" style="width:80px;">Nº Pedido</th>
-                                                            <th class="py-3">Fecha</th>
-                                                            <th class="py-3">Cliente / Ruta</th>
-                                                            <th class="py-3">Producto</th>
-                                                            <th class="py-3 text-center" style="width:100px;">Cantidad</th>
-                                                            <th class="py-3" style="width:100px;">Unidad</th>
-                                                            <th class="py-3 text-center" style="width:160px;">Estado</th>
-                                                            <th class="py-3 text-center" style="width:180px;">Despachado</th>
-                                                            <th class="py-3">Observaciones / Notas</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody id="lista-pedidos-ventas-fabrica-{{ loop_index }}">
-                                                        {% for pedido in group.list %}
-                                                        <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.modificado %}table-warning{% endif %}">
-                                                            <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
-                                                            <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
-                                                            <td>
-                                                                <div class="fw-semibold">{{ pedido.cliente.nombre }}</div>
-                                                                <div class="text-muted small font-monospace">{{ pedido.cliente.ruta }}</div>
-                                                            </td>
-                                                            <td class="fw-semibold">{{ pedido.producto_nombre }}</td>
-                                                            <td class="text-center fw-bold text-primary">{{ "%.2f"|format(pedido.cantidad) }}</td>
-                                                            <td>{{ pedido.unidad or 'unidades' }}</td>
-                                                            <td class="text-center" id="estado-badge-{{ pedido.id }}">
-                                                                {% if pedido.estado == 'pendiente' %}
-                                                                <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
-                                                                {% elif pedido.estado == 'en_proceso' %}
-                                                                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
-                                                                {% elif pedido.estado == 'completado' %}
-                                                                <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
-                                                                {% elif pedido.estado == 'cancelado' %}
-                                                                <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                         aria-labelledby="headingRutaVentas-{{ r_idx }}"
+                                         data-bs-parent="#rutasVentasAccordion">
+                                        <div class="accordion-body p-3 bg-light bg-opacity-25">
+
+                                            <!-- Acordeón de CLIENTES de esta Ruta -->
+                                            <div class="accordion border-0 shadow-sm rounded-4 overflow-hidden" id="clientesRutaVentas-{{ r_idx }}">
+                                                {% for c_data in ruta_data.clientes %}
+                                                {% set c_idx = loop.index %}
+                                                {% set cliente = c_data.cliente %}
+                                                <div class="accordion-item border-0 border-bottom">
+                                                    <h2 class="accordion-header" id="headingClienteVentas-{{ cliente.id }}">
+                                                        <button class="accordion-button collapsed fw-bold py-3 px-4"
+                                                                type="button"
+                                                                data-bs-toggle="collapse"
+                                                                data-bs-target="#collapseClienteVentas-{{ cliente.id }}"
+                                                                aria-expanded="false"
+                                                                aria-controls="collapseClienteVentas-{{ cliente.id }}"
+                                                                style="background-color: #ffffff; color: #212529;">
+                                                            <div class="d-flex align-items-center flex-wrap gap-2 w-100">
+                                                                <span><i class="fas fa-user-circle text-primary me-2"></i>{{ cliente.nombre }}</span>
+                                                                <span class="badge rounded-pill ms-2 font-monospace" style="background:#e9ecef; color:#495057;">{{ c_data.total_pedidos }} pedido(s)</span>
+                                                                {% if c_data.ajustes > 0 %}
+                                                                <span class="badge bg-danger rounded-pill ms-1 font-monospace animate-pulse"><i class="fas fa-exchange-alt me-1"></i>{{ c_data.ajustes }} ajuste(s)</span>
                                                                 {% endif %}
-                                                            </td>
-                                                            <td class="text-center">
-                                                                <button type="button"
-                                                                        id="despacho-toggle-{{ pedido.id }}"
-                                                                        class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}"
-                                                                        onclick="toggleDespacho({{ pedido.id }})">
-                                                                    {% if pedido.despachado %}
-                                                                    <i class="fas fa-truck"></i> <span>SI</span>
-                                                                    {% else %}
-                                                                    <i class="fas fa-truck-loading"></i> <span>NO</span>
-                                                                    {% endif %}
-                                                                </button>
-                                                            </td>
-                                                            <td>
-                                                                {% if pedido.observaciones_fabrica %}
-                                                                <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                                                {% if c_data.pendientes > 0 %}
+                                                                <span class="badge bg-warning text-dark rounded-pill ms-1 font-monospace"><i class="fas fa-clock me-1"></i>{{ c_data.pendientes }} pendientes</span>
                                                                 {% endif %}
-                                                                {% if pedido.notas_vendedor %}
-                                                                <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                                {% if c_data.sin_despachar > 0 %}
+                                                                <span class="badge bg-danger text-white rounded-pill ms-1 font-monospace"><i class="fas fa-truck-loading me-1"></i>{{ c_data.sin_despachar }} por despachar</span>
+                                                                {% else %}
+                                                                <span class="badge bg-success text-white rounded-pill ms-1 font-monospace"><i class="fas fa-check me-1"></i>Todo despachado</span>
                                                                 {% endif %}
-                                                                {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor %}
-                                                                <span class="text-muted small font-monospace">-</span>
+                                                                {% if c_data.litros > 0 %}
+                                                                <span class="badge bg-light text-muted border rounded-pill ms-auto me-3 font-monospace"><i class="fas fa-tint text-primary me-1"></i>{{ "%.1f"|format(c_data.litros) }} lts</span>
                                                                 {% endif %}
-                                                            </td>
-                                                        </tr>
-                                                        {% endfor %}
-                                                    </tbody>
-                                                </table>
+                                                            </div>
+                                                        </button>
+                                                    </h2>
+                                                    <div id="collapseClienteVentas-{{ cliente.id }}"
+                                                         class="accordion-collapse collapse"
+                                                         aria-labelledby="headingClienteVentas-{{ cliente.id }}"
+                                                         data-bs-parent="#clientesRutaVentas-{{ r_idx }}">
+                                                        <div class="accordion-body p-3 bg-white">
+
+                                                            <!-- Tarjeta de Info del Cliente (idéntica al formato de Fábrica) -->
+                                                            <div class="mb-3 p-3 bg-light rounded-3 border">
+                                                                <div class="row g-2">
+                                                                    <div class="col-md-4">
+                                                                        <p class="mb-0 text-secondary small">
+                                                                            <strong><i class="fas fa-phone text-muted me-1"></i>Teléfono:</strong> 
+                                                                            <span class="text-dark">{{ cliente.telefono or 'No especificado' }}</span>
+                                                                        </p>
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <p class="mb-0 text-secondary small">
+                                                                            <strong><i class="fas fa-map-marker-alt text-muted me-1"></i>Dirección:</strong> 
+                                                                            <span class="text-dark">{{ cliente.direccion or 'No especificada' }}</span>
+                                                                        </p>
+                                                                    </div>
+                                                                    <div class="col-md-4">
+                                                                        <p class="mb-0 text-secondary small">
+                                                                            <strong><i class="fas fa-route text-muted me-1"></i>Ruta:</strong> 
+                                                                            <span class="badge bg-info text-dark font-monospace">{{ cliente.ruta }}</span>
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <!-- Tabla de pedidos del cliente -->
+                                                            <div class="table-responsive">
+                                                                <table class="table table-hover align-middle mb-0">
+                                                                    <thead class="table-light text-uppercase font-monospace text-muted small">
+                                                                        <tr>
+                                                                            <th class="py-3 px-4" style="width: 80px;">Nº Pedido</th>
+                                                                            <th class="py-3">Fecha</th>
+                                                                            <th class="py-3">Producto</th>
+                                                                            <th class="py-3 text-center" style="width: 100px;">Cantidad</th>
+                                                                            <th class="py-3" style="width: 100px;">Unidad</th>
+                                                                            <th class="py-3 text-center" style="width: 160px;">Estado</th>
+                                                                            <th class="py-3 text-center" style="width: 180px;">Despachado</th>
+                                                                            <th class="py-3">Observaciones / Notas</th>
+                                                                            <th class="py-3 text-center" style="width: 160px;">Acciones</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody id="lista-pedidos-ventas-fabrica-{{ cliente.id }}">
+                                                                        {% for pedido in c_data.pedidos %}
+                                                                        <tr id="pedido-row-{{ pedido.id }}" class="pedido-row {% if pedido.ajuste_pendiente %}table-warning{% elif pedido.modificado %}table-warning{% endif %}">
+                                                                            <td class="px-4 fw-bold text-muted">#{{ pedido.id }}</td>
+                                                                            <td class="small">{{ pedido.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
+                                                                            <td class="fw-semibold">
+                                                                                {{ pedido.producto_nombre }}
+                                                                                {% if pedido.ajuste_pendiente %}
+                                                                                    <br><span class="badge bg-danger animate-pulse mt-1"><i class="fas fa-exchange-alt"></i> Ajuste de Fábrica</span>
+                                                                                {% endif %}
+                                                                                {% if pedido.notas_vendedor %}
+                                                                                    <br><small class="text-muted"><i class="fas fa-sticky-note me-1"></i>{{ pedido.notas_vendedor }}</small>
+                                                                                {% endif %}
+                                                                            </td>
+                                                                            <td class="text-center fw-bold text-primary">
+                                                                                {% if pedido.presentacion and pedido.cantidad_envases %}
+                                                                                    <span>{{ pedido.cantidad_envases|int }} env. × {{ pedido.presentacion }}</span>
+                                                                                    <br><small class="text-muted fw-normal">({{ "%.2f"|format(pedido.cantidad) }} lts)</small>
+                                                                                {% else %}
+                                                                                    {{ "%.2f"|format(pedido.cantidad) }}
+                                                                                {% endif %}
+                                                                                {% if pedido.ajuste_pendiente and pedido.cantidad_propuesta %}
+                                                                                    <br><small class="text-danger fw-bold">Prop: {{ pedido.cantidad_propuesta|float|round(2) }}</small>
+                                                                                {% endif %}
+                                                                            </td>
+                                                                            <td>{{ pedido.unidad or 'unidades' }}</td>
+                                                                            <td class="text-center" id="estado-badge-{{ pedido.id }}">
+                                                                                {% if pedido.estado == 'pendiente' %}
+                                                                                <span class="badge bg-secondary px-3 py-2 rounded-pill"><i class="fas fa-clock me-1"></i> Pendiente</span>
+                                                                                {% elif pedido.estado == 'en_proceso' %}
+                                                                                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill"><i class="fas fa-spinner fa-spin me-1"></i> En Proceso</span>
+                                                                                {% elif pedido.estado == 'completado' %}
+                                                                                <span class="badge bg-success px-3 py-2 rounded-pill"><i class="fas fa-check-circle me-1"></i> Completado</span>
+                                                                                {% elif pedido.estado == 'cancelado' %}
+                                                                                <span class="badge bg-danger px-3 py-2 rounded-pill"><i class="fas fa-times-circle me-1"></i> Cancelado</span>
+                                                                                {% endif %}
+                                                                            </td>
+                                                                            <td class="text-center" id="despacho-cell-{{ pedido.id }}">
+                                                                                {% if pedido.estado != 'cancelado' %}
+                                                                                <button type="button"
+                                                                                        id="despacho-toggle-{{ pedido.id }}"
+                                                                                        class="despacho-toggle-btn {% if pedido.despachado %}despacho-si{% else %}despacho-no{% endif %}"
+                                                                                        onclick="toggleDespacho({{ pedido.id }})">
+                                                                                    {% if pedido.despachado %}
+                                                                                    <i class="fas fa-truck"></i> <span>SI</span>
+                                                                                    {% else %}
+                                                                                    <i class="fas fa-truck-loading"></i> <span>NO</span>
+                                                                                    {% endif %}
+                                                                                </button>
+                                                                                {% else %}
+                                                                                <span class="text-muted small">-</span>
+                                                                                {% endif %}
+                                                                            </td>
+                                                                            <td>
+                                                                                {% if pedido.observaciones_fabrica %}
+                                                                                <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
+                                                                                {% endif %}
+                                                                                {% if pedido.notas_vendedor %}
+                                                                                <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                                                {% endif %}
+                                                                                {% if pedido.ajuste_nota_fabrica %}
+                                                                                <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
+                                                                                {% endif %}
+                                                                                {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
+                                                                                <span class="text-muted small font-monospace">-</span>
+                                                                                {% endif %}
+                                                                            </td>
+                                                                            <td class="text-center">
+                                                                                <div class="d-flex gap-2 justify-content-center flex-wrap">
+                                                                                    <a href="{{ url_for('administracion.actualizar_pedido', pedido_id=pedido.id) }}" class="btn btn-primary btn-sm rounded-pill px-3" title="Editar Pedido">
+                                                                                        <i class="fas fa-edit"></i>
+                                                                                    </a>
+                                                                                    <a href="{{ url_for('administracion.ver_mensajes_pedido', pedido_id=pedido.id) }}" class="btn btn-outline-secondary btn-sm rounded-circle p-2" title="Chat y Mensajes">
+                                                                                        <i class="fas fa-comments m-0"></i>
+                                                                                    </a>
+                                                                                    {% if pedido.ajuste_pendiente %}
+                                                                                    <button class="btn btn-danger btn-sm rounded-pill px-3 animate-pulse fw-bold"
+                                                                                            title="Aceptar o rechazar ajuste propuesto por Fábrica"
+                                                                                            onclick="abrirModalResolverAjuste(
+                                                                                                {{ pedido.id }},
+                                                                                                {{ pedido.cantidad|float }},
+                                                                                                {{ pedido.cantidad_propuesta|float }},
+                                                                                                '{{ pedido.unidad or '' }}',
+                                                                                                '{{ pedido.producto_nombre|e }}',
+                                                                                                '{{ (pedido.ajuste_nota_fabrica or '')|e }}',
+                                                                                                'administracion'
+                                                                                            )">
+                                                                                        <i class="fas fa-exchange-alt"></i> Resolver
+                                                                                    </button>
+                                                                                    {% endif %}
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                        {% endfor %}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
                                             </div>
+
                                         </div>
                                     </div>
                                 </div>

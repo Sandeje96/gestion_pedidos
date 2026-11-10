@@ -1346,6 +1346,32 @@ def finanzas():
     ganancia_neta = total_ingresos - total_gastos
     margen_ganancia = (ganancia_neta / total_ingresos * 100.0) if total_ingresos > 0 else 0.0
 
+    # 7. ── DISPONIBILIDAD Y LIQUIDEZ POR MEDIO DE PAGO ──
+    desglose_suc = sucursales_data.get('desglose_pagos', {}) if (sucursales_ok and sucursales_data) else {}
+    suc_efectivo = float(desglose_suc.get('efectivo', 0.0))
+    suc_mp = float(desglose_suc.get('mercadopago', 0.0))
+    suc_debito = float(desglose_suc.get('debito', 0.0))
+    suc_credito = float(desglose_suc.get('credito', 0.0))
+    suc_digital = suc_mp + suc_debito + suc_credito
+
+    disponible_efectivo = total_rutas_efectivo + suc_efectivo
+    disponible_bancos = total_rutas_transferencia + suc_digital
+    disponible_cheques = total_rutas_cheque
+
+    pct_disponible_efectivo = (disponible_efectivo / total_ingresos * 100.0) if total_ingresos > 0 else 0.0
+    pct_disponible_bancos = (disponible_bancos / total_ingresos * 100.0) if total_ingresos > 0 else 0.0
+    pct_disponible_cheques = (disponible_cheques / total_ingresos * 100.0) if total_ingresos > 0 else 0.0
+
+    # Desglose de sueldos (pagos semanales vs adelantos)
+    total_sueldos_pagos = float(empleados_data.get('total_pagos', total_sueldos_empleados)) if (empleados_ok and empleados_data) else 0.0
+    total_adelantos = float(empleados_data.get('total_adelantos', 0.0)) if (empleados_ok and empleados_data) else 0.0
+    detalle_adelantos = empleados_data.get('detalle_adelantos', []) if (empleados_ok and empleados_data) else []
+
+    # Desglose de gastos sucursales (caja chica vs fijos)
+    total_gastos_caja_suc = float(sucursales_data.get('total_gastos_caja', total_gastos_sucursales)) if (sucursales_ok and sucursales_data) else 0.0
+    total_gastos_fijos_suc = float(sucursales_data.get('total_gastos_fijos', 0.0)) if (sucursales_ok and sucursales_data) else 0.0
+    gastos_fijos_cat_suc = sucursales_data.get('gastos_fijos_por_categoria', {}) if (sucursales_ok and sucursales_data) else {}
+
     # Formulario para modal de nuevo gasto general
     form_gasto = GastoGeneralForm()
 
@@ -1360,6 +1386,18 @@ def finanzas():
         total_gastos=total_gastos,
         ganancia_neta=ganancia_neta,
         margen_ganancia=margen_ganancia,
+        # Disponibilidad y Liquidez por Medio de Pago
+        disponible_efectivo=disponible_efectivo,
+        disponible_bancos=disponible_bancos,
+        disponible_cheques=disponible_cheques,
+        pct_disponible_efectivo=pct_disponible_efectivo,
+        pct_disponible_bancos=pct_disponible_bancos,
+        pct_disponible_cheques=pct_disponible_cheques,
+        suc_efectivo=suc_efectivo,
+        suc_digital=suc_digital,
+        suc_mp=suc_mp,
+        suc_debito=suc_debito,
+        suc_credito=suc_credito,
         # Desglose Rutas
         total_ingresos_rutas=total_ingresos_rutas,
         total_rutas_efectivo=total_rutas_efectivo,
@@ -1381,11 +1419,17 @@ def finanzas():
         sucursales_data=sucursales_data,
         total_ventas_sucursales=total_ventas_sucursales,
         total_gastos_sucursales=total_gastos_sucursales,
+        total_gastos_caja_suc=total_gastos_caja_suc,
+        total_gastos_fijos_suc=total_gastos_fijos_suc,
+        gastos_fijos_cat_suc=gastos_fijos_cat_suc,
         # Empleados
         empleados_ok=empleados_ok,
         empleados_err=empleados_err,
         empleados_data=empleados_data,
-        total_sueldos_empleados=total_sueldos_empleados
+        total_sueldos_empleados=total_sueldos_empleados,
+        total_sueldos_pagos=total_sueldos_pagos,
+        total_adelantos=total_adelantos,
+        detalle_adelantos=detalle_adelantos
     )
 
 

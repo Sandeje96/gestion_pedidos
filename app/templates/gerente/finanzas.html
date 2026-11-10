@@ -1,0 +1,813 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-kpi {
+        border-radius: 1rem;
+        border: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card-kpi:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.5rem 1.25rem rgba(0,0,0,0.1) !important;
+    }
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+    }
+    .kpi-ingresos { background-color: #d1e7dd; color: #0f5132; }
+    .kpi-gastos   { background-color: #f8d7da; color: #842029; }
+    .kpi-ganancia { background-color: #cfe2ff; color: #084298; }
+    .kpi-margen   { background-color: #fff3cd; color: #664d03; }
+
+    .nav-tabs-custom .nav-link {
+        font-weight: 600;
+        color: #495057;
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding: 0.75rem 1.25rem;
+    }
+    .nav-tabs-custom .nav-link.active {
+        color: #0d6efd;
+        border-bottom-color: #0d6efd;
+        background: transparent;
+    }
+
+    .progress-bar-custom {
+        height: 10px;
+        border-radius: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in py-3">
+
+    {# ── Encabezado & Botones de Acción ── #}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h1 class="h3 fw-bold text-dark mb-1">
+                <i class="fas fa-coins text-warning me-2"></i> Tablero Financiero y Ganancias
+            </h1>
+            <p class="text-muted small mb-0">
+                Consolidación de cobros de rutas, ventas de sucursales, sueldos de empleados y pagos a proveedores.
+            </p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-primary rounded-pill shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
+                <i class="fas fa-plus-circle me-1"></i> Cargar Proveedor / Gasto
+            </button>
+            <a href="{{ url_for('gerente.historial_repartidores') }}" class="btn btn-outline-secondary rounded-pill px-3">
+                <i class="fas fa-wallet me-1"></i> Billetera Repartidores
+            </a>
+        </div>
+    </div>
+
+    {# ── Barra de Filtros y Estado de APIs ── #}
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ url_for('gerente.finanzas') }}" id="formFiltroFecha" class="row g-2 align-items-center">
+                <div class="col-12 col-md-auto d-flex gap-1 flex-wrap mb-2 mb-md-0">
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" onclick="setPeriodo('hoy')">Hoy</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" onclick="setPeriodo('semana')">Esta Semana</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" onclick="setPeriodo('mes')">Este Mes</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" onclick="setPeriodo('mes_anterior')">Mes Anterior</button>
+                </div>
+
+                <div class="col-6 col-md-auto">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-calendar-alt text-muted"></i></span>
+                        <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" value="{{ fecha_desde.strftime('%Y-%m-%d') }}">
+                    </div>
+                </div>
+
+                <div class="col-6 col-md-auto">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-calendar-alt text-muted"></i></span>
+                        <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control" value="{{ fecha_hasta.strftime('%Y-%m-%d') }}">
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-auto">
+                    <button type="submit" class="btn btn-sm btn-dark rounded-pill px-3 w-100">
+                        <i class="fas fa-filter me-1"></i> Filtrar Período
+                    </button>
+                </div>
+
+                {# Estado de las conexiones #}
+                <div class="col-12 col-md d-flex justify-content-md-end gap-2 align-items-center mt-2 mt-md-0 flex-wrap">
+                    {% if sucursales_ok %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill py-1 px-2 small" title="Conexión activa con Gestión Sucursales">
+                        <i class="fas fa-store me-1"></i> Sucursales OK
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary-subtle text-muted border rounded-pill py-1 px-2 small" title="{{ sucursales_err or 'API Sucursales pendiente de enlace' }}">
+                        <i class="fas fa-store-slash me-1"></i> Sucursales (Pendiente)
+                    </span>
+                    {% endif %}
+
+                    {% if empleados_ok %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill py-1 px-2 small" title="Conexión activa con Gestión Empleados">
+                        <i class="fas fa-users me-1"></i> Empleados OK
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary-subtle text-muted border rounded-pill py-1 px-2 small" title="{{ empleados_err or 'API Empleados pendiente de enlace' }}">
+                        <i class="fas fa-user-slash me-1"></i> Empleados (Pendiente)
+                    </span>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# ── Tarjetas KPI Principales ── #}
+    <div class="row g-3 mb-4">
+        <!-- Total Ingresos -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card card-kpi shadow-sm h-100 p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-bold small text-uppercase">Ingresos Totales</span>
+                    <div class="kpi-icon kpi-ingresos">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold text-success mb-1">${{ total_ingresos|formato_peso }}</h3>
+                <small class="text-muted">
+                    Rutas: <strong>${{ total_ingresos_rutas|formato_peso }}</strong>
+                    {% if total_ventas_sucursales > 0 %}
+                    <br>Sucursales: <strong>${{ total_ventas_sucursales|formato_peso }}</strong>
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+
+        <!-- Total Gastos -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card card-kpi shadow-sm h-100 p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-bold small text-uppercase">Egresos / Gastos</span>
+                    <div class="kpi-icon kpi-gastos">
+                        <i class="fas fa-arrow-up"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold text-danger mb-1">${{ total_gastos|formato_peso }}</h3>
+                <small class="text-muted">
+                    Proveedores/Varios: <strong>${{ total_gastos_generales|formato_peso }}</strong>
+                    <br>Rutas: <strong>${{ total_gastos_rutas|formato_peso }}</strong>
+                    {% if total_sueldos_empleados > 0 %} | Sueldos: <strong>${{ total_sueldos_empleados|formato_peso }}</strong>{% endif %}
+                </small>
+            </div>
+        </div>
+
+        <!-- Ganancia Neta -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card card-kpi shadow-sm h-100 p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-bold small text-uppercase">Ganancia Neta</span>
+                    <div class="kpi-icon kpi-ganancia">
+                        <i class="fas fa-scale-balanced"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold {% if ganancia_neta >= 0 %}text-primary{% else %}text-danger{% endif %} mb-1">
+                    ${{ ganancia_neta|formato_peso }}
+                </h3>
+                <small class="{% if ganancia_neta >= 0 %}text-success{% else %}text-danger{% endif %} fw-semibold">
+                    <i class="fas {% if ganancia_neta >= 0 %}fa-check-circle{% else %}fa-exclamation-circle{% endif %} me-1"></i>
+                    {% if ganancia_neta >= 0 %}Superávit operativo{% else %}Déficit operativo{% endif %}
+                </small>
+            </div>
+        </div>
+
+        <!-- Margen de Rentabilidad -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card card-kpi shadow-sm h-100 p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-muted fw-bold small text-uppercase">Margen Operativo</span>
+                    <div class="kpi-icon kpi-margen">
+                        <i class="fas fa-percent"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold text-dark mb-1">{{ "%.1f"|format(margen_ganancia) }}%</h3>
+                <small class="text-muted">Sobre total de ingresos del período</small>
+            </div>
+        </div>
+    </div>
+
+    {# ── Pestañas con Información Detallada ── #}
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white border-bottom p-0">
+            <ul class="nav nav-tabs nav-tabs-custom px-3" id="finanzasTabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="tab-resumen-btn" data-bs-toggle="tab" data-bs-target="#tab-resumen" type="button">
+                        <i class="fas fa-chart-pie me-1"></i> Resumen de Flujos
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-proveedores-btn" data-bs-toggle="tab" data-bs-target="#tab-proveedores" type="button">
+                        <i class="fas fa-file-invoice-dollar me-1"></i> Proveedores y Gastos Varios ({{ gastos_generales|length }})
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-rutas-cobros-btn" data-bs-toggle="tab" data-bs-target="#tab-rutas-cobros" type="button">
+                        <i class="fas fa-road me-1"></i> Cobros Rutas ({{ pagos_rutas|length }})
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-rutas-gastos-btn" data-bs-toggle="tab" data-bs-target="#tab-rutas-gastos" type="button">
+                        <i class="fas fa-gas-pump me-1"></i> Gastos Rutas ({{ gastos_rutas|length }})
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-sucursales-btn" data-bs-toggle="tab" data-bs-target="#tab-sucursales" type="button">
+                        <i class="fas fa-store me-1"></i> Sucursales
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="tab-empleados-btn" data-bs-toggle="tab" data-bs-target="#tab-empleados" type="button">
+                        <i class="fas fa-users me-1"></i> Sueldos Empleados
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="card-body p-4">
+            <div class="tab-content" id="finanzasTabsContent">
+
+                {# ── TAB 1: RESUMEN DE FLUJOS ── #}
+                <div class="tab-pane fade show active" id="tab-resumen" role="tabpanel">
+                    <div class="row g-4">
+                        <!-- Origen de Ingresos -->
+                        <div class="col-lg-6">
+                            <div class="border rounded-4 p-4 h-100">
+                                <h5 class="fw-bold mb-3 text-success">
+                                    <i class="fas fa-hand-holding-usd me-2"></i> Estructura de Ingresos
+                                </h5>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-semibold"><i class="fas fa-truck text-muted me-1"></i> Cobros en Rutas (Calle)</span>
+                                        <span class="fw-bold">${{ total_ingresos_rutas|formato_peso }}</span>
+                                    </div>
+                                    <div class="progress progress-bar-custom bg-light">
+                                        {% set pct_rutas = (total_ingresos_rutas / total_ingresos * 100) if total_ingresos > 0 else 0 %}
+                                        <div class="progress-bar bg-success" style="width: {{ pct_rutas }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(pct_rutas) }}% del total recaudado</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-semibold"><i class="fas fa-store text-muted me-1"></i> Ventas en Sucursales</span>
+                                        <span class="fw-bold">${{ total_ventas_sucursales|formato_peso }}</span>
+                                    </div>
+                                    <div class="progress progress-bar-custom bg-light">
+                                        {% set pct_suc = (total_ventas_sucursales / total_ingresos * 100) if total_ingresos > 0 else 0 %}
+                                        <div class="progress-bar bg-info" style="width: {{ pct_suc }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(pct_suc) }}% del total recaudado</small>
+                                </div>
+
+                                <hr class="my-3">
+                                <div class="bg-light rounded-3 p-3">
+                                    <h6 class="fw-bold small text-muted text-uppercase mb-2">Desglose de Cobranza en Rutas:</h6>
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span>Efectivo:</span>
+                                        <strong>${{ total_rutas_efectivo|formato_peso }}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span>Transferencias:</span>
+                                        <strong>${{ total_rutas_transferencia|formato_peso }}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between small">
+                                        <span>Cheques:</span>
+                                        <strong>${{ total_rutas_cheque|formato_peso }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Destino de Gastos -->
+                        <div class="col-lg-6">
+                            <div class="border rounded-4 p-4 h-100">
+                                <h5 class="fw-bold mb-3 text-danger">
+                                    <i class="fas fa-receipt me-2"></i> Distribución de Gastos
+                                </h5>
+
+                                {# Proveedores y Gastos Generales #}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-semibold"><i class="fas fa-industry text-muted me-1"></i> Proveedores y Gastos Generales</span>
+                                        <span class="fw-bold">${{ total_gastos_generales|formato_peso }}</span>
+                                    </div>
+                                    <div class="progress progress-bar-custom bg-light">
+                                        {% set pct_gg = (total_gastos_generales / total_gastos * 100) if total_gastos > 0 else 0 %}
+                                        <div class="progress-bar bg-danger" style="width: {{ pct_gg }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(pct_gg) }}% del total de egresos</small>
+                                </div>
+
+                                {# Gastos de Rutas #}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-semibold"><i class="fas fa-gas-pump text-muted me-1"></i> Gastos de Rutas (Combustibles/Viáticos)</span>
+                                        <span class="fw-bold">${{ total_gastos_rutas|formato_peso }}</span>
+                                    </div>
+                                    <div class="progress progress-bar-custom bg-light">
+                                        {% set pct_gr = (total_gastos_rutas / total_gastos * 100) if total_gastos > 0 else 0 %}
+                                        <div class="progress-bar bg-warning" style="width: {{ pct_gr }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(pct_gr) }}% del total de egresos</small>
+                                </div>
+
+                                {# Sueldos Empleados #}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-semibold"><i class="fas fa-users text-muted me-1"></i> Sueldos de Empleados</span>
+                                        <span class="fw-bold">${{ total_sueldos_empleados|formato_peso }}</span>
+                                    </div>
+                                    <div class="progress progress-bar-custom bg-light">
+                                        {% set pct_se = (total_sueldos_empleados / total_gastos * 100) if total_gastos > 0 else 0 %}
+                                        <div class="progress-bar bg-secondary" style="width: {{ pct_se }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(pct_se) }}% del total de egresos</small>
+                                </div>
+
+                                {# Gastos de Sucursales #}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-semibold"><i class="fas fa-store text-muted me-1"></i> Gastos de Sucursales</span>
+                                        <span class="fw-bold">${{ total_gastos_sucursales|formato_peso }}</span>
+                                    </div>
+                                    <div class="progress progress-bar-custom bg-light">
+                                        {% set pct_gs = (total_gastos_sucursales / total_gastos * 100) if total_gastos > 0 else 0 %}
+                                        <div class="progress-bar bg-dark" style="width: {{ pct_gs }}%"></div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(pct_gs) }}% del total de egresos</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# ── TAB 2: PROVEEDORES Y GASTOS GENERALES ── #}
+                <div class="tab-pane fade" id="tab-proveedores" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Pagos a Proveedores y Gastos Varios</h5>
+                        <button class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
+                            <i class="fas fa-plus me-1"></i> Nuevo Gasto
+                        </button>
+                    </div>
+
+                    {% if gastos_generales %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Categoría</th>
+                                    <th>Proveedor / Concepto</th>
+                                    <th>Medio Pago</th>
+                                    <th>Comprobante</th>
+                                    <th class="text-end">Monto ($)</th>
+                                    <th>Registrado por</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for g in gastos_generales %}
+                                <tr>
+                                    <td>{{ g.fecha.strftime('%d/%m/%Y') }}</td>
+                                    <td><span class="badge bg-secondary-subtle text-dark border">{{ g.categoria_label }}</span></td>
+                                    <td>
+                                        <strong>{{ g.concepto }}</strong>
+                                        {% if g.notas %}
+                                        <br><small class="text-muted"><i class="fas fa-comment-dots me-1"></i>{{ g.notas }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border text-capitalize">{{ g.medio_pago }}</span>
+                                    </td>
+                                    <td>{{ g.comprobante_nro or '—' }}</td>
+                                    <td class="text-end fw-bold text-danger">${{ g.monto|formato_peso }}</td>
+                                    <td class="small text-muted">{{ g.creado_por.nombre if g.creado_por else '—' }}</td>
+                                    <td class="text-center text-nowrap">
+                                        <button class="btn btn-sm btn-outline-primary rounded-circle p-2"
+                                                onclick="abrirModalEditarGasto({{ g.id }}, '{{ g.fecha.strftime('%Y-%m-%d') }}', '{{ g.categoria }}', '{{ g.concepto|replace("'", "\\'") }}', {{ g.monto }}, '{{ g.medio_pago }}', '{{ (g.comprobante_nro or '')|replace("'", "\\'") }}', '{{ (g.notas or '')|replace("'", "\\'") }}')"
+                                                title="Editar gasto">
+                                            <i class="fas fa-edit m-0"></i>
+                                        </button>
+                                        <form method="POST" action="{{ url_for('gerente.eliminar_gasto_general', gasto_id=g.id) }}"
+                                              style="display:inline;" onsubmit="return confirm('¿Eliminar este gasto de {{ g.concepto|replace("'", "\\'") }} por ${{ g.monto|formato_peso }}?');">
+                                            <input type="hidden" name="filter_desde" value="{{ fecha_desde.strftime('%Y-%m-%d') }}">
+                                            <input type="hidden" name="filter_hasta" value="{{ fecha_hasta.strftime('%Y-%m-%d') }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle p-2" title="Eliminar gasto">
+                                                <i class="fas fa-trash m-0"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="5" class="text-end">Total Gastos Proveedores / Varios:</td>
+                                    <td class="text-end text-danger">${{ total_gastos_generales|formato_peso }}</td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-light text-center border p-4 rounded-3">
+                        <i class="fas fa-info-circle fa-2x text-muted mb-2 d-block"></i>
+                        No hay pagos a proveedores ni gastos generales registrados en el período seleccionado.
+                        <br>
+                        <button class="btn btn-primary btn-sm rounded-pill mt-3 px-3" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
+                            <i class="fas fa-plus me-1"></i> Cargar Primer Gasto
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {# ── TAB 3: COBROS DE RUTAS ── #}
+                <div class="tab-pane fade" id="tab-rutas-cobros" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Cobranzas en Rutas (Calle)</h5>
+                        <span class="badge bg-success fs-6 px-3 py-2 rounded-pill">Total: ${{ total_ingresos_rutas|formato_peso }}</span>
+                    </div>
+
+                    {% if pagos_rutas %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Cobrado por</th>
+                                    <th class="text-end">Efectivo</th>
+                                    <th class="text-end">Transf.</th>
+                                    <th class="text-end">Cheque</th>
+                                    <th class="text-end">Total Cobrado</th>
+                                    <th>Notas</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in pagos_rutas %}
+                                <tr>
+                                    <td>{{ p.fecha_cobro.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td class="fw-semibold">{{ p.cliente.nombre if p.cliente else '—' }}</td>
+                                    <td class="small">{{ p.cobrado_por.nombre if p.cobrado_por else '—' }}</td>
+                                    <td class="text-end">${{ p.efectivo|formato_peso }}</td>
+                                    <td class="text-end">${{ p.transferencia|formato_peso }}</td>
+                                    <td class="text-end">${{ p.cheque|formato_peso }}</td>
+                                    <td class="text-end fw-bold text-success">${{ p.total_recibido|formato_peso }}</td>
+                                    <td class="small text-muted">{{ p.notas or '—' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-light text-center border p-4 rounded-3">
+                        <i class="fas fa-road fa-2x text-muted mb-2 d-block"></i>
+                        No se registraron cobros de rutas en este rango de fechas.
+                    </div>
+                    {% endif %}
+                </div>
+
+                {# ── TAB 4: GASTOS DE RUTAS ── #}
+                <div class="tab-pane fade" id="tab-rutas-gastos" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Gastos Registrados por Repartidores</h5>
+                        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill">Total: ${{ total_gastos_rutas|formato_peso }}</span>
+                    </div>
+
+                    {% if gastos_rutas %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Repartidor</th>
+                                    <th>Tipo de Gasto</th>
+                                    <th>Ruta</th>
+                                    <th>Notas / Detalle</th>
+                                    <th class="text-end">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for g in gastos_rutas %}
+                                <tr>
+                                    <td>{{ g.fecha.strftime('%d/%m/%Y') }}</td>
+                                    <td class="fw-semibold">{{ g.repartidor.nombre if g.repartidor else '—' }}</td>
+                                    <td><span class="badge bg-secondary-subtle text-dark border">{{ g.tipo }}</span></td>
+                                    <td>{{ g.ruta or '—' }}</td>
+                                    <td class="small text-muted">{{ g.notas or '—' }}</td>
+                                    <td class="text-end fw-bold text-danger">${{ g.monto|formato_peso }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-light text-center border p-4 rounded-3">
+                        <i class="fas fa-gas-pump fa-2x text-muted mb-2 d-block"></i>
+                        No se registraron gastos de repartidores en este período.
+                    </div>
+                    {% endif %}
+                </div>
+
+                {# ── TAB 5: SUCURSALES (API) ── #}
+                <div class="tab-pane fade" id="tab-sucursales" role="tabpanel">
+                    {% if sucursales_ok and sucursales_data %}
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="fw-bold text-success mb-1">Ventas en Sucursales</h6>
+                                <h4 class="fw-bold text-success mb-0">${{ total_ventas_sucursales|formato_peso }}</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="border rounded-4 p-3 bg-light">
+                                <h6 class="fw-bold text-danger mb-1">Gastos de Sucursales</h6>
+                                <h4 class="fw-bold text-danger mb-0">${{ total_gastos_sucursales|formato_peso }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    {% if sucursales_data.get('detalle_por_sucursal') %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Sucursal</th>
+                                    <th class="text-end">Ventas ($)</th>
+                                    <th class="text-end">Gastos ($)</th>
+                                    <th class="text-end">Neto ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in sucursales_data.get('detalle_por_sucursal') %}
+                                <tr>
+                                    <td class="fw-bold">{{ s.sucursal }}</td>
+                                    <td class="text-end text-success fw-semibold">${{ s.ventas|formato_peso }}</td>
+                                    <td class="text-end text-danger">${{ s.gastos|formato_peso }}</td>
+                                    <td class="text-end fw-bold {% if (s.ventas - s.gastos) >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                                        ${{ (s.ventas - s.gastos)|formato_peso }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="alert alert-warning border-0 rounded-4 p-4">
+                        <h5 class="fw-bold"><i class="fas fa-plug me-2"></i> Integración con Gestión de Sucursales</h5>
+                        <p class="mb-2">
+                            El endpoint para sincronizar ventas y gastos de sucursales se encuentra en la <strong>Fase 2</strong> de implementación en 
+                            <code>https://gestion-sucursales.up.railway.app</code>.
+                        </p>
+                        <small class="text-muted d-block mb-3">
+                            Estado actual: {{ sucursales_err or 'Conexión lista para activarse con el endpoint /api/finanzas/resumen.' }}
+                        </small>
+                        <a href="https://gestion-sucursales.up.railway.app" target="_blank" class="btn btn-sm btn-dark rounded-pill px-3">
+                            <i class="fas fa-external-link-alt me-1"></i> Abrir Gestión Sucursales
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {# ── TAB 6: EMPLEADOS (API) ── #}
+                <div class="tab-pane fade" id="tab-empleados" role="tabpanel">
+                    {% if empleados_ok and empleados_data %}
+                    <div class="border rounded-4 p-3 bg-light mb-4">
+                        <h6 class="fw-bold text-danger mb-1">Total Pagado a Empleados (Sueldos y Adelantos)</h6>
+                        <h4 class="fw-bold text-danger mb-0">${{ total_sueldos_empleados|formato_peso }}</h4>
+                    </div>
+                    {% if empleados_data.get('detalle_pagos') %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Empleado</th>
+                                    <th>Método</th>
+                                    <th>Concepto / Notas</th>
+                                    <th class="text-end">Monto ($)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ep in empleados_data.get('detalle_pagos') %}
+                                <tr>
+                                    <td>{{ ep.date }}</td>
+                                    <td class="fw-semibold">{{ ep.employee }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ ep.payment_method }}</span></td>
+                                    <td class="small text-muted">{{ ep.notes or '—' }}</td>
+                                    <td class="text-end fw-bold text-danger">${{ ep.amount|formato_peso }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="alert alert-warning border-0 rounded-4 p-4">
+                        <h5 class="fw-bold"><i class="fas fa-plug me-2"></i> Integración con Gestión de Empleados</h5>
+                        <p class="mb-2">
+                            El endpoint para sincronizar los pagos de nómina y jornales semanales se encuentra en la <strong>Fase 3</strong> de implementación en 
+                            <code>https://gestion-empleados.up.railway.app</code>.
+                        </p>
+                        <small class="text-muted d-block mb-3">
+                            Estado actual: {{ empleados_err or 'Conexión lista para activarse con el endpoint /api/finanzas/sueldos.' }}
+                        </small>
+                        <a href="https://gestion-empleados.up.railway.app" target="_blank" class="btn btn-sm btn-dark rounded-pill px-3">
+                            <i class="fas fa-external-link-alt me-1"></i> Abrir Gestión Empleados
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{# ── MODAL: NUEVO GASTO / PROVEEDOR ── #}
+<div class="modal fade" id="modalNuevoGasto" tabindex="-1" aria-labelledby="modalNuevoGastoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-primary text-white py-3 px-4">
+                <h5 class="modal-title fw-bold" id="modalNuevoGastoLabel">
+                    <i class="fas fa-plus-circle me-1"></i> Cargar Pago a Proveedor / Gasto
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{{ url_for('gerente.nuevo_gasto_general') }}">
+                {{ form_gasto.csrf_token }}
+                <input type="hidden" name="filter_desde" value="{{ fecha_desde.strftime('%Y-%m-%d') }}">
+                <input type="hidden" name="filter_hasta" value="{{ fecha_hasta.strftime('%Y-%m-%d') }}">
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Fecha *</label>
+                            {{ form_gasto.fecha(class="form-control", value=hoy.strftime('%Y-%m-%d')) }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Categoría *</label>
+                            {{ form_gasto.categoria(class="form-select") }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Proveedor o Concepto *</label>
+                            {{ form_gasto.concepto(class="form-control", placeholder="Ej: Química Oeste - Tambor Cloro, Alquiler Galpón") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Monto ($) *</label>
+                            {{ form_gasto.monto(class="form-control", placeholder="0.00") }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Medio de Pago *</label>
+                            {{ form_gasto.medio_pago(class="form-select") }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Nº Comprobante / Factura (Opcional)</label>
+                            {{ form_gasto.comprobante_nro(class="form-control", placeholder="Ej: FC-0001-0002456") }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Notas / Observaciones (Opcional)</label>
+                            {{ form_gasto.notas(class="form-control", rows="2") }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Guardar Pago</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── MODAL: EDITAR GASTO ── #}
+<div class="modal fade" id="modalEditarGasto" tabindex="-1" aria-labelledby="modalEditarGastoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h5 class="modal-title fw-bold" id="modalEditarGastoLabel">
+                    <i class="fas fa-edit me-1"></i> Editar Gasto / Pago
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" id="formEditarGasto" action="">
+                {{ form_gasto.csrf_token }}
+                <input type="hidden" name="filter_desde" value="{{ fecha_desde.strftime('%Y-%m-%d') }}">
+                <input type="hidden" name="filter_hasta" value="{{ fecha_hasta.strftime('%Y-%m-%d') }}">
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Fecha *</label>
+                            <input type="date" name="fecha" id="edit_fecha" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Categoría *</label>
+                            <select name="categoria" id="edit_categoria" class="form-select" required>
+                                <option value="proveedor_materia_prima">Proveedor de Materia Prima</option>
+                                <option value="proveedor_insumos">Proveedor de Insumos / Envases</option>
+                                <option value="alquiler_servicios">Alquiler y Servicios (Luz, Agua, etc.)</option>
+                                <option value="mantenimiento">Mantenimiento y Reparaciones</option>
+                                <option value="impuestos">Impuestos y Tasas</option>
+                                <option value="otros">Otros Gastos</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Proveedor o Concepto *</label>
+                            <input type="text" name="concepto" id="edit_concepto" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Monto ($) *</label>
+                            <input type="number" step="0.01" name="monto" id="edit_monto" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold small">Medio de Pago *</label>
+                            <select name="medio_pago" id="edit_medio_pago" class="form-select" required>
+                                <option value="efectivo">Efectivo</option>
+                                <option value="transferencia">Transferencia</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Nº Comprobante / Factura (Opcional)</label>
+                            <input type="text" name="comprobante_nro" id="edit_comprobante" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold small">Notas / Observaciones (Opcional)</label>
+                            <textarea name="notas" id="edit_notas" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-dark rounded-pill px-4 fw-bold">Actualizar Gasto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function setPeriodo(tipo) {
+    const hoy = new Date();
+    let desde = new Date();
+    let hasta = new Date();
+
+    const pad = n => String(n).padStart(2, '0');
+    const toYMD = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (tipo === 'hoy') {
+        desde = hoy;
+        hasta = hoy;
+    } else if (tipo === 'semana') {
+        const dia = hoy.getDay();
+        const diff = hoy.getDate() - dia + (dia === 0 ? -6 : 1); // Lunes
+        desde = new Date(hoy.setDate(diff));
+        hasta = new Date();
+    } else if (tipo === 'mes') {
+        desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        hasta = new Date();
+    } else if (tipo === 'mes_anterior') {
+        desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+        hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+    }
+
+    document.getElementById('fecha_desde').value = toYMD(desde);
+    document.getElementById('fecha_hasta').value = toYMD(hasta);
+    document.getElementById('formFiltroFecha').submit();
+}
+
+function abrirModalEditarGasto(id, fecha, categoria, concepto, monto, medioPago, comprobante, notas) {
+    const form = document.getElementById('formEditarGasto');
+    form.action = `/gerente/finanzas/gastos/${id}/editar`;
+    document.getElementById('edit_fecha').value = fecha;
+    document.getElementById('edit_categoria').value = categoria;
+    document.getElementById('edit_concepto').value = concepto;
+    document.getElementById('edit_monto').value = monto;
+    document.getElementById('edit_medio_pago').value = medioPago;
+    document.getElementById('edit_comprobante').value = comprobante;
+    document.getElementById('edit_notas').value = notas;
+
+    const modal = new bootstrap.Modal(document.getElementById('modalEditarGasto'));
+    modal.show();
+}
+</script>
+{% endblock %}

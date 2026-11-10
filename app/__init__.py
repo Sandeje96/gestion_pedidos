@@ -408,6 +408,16 @@ def create_app(config_name='development'):
             db.session.rollback()
             print(f"Limpieza de notificaciones archivadas: {e_notif}")
 
+        # 19. Crear tabla gastos_generales si no existe
+        try:
+            from app.models.gasto_general import GastoGeneral
+            tables = inspect(db.engine).get_table_names()
+            if 'gastos_generales' not in tables:
+                GastoGeneral.__table__.create(db.engine)
+        except Exception as e_gg:
+            db.session.rollback()
+            print(f"Migración tabla gastos_generales: {e_gg}")
+
     # ── Filtros Jinja2 personalizados ──
     def formato_peso(value, decimales=2):
         """Formatea un número con punto como separador de miles y coma para decimales.

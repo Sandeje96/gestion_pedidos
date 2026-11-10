@@ -15,11 +15,15 @@ from app.models.produccion import ProduccionDiaria
 from app.models.cierre_ruta import CierreRuta
 from app.models.boleta import PagoBoleta
 from app.models.gasto_repartidor import GastoRepartidor
+from app.models.gasto_general import GastoGeneral
 from app.models.usuario import Usuario
+from app.forms.gasto_general_forms import GastoGeneralForm
 from datetime import datetime, date, timedelta
 from functools import wraps
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import func
+import os
+import requests
 
 # Crear el Blueprint
 gerente_bp = Blueprint('gerente', __name__)
@@ -1182,3 +1186,277 @@ def detalle_cierre_ruta(cierre_id):
         'gastos': gastos_data,
         'totales_lote': totales_lote,
     })
+
+
+# ─────────────────────────────────────────────
+# TABLERO FINANCIERO Y DE GANANCIAS
+# ─────────────────────────────────────────────
+
+SUCURSALES_API_URL = os.environ.get('SUCURSALES_API_URL', 'https://gestion-sucursales.up.railway.app')
+EMPLEADOS_API_URL = os.environ.get('EMPLEADOS_API_URL', 'https://gestion-empleados.up.railway.app')
+FINANZAS_API_KEY = os.environ.get('FINANZAS_API_KEY', 'mundolimp-finanzas-secret-2026')
+
+
+def _obtener_datos_sucursales(fecha_desde, fecha_hasta):
+    """Consulta la API de Gestión Sucursales para el rango de fechas."""
+    url = f"{SUCURSALES_API_URL.rstrip('/')}/api/finanzas/resumen"
+    headers = {'X-Api-Key': FINANZAS_API_KEY}
+    params = {
+        'desde': fecha_desde.strftime('%Y-%m-%d'),
+        'hasta': fecha_hasta.strftime('%Y-%m-%d')
+    }
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=3.5)
+        if resp.status_code == 200:
+            return resp.json(), True, None
+        elif resp.status_code == 404:
+            return None, False, "API de Sucursales aún no implementada o ruta inexistente (404)"
+        elif resp.status_code in (401, 403):
+            return None, False, "Token de autorización inválido en API de Sucursales"
+        return None, False, f"Respuesta inesperada ({resp.status_code})"
+    except requests.exceptions.Timeout:
+        return None, False, "Tiempo de espera agotado al conectar con Sucursales"
+    except Exception as e:
+        return None, False, f"No se pudo conectar con Sucursales: {e}"
+
+
+def _obtener_datos_empleados(fecha_desde, fecha_hasta):
+    """Consulta la API de Gestión Empleados para el rango de fechas."""
+    url = f"{EMPLEADOS_API_URL.rstrip('/')}/api/finanzas/sueldos"
+    headers = {'X-Api-Key': FINANZAS_API_KEY}
+    params = {
+        'desde': fecha_desde.strftime('%Y-%m-%d'),
+        'hasta': fecha_hasta.strftime('%Y-%m-%d')
+    }
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=3.5)
+        if resp.status_code == 200:
+            return resp.json(), True, None
+        elif resp.status_code == 404:
+            return None, False, "API de Empleados aún no implementada o ruta inexistente (404)"
+        elif resp.status_code in (401, 403):
+            return None, False, "Token de autorización inválido en API de Empleados"
+        return None, False, f"Respuesta inesperada ({resp.status_code})"
+    except requests.exceptions.Timeout:
+        return None, False, "Tiempo de espera agotado al conectar con Empleados"
+    except Exception as e:
+        return None, False, f"No se pudo conectar con Empleados: {e}"
+
+
+@gerente_bp.route('/finanzas')
+@gerente_requerido
+def finanzas():
+    """
+    Tablero Financiero General de Mundolimp:
+    Consolida:
+    - Ingresos: Cobros de Rutas (local) + Ventas de Sucursales (API externa)
+    - Gastos: Gastos de Rutas (local) + Gastos de Sucursales (API externa)
+              + Sueldos Empleados (API externa) + Pagos a Proveedores y Gastos Generales (local)
+    - Resultado Operativo (Ganancia Neta) y Margen de Rentabilidad.
+    """
+    OFFSET_ARG = timedelta(hours=3)
+    hoy = (datetime.utcnow() - OFFSET_ARG).date()
+    primer_dia_mes = date(hoy.year, hoy.month, 1)
+
+    # ── Filtros de fecha ──
+    fecha_desde_str = request.args.get('fecha_desde', '')
+    fecha_hasta_str = request.args.get('fecha_hasta', '')
+
+    try:
+        fecha_desde = datetime.strptime(fecha_desde_str, '%Y-%m-%d').date() if fecha_desde_str else primer_dia_mes
+    except ValueError:
+        fecha_desde = primer_dia_mes
+
+    try:
+        fecha_hasta = datetime.strptime(fecha_hasta_str, '%Y-%m-%d').date() if fecha_hasta_str else hoy
+    except ValueError:
+        fecha_hasta = hoy
+
+    if fecha_desde > fecha_hasta:
+        fecha_desde, fecha_hasta = fecha_hasta, fecha_desde
+
+    # Rango UTC para campos DateTime (PagoBoleta.fecha_cobro)
+    desde_utc = datetime(fecha_desde.year, fecha_desde.month, fecha_desde.day, 0, 0, 0) + OFFSET_ARG
+    hasta_utc = datetime(fecha_hasta.year, fecha_hasta.month, fecha_hasta.day, 23, 59, 59, 999999) + OFFSET_ARG
+
+    # 1. ── COBROS DE RUTAS (LOCAL) ──
+    pagos_rutas = PagoBoleta.query.filter(
+        PagoBoleta.fecha_cobro >= desde_utc,
+        PagoBoleta.fecha_cobro <= hasta_utc
+    ).order_by(PagoBoleta.fecha_cobro.desc()).all()
+
+    total_rutas_efectivo = sum(float(p.efectivo or 0) for p in pagos_rutas)
+    total_rutas_transferencia = sum(float(p.transferencia or 0) for p in pagos_rutas)
+    total_rutas_cheque = sum(float(p.cheque or 0) for p in pagos_rutas)
+    total_ingresos_rutas = sum(float(p.total_recibido or 0) for p in pagos_rutas)
+
+    # 2. ── GASTOS DE RUTAS / REPARTIDORES (LOCAL) ──
+    gastos_rutas = GastoRepartidor.query.filter(
+        GastoRepartidor.fecha >= fecha_desde,
+        GastoRepartidor.fecha <= fecha_hasta
+    ).order_by(GastoRepartidor.fecha.desc()).all()
+
+    total_gastos_rutas = sum(float(g.monto or 0) for g in gastos_rutas)
+    gastos_rutas_por_tipo = {}
+    for g in gastos_rutas:
+        tipo = g.tipo or 'Otros'
+        gastos_rutas_por_tipo[tipo] = gastos_rutas_por_tipo.get(tipo, 0.0) + float(g.monto or 0)
+
+    # 3. ── PROVEEDORES Y GASTOS GENERALES (LOCAL) ──
+    gastos_generales = GastoGeneral.query.filter(
+        GastoGeneral.fecha >= fecha_desde,
+        GastoGeneral.fecha <= fecha_hasta
+    ).order_by(GastoGeneral.fecha.desc(), GastoGeneral.id.desc()).all()
+
+    total_gastos_generales = sum(float(g.monto or 0) for g in gastos_generales)
+    gastos_generales_por_categoria = {}
+    gastos_generales_por_medio = {}
+    for g in gastos_generales:
+        cat_lbl = g.categoria_label
+        gastos_generales_por_categoria[cat_lbl] = gastos_generales_por_categoria.get(cat_lbl, 0.0) + float(g.monto or 0)
+        medio = (g.medio_pago or 'efectivo').capitalize()
+        gastos_generales_por_medio[medio] = gastos_generales_por_medio.get(medio, 0.0) + float(g.monto or 0)
+
+    # 4. ── DATOS EXTERNOS: SUCURSALES ──
+    sucursales_data, sucursales_ok, sucursales_err = _obtener_datos_sucursales(fecha_desde, fecha_hasta)
+    total_ventas_sucursales = float(sucursales_data.get('total_ventas', 0.0)) if sucursales_ok and sucursales_data else 0.0
+    total_gastos_sucursales = float(sucursales_data.get('total_gastos', 0.0)) if sucursales_ok and sucursales_data else 0.0
+
+    # 5. ── DATOS EXTERNOS: EMPLEADOS (SUELDOS) ──
+    empleados_data, empleados_ok, empleados_err = _obtener_datos_empleados(fecha_desde, fecha_hasta)
+    total_sueldos_empleados = float(empleados_data.get('total_sueldos', 0.0)) if empleados_ok and empleados_data else 0.0
+
+    # 6. ── TOTALES CONSOLIDADOS ──
+    total_ingresos = total_ingresos_rutas + total_ventas_sucursales
+    total_gastos = (
+        total_gastos_rutas +
+        total_gastos_sucursales +
+        total_sueldos_empleados +
+        total_gastos_generales
+    )
+    ganancia_neta = total_ingresos - total_gastos
+    margen_ganancia = (ganancia_neta / total_ingresos * 100.0) if total_ingresos > 0 else 0.0
+
+    # Formulario para modal de nuevo gasto general
+    form_gasto = GastoGeneralForm()
+
+    return render_template(
+        'gerente/finanzas.html',
+        title='Finanzas y Ganancias — Mundolimp',
+        hoy=hoy,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta,
+        # Totales Consolidados
+        total_ingresos=total_ingresos,
+        total_gastos=total_gastos,
+        ganancia_neta=ganancia_neta,
+        margen_ganancia=margen_ganancia,
+        # Desglose Rutas
+        total_ingresos_rutas=total_ingresos_rutas,
+        total_rutas_efectivo=total_rutas_efectivo,
+        total_rutas_transferencia=total_rutas_transferencia,
+        total_rutas_cheque=total_rutas_cheque,
+        pagos_rutas=pagos_rutas,
+        total_gastos_rutas=total_gastos_rutas,
+        gastos_rutas=gastos_rutas,
+        gastos_rutas_por_tipo=gastos_rutas_por_tipo,
+        # Desglose Gastos Generales / Proveedores
+        total_gastos_generales=total_gastos_generales,
+        gastos_generales=gastos_generales,
+        gastos_generales_por_categoria=gastos_generales_por_categoria,
+        gastos_generales_por_medio=gastos_generales_por_medio,
+        form_gasto=form_gasto,
+        # Sucursales
+        sucursales_ok=sucursales_ok,
+        sucursales_err=sucursales_err,
+        sucursales_data=sucursales_data,
+        total_ventas_sucursales=total_ventas_sucursales,
+        total_gastos_sucursales=total_gastos_sucursales,
+        # Empleados
+        empleados_ok=empleados_ok,
+        empleados_err=empleados_err,
+        empleados_data=empleados_data,
+        total_sueldos_empleados=total_sueldos_empleados
+    )
+
+
+@gerente_bp.route('/finanzas/gastos/nuevo', methods=['POST'])
+@gerente_requerido
+def nuevo_gasto_general():
+    """Registra un nuevo gasto general o pago a proveedor."""
+    form = GastoGeneralForm()
+    fecha_desde = request.form.get('filter_desde', '')
+    fecha_hasta = request.form.get('filter_hasta', '')
+
+    if form.validate_on_submit():
+        gasto = GastoGeneral(
+            fecha=form.fecha.data,
+            categoria=form.categoria.data,
+            concepto=form.concepto.data.strip(),
+            monto=form.monto.data,
+            medio_pago=form.medio_pago.data,
+            comprobante_nro=form.comprobante_nro.data.strip() if form.comprobante_nro.data else None,
+            notas=form.notas.data.strip() if form.notas.data else None,
+            creado_por_id=current_user.id
+        )
+        db.session.add(gasto)
+        db.session.commit()
+        flash(f'Gasto / Pago "{gasto.concepto}" por ${float(gasto.monto):,.2f} registrado exitosamente.', 'success')
+    else:
+        errores = [f"{campo}: {', '.join(msgs)}" for campo, msgs in form.errors.items()]
+        flash(f'Error al registrar gasto: {"; ".join(errores)}', 'danger')
+
+    redirect_url = url_for('gerente.finanzas')
+    if fecha_desde and fecha_hasta:
+        redirect_url += f"?fecha_desde={fecha_desde}&fecha_hasta={fecha_hasta}"
+    return redirect(redirect_url)
+
+
+@gerente_bp.route('/finanzas/gastos/<int:gasto_id>/editar', methods=['POST'])
+@gerente_requerido
+def editar_gasto_general(gasto_id):
+    """Edita un gasto general existente."""
+    gasto = GastoGeneral.query.get_or_404(gasto_id)
+    fecha_desde = request.form.get('filter_desde', '')
+    fecha_hasta = request.form.get('filter_hasta', '')
+
+    form = GastoGeneralForm()
+    if form.validate_on_submit():
+        gasto.fecha = form.fecha.data
+        gasto.categoria = form.categoria.data
+        gasto.concepto = form.concepto.data.strip()
+        gasto.monto = form.monto.data
+        gasto.medio_pago = form.medio_pago.data
+        gasto.comprobante_nro = form.comprobante_nro.data.strip() if form.comprobante_nro.data else None
+        gasto.notas = form.notas.data.strip() if form.notas.data else None
+        db.session.commit()
+        flash(f'Gasto "{gasto.concepto}" actualizado correctamente.', 'success')
+    else:
+        errores = [f"{campo}: {', '.join(msgs)}" for campo, msgs in form.errors.items()]
+        flash(f'Error al actualizar gasto: {"; ".join(errores)}', 'danger')
+
+    redirect_url = url_for('gerente.finanzas')
+    if fecha_desde and fecha_hasta:
+        redirect_url += f"?fecha_desde={fecha_desde}&fecha_hasta={fecha_hasta}"
+    return redirect(redirect_url)
+
+
+@gerente_bp.route('/finanzas/gastos/<int:gasto_id>/eliminar', methods=['POST'])
+@gerente_requerido
+def eliminar_gasto_general(gasto_id):
+    """Elimina un gasto general."""
+    gasto = GastoGeneral.query.get_or_404(gasto_id)
+    fecha_desde = request.form.get('filter_desde', '')
+    fecha_hasta = request.form.get('filter_hasta', '')
+
+    concepto = gasto.concepto
+    monto = float(gasto.monto)
+    db.session.delete(gasto)
+    db.session.commit()
+    flash(f'Gasto "{concepto}" (${monto:,.2f}) eliminado exitosamente.', 'info')
+
+    redirect_url = url_for('gerente.finanzas')
+    if fecha_desde and fecha_hasta:
+        redirect_url += f"?fecha_desde={fecha_desde}&fecha_hasta={fecha_hasta}"
+    return redirect(redirect_url)
+

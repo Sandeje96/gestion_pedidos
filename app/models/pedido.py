@@ -58,7 +58,8 @@ class Pedido(db.Model):
     
     # Observaciones
     observaciones_fabrica = db.Column(db.Text, nullable=True)  # Lo que dice la fábrica
-    notas_vendedor = db.Column(db.Text, nullable=True)  # Notas del vendedor
+    notas_vendedor = db.Column(db.Text, nullable=True)  # Notas del vendedor para Fábrica
+    notas_administracion = db.Column(db.Text, nullable=True)  # Notas del vendedor para Administración
     
     # Control de cambios
     modificado = db.Column(db.Boolean, default=False, nullable=False)  # Para notificar cambios
@@ -168,6 +169,7 @@ class Pedido(db.Model):
             'operario_nombre': self.operario_responsable.nombre if self.operario_responsable else None,
             'observaciones_fabrica': self.observaciones_fabrica,
             'notas_vendedor': self.notas_vendedor,
+            'notas_administracion': self.notas_administracion,
             'modificado': self.modificado,
             'visto_por_fabrica': self.visto_por_fabrica,
             'visto_por_vendedor': self.visto_por_vendedor,

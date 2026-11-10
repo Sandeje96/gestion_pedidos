@@ -379,13 +379,16 @@
                                                     {% if pedido.observaciones_fabrica %}
                                                     <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
                                                     {% endif %}
+                                                    {% if pedido.notas_administracion %}
+                                                    <span class="text-primary small d-block"><strong>Nota Admin:</strong> {{ pedido.notas_administracion }}</span>
+                                                    {% endif %}
                                                     {% if pedido.notas_vendedor %}
-                                                    <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                    <span class="text-muted small d-block"><strong>Nota Fábrica:</strong> {{ pedido.notas_vendedor }}</span>
                                                     {% endif %}
                                                     {% if pedido.ajuste_nota_fabrica %}
                                                     <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
                                                     {% endif %}
-                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
+                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_administracion and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                     <span class="text-muted small font-monospace">-</span>
                                                     {% endif %}
                                                 </td>
@@ -542,13 +545,16 @@
                                                     {% if pedido.observaciones_fabrica %}
                                                     <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
                                                     {% endif %}
+                                                    {% if pedido.notas_administracion %}
+                                                    <span class="text-primary small d-block"><strong>Nota Admin:</strong> {{ pedido.notas_administracion }}</span>
+                                                    {% endif %}
                                                     {% if pedido.notas_vendedor %}
-                                                    <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                    <span class="text-muted small d-block"><strong>Nota Fábrica:</strong> {{ pedido.notas_vendedor }}</span>
                                                     {% endif %}
                                                     {% if pedido.ajuste_nota_fabrica %}
                                                     <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
                                                     {% endif %}
-                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
+                                                    {% if not pedido.observaciones_fabrica and not pedido.notas_administracion and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                     <span class="text-muted small font-monospace">-</span>
                                                     {% endif %}
                                                 </td>
@@ -706,13 +712,16 @@
                                                      {% if pedido.observaciones_fabrica %}
                                                      <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
                                                      {% endif %}
+                                                     {% if pedido.notas_administracion %}
+                                                     <span class="text-primary small d-block"><strong>Nota Admin:</strong> {{ pedido.notas_administracion }}</span>
+                                                     {% endif %}
                                                      {% if pedido.notas_vendedor %}
-                                                     <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                     <span class="text-muted small d-block"><strong>Nota Fábrica:</strong> {{ pedido.notas_vendedor }}</span>
                                                      {% endif %}
                                                      {% if pedido.ajuste_nota_fabrica %}
                                                      <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
                                                      {% endif %}
-                                                     {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
+                                                     {% if not pedido.observaciones_fabrica and not pedido.notas_administracion and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                      <span class="text-muted small font-monospace">-</span>
                                                      {% endif %}
                                                  </td>
@@ -912,8 +921,11 @@
                                                                                 {% if pedido.ajuste_pendiente %}
                                                                                     <br><span class="badge bg-danger animate-pulse mt-1"><i class="fas fa-exchange-alt"></i> Ajuste de Fábrica</span>
                                                                                 {% endif %}
+                                                                                {% if pedido.notas_administracion %}
+                                                                                    <br><small class="text-primary fw-semibold"><i class="fas fa-user-tie me-1"></i><strong>Admin:</strong> {{ pedido.notas_administracion }}</small>
+                                                                                {% endif %}
                                                                                 {% if pedido.notas_vendedor %}
-                                                                                    <br><small class="text-muted"><i class="fas fa-sticky-note me-1"></i>{{ pedido.notas_vendedor }}</small>
+                                                                                    <br><small class="text-muted"><i class="fas fa-industry me-1"></i><strong>Fábrica:</strong> {{ pedido.notas_vendedor }}</small>
                                                                                 {% endif %}
                                                                             </td>
                                                                             <td class="text-center fw-bold text-primary">
@@ -959,13 +971,16 @@
                                                                                 {% if pedido.observaciones_fabrica %}
                                                                                 <span class="text-muted small d-block"><strong>Obs:</strong> {{ pedido.observaciones_fabrica }}</span>
                                                                                 {% endif %}
+                                                                                {% if pedido.notas_administracion %}
+                                                                                <span class="text-primary small d-block"><strong>Nota Admin:</strong> {{ pedido.notas_administracion }}</span>
+                                                                                {% endif %}
                                                                                 {% if pedido.notas_vendedor %}
-                                                                                <span class="text-muted small d-block"><strong>Nota:</strong> {{ pedido.notas_vendedor }}</span>
+                                                                                <span class="text-muted small d-block"><strong>Nota Fábrica:</strong> {{ pedido.notas_vendedor }}</span>
                                                                                 {% endif %}
                                                                                 {% if pedido.ajuste_nota_fabrica %}
                                                                                 <span class="text-warning small d-block"><strong>Ajuste Fábrica:</strong> {{ pedido.ajuste_nota_fabrica }}</span>
                                                                                 {% endif %}
-                                                                                {% if not pedido.observaciones_fabrica and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
+                                                                                {% if not pedido.observaciones_fabrica and not pedido.notas_administracion and not pedido.notas_vendedor and not pedido.ajuste_nota_fabrica %}
                                                                                 <span class="text-muted small font-monospace">-</span>
                                                                                 {% endif %}
                                                                             </td>

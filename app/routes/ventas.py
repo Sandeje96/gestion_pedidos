@@ -368,7 +368,9 @@ def nuevo_pedido():
         producto_ids = request.form.getlist('producto_ids[]')
         presentaciones = request.form.getlist('presentaciones[]')
         cantidades_envases = request.form.getlist('cantidades_envases[]')
-        notas = request.form.getlist('notas[]')
+        notas_fabrica = request.form.getlist('notas_fabrica[]')
+        notas_admin = request.form.getlist('notas_admin[]')
+        notas_legacy = request.form.getlist('notas[]')
 
         # Tabla de conversión presentacion -> litros
         LITROS_POR_PRESENTACION = {
@@ -418,7 +420,11 @@ def nuevo_pedido():
                 envases = 1.0
 
             litros_totales = round(envases * factor, 4)
-            nota = notas[i] if i < len(notas) and notas[i] else None
+            nota_f = notas_fabrica[i].strip() if i < len(notas_fabrica) and notas_fabrica[i] and notas_fabrica[i].strip() else None
+            nota_a = notas_admin[i].strip() if i < len(notas_admin) and notas_admin[i] and notas_admin[i].strip() else None
+            # Fallback de compatibilidad si viniera campo legacy notas[]
+            if not nota_f and not nota_a and i < len(notas_legacy) and notas_legacy[i] and notas_legacy[i].strip():
+                nota_f = notas_legacy[i].strip()
 
             try:
                 pedido = Pedido(
@@ -431,7 +437,8 @@ def nuevo_pedido():
                     cantidad_envases=envases,
                     litros_por_presentacion=factor,
                     estado='pendiente',
-                    notas_vendedor=nota,
+                    notas_vendedor=nota_f,
+                    notas_administracion=nota_a,
                     modificado=False,
                     visto_por_fabrica=False,
                     esperando_contestacion=False
@@ -495,12 +502,13 @@ def editar_pedido(pedido_id):
         pedido.cantidad = form.cantidad.data
         pedido.unidad = form.unidad.data
         pedido.notas_vendedor = form.notas_vendedor.data
+        pedido.notas_administracion = form.notas_administracion.data
         
         # Si cambió algo, marcar como modificado
         pedido.modificado = True
         pedido.visto_por_fabrica = False
         
-        # NUEVO: Si el vendedor agregó o cambió notas, guardar mensaje
+        # NUEVO: Si el vendedor agregó o cambió notas para fábrica, guardar mensaje
         if form.notas_vendedor.data and form.notas_vendedor.data != notas_anteriores:
             from app.models.mensaje_pedido import MensajePedido
             

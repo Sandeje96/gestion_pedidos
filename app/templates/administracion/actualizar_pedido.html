@@ -34,10 +34,16 @@
                     </div>
                 </div>
                 
-                <!-- Notas del vendedor / sucursal -->
+                <!-- Notas del pedido -->
+                {% if pedido.notas_administracion %}
+                <div class="alert alert-primary border-0 rounded-3 mb-3">
+                    <strong class="d-block mb-1"><i class="fas fa-user-tie me-1"></i> Nota para Administración:</strong>
+                    <span class="small">{{ pedido.notas_administracion }}</span>
+                </div>
+                {% endif %}
                 {% if pedido.notas_vendedor %}
-                <div class="alert alert-info border-0 rounded-3 mb-4">
-                    <strong class="d-block mb-1"><i class="fas fa-sticky-note me-1"></i> Notas de la Sucursal:</strong>
+                <div class="alert alert-secondary border-0 rounded-3 mb-4">
+                    <strong class="d-block mb-1"><i class="fas fa-industry me-1"></i> Nota para Fábrica:</strong>
                     <span class="small">{{ pedido.notas_vendedor }}</span>
                 </div>
                 {% endif %}

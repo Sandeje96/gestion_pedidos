@@ -380,6 +380,21 @@ def create_app(config_name='development'):
             print(f"Auto-vinculación y sincronización inicial de stocks: {e_vinc}")
 
 
+        # 18. Agregar columna 'notas_administracion' en pedidos
+        try:
+            cols_pedidos = [c['name'] for c in inspect(db.engine).get_columns('pedidos')]
+            if 'notas_administracion' not in cols_pedidos:
+                try:
+                    db.session.execute(text("ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS notas_administracion TEXT"))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    db.session.execute(text("ALTER TABLE pedidos ADD COLUMN notas_administracion TEXT"))
+                    db.session.commit()
+        except Exception as e_na:
+            db.session.rollback()
+            print(f"Migración notas_administracion en pedidos: {e_na}")
+
         # Limpieza: pedidos archivados no deben conservar notificaciones sin leer
         try:
             db.session.execute(text(

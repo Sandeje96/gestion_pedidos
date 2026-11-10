@@ -56,15 +56,26 @@
                         </div>
                     </div>
                     
-                    <!-- Notas -->
-                    <div class="mb-3">
-                        {{ form.notas_vendedor.label(class="form-label") }}
-                        {{ form.notas_vendedor(class="form-control" + (" is-invalid" if form.notas_vendedor.errors else "")) }}
-                        {% if form.notas_vendedor.errors %}
-                            <div class="invalid-feedback">
-                                {% for error in form.notas_vendedor.errors %}{{ error }}{% endfor %}
-                            </div>
-                        {% endif %}
+                    <!-- Notas para Fábrica y Administración -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-primary"><i class="fas fa-industry me-1"></i> {{ form.notas_vendedor.label.text }}</label>
+                            {{ form.notas_vendedor(class="form-control" + (" is-invalid" if form.notas_vendedor.errors else "")) }}
+                            {% if form.notas_vendedor.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.notas_vendedor.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-semibold text-secondary"><i class="fas fa-user-tie me-1"></i> {{ form.notas_administracion.label.text }}</label>
+                            {{ form.notas_administracion(class="form-control" + (" is-invalid" if form.notas_administracion.errors else "")) }}
+                            {% if form.notas_administracion.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.notas_administracion.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
                     </div>
                     
                     <!-- Estado actual -->

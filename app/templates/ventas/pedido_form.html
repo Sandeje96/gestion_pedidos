@@ -174,10 +174,18 @@
                                     </div>
                                 </div>
 
-                                <!-- Notas -->
-                                <div class="col-12">
-                                    <label class="form-label"><i class="fas fa-sticky-note"></i> Notas (Opcional)</label>
-                                    <textarea name="notas[]" class="form-control" rows="2" placeholder="Observaciones, detalles especiales..."></textarea>
+                                <!-- Notas diferenciadas para Fábrica y Administración -->
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold small text-primary mb-1">
+                                        <i class="fas fa-industry me-1"></i> Nota para Fábrica (Opcional)
+                                    </label>
+                                    <textarea name="notas_fabrica[]" class="form-control form-control-sm" rows="2" placeholder="Instrucciones para producción / fábrica..."></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold small text-secondary mb-1">
+                                        <i class="fas fa-user-tie me-1"></i> Nota para Administración (Opcional)
+                                    </label>
+                                    <textarea name="notas_admin[]" class="form-control form-control-sm" rows="2" placeholder="Instrucciones de despacho / administración..."></textarea>
                                 </div>
                             </div>
                         </div>
@@ -515,9 +523,17 @@ function agregarOtroPedido() {
                         <span class="litros-resultado">1.00 L</span>
                     </div>
                 </div>
-                <div class="col-12">
-                    <label class="form-label"><i class="fas fa-sticky-note"></i> Notas (Opcional)</label>
-                    <textarea name="notas[]" class="form-control" rows="2" placeholder="Observaciones..."></textarea>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small text-primary mb-1">
+                        <i class="fas fa-industry me-1"></i> Nota para Fábrica (Opcional)
+                    </label>
+                    <textarea name="notas_fabrica[]" class="form-control form-control-sm" rows="2" placeholder="Instrucciones para producción / fábrica..."></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold small text-secondary mb-1">
+                        <i class="fas fa-user-tie me-1"></i> Nota para Administración (Opcional)
+                    </label>
+                    <textarea name="notas_admin[]" class="form-control form-control-sm" rows="2" placeholder="Instrucciones de despacho / administración..."></textarea>
                 </div>
             </div>
         </div>

@@ -142,13 +142,26 @@ class EditarPedidoForm(FlaskForm):
     )
     
     notas_vendedor = TextAreaField(
-        'Notas',
+        'Nota para Fábrica',
         validators=[
             Optional()
         ],
         render_kw={
             'class': 'form-control',
-            'rows': 2
+            'rows': 2,
+            'placeholder': 'Instrucciones para producción / fábrica...'
+        }
+    )
+
+    notas_administracion = TextAreaField(
+        'Nota para Administración',
+        validators=[
+            Optional()
+        ],
+        render_kw={
+            'class': 'form-control',
+            'rows': 2,
+            'placeholder': 'Instrucciones de despacho / administración...'
         }
     )
     

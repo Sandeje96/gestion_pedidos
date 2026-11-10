@@ -13,3 +13,4 @@ gunicorn==21.2.0
 psycopg[binary]==3.3.2
 eventlet
 flask-socketio
+requests==2.31.0

@@ -23,7 +23,10 @@ from functools import wraps
 from decimal import Decimal, InvalidOperation
 from sqlalchemy import func
 import os
-import requests
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
 
 # Crear el Blueprint
 gerente_bp = Blueprint('gerente', __name__)
@@ -1199,46 +1202,52 @@ FINANZAS_API_KEY = os.environ.get('FINANZAS_API_KEY', 'mundolimp-finanzas-secret
 
 def _obtener_datos_sucursales(fecha_desde, fecha_hasta):
     """Consulta la API de Gestión Sucursales para el rango de fechas."""
-    url = f"{SUCURSALES_API_URL.rstrip('/')}/api/finanzas/resumen"
-    headers = {'X-Api-Key': FINANZAS_API_KEY}
-    params = {
+    params = urllib.parse.urlencode({
         'desde': fecha_desde.strftime('%Y-%m-%d'),
         'hasta': fecha_hasta.strftime('%Y-%m-%d')
-    }
+    })
+    url = f"{SUCURSALES_API_URL.rstrip('/')}/api/finanzas/resumen?{params}"
+    req = urllib.request.Request(url, headers={'X-Api-Key': FINANZAS_API_KEY})
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=3.5)
-        if resp.status_code == 200:
-            return resp.json(), True, None
-        elif resp.status_code == 404:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode('utf-8'))
+                return data, True, None
+            return None, False, f"Respuesta inesperada ({resp.status})"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
             return None, False, "API de Sucursales aún no implementada o ruta inexistente (404)"
-        elif resp.status_code in (401, 403):
+        elif e.code in (401, 403):
             return None, False, "Token de autorización inválido en API de Sucursales"
-        return None, False, f"Respuesta inesperada ({resp.status_code})"
-    except requests.exceptions.Timeout:
-        return None, False, "Tiempo de espera agotado al conectar con Sucursales"
+        return None, False, f"Error HTTP {e.code}"
+    except urllib.error.URLError as e:
+        return None, False, f"No se pudo conectar con Sucursales: {e.reason}"
     except Exception as e:
         return None, False, f"No se pudo conectar con Sucursales: {e}"
 
 
 def _obtener_datos_empleados(fecha_desde, fecha_hasta):
     """Consulta la API de Gestión Empleados para el rango de fechas."""
-    url = f"{EMPLEADOS_API_URL.rstrip('/')}/api/finanzas/sueldos"
-    headers = {'X-Api-Key': FINANZAS_API_KEY}
-    params = {
+    params = urllib.parse.urlencode({
         'desde': fecha_desde.strftime('%Y-%m-%d'),
         'hasta': fecha_hasta.strftime('%Y-%m-%d')
-    }
+    })
+    url = f"{EMPLEADOS_API_URL.rstrip('/')}/api/finanzas/sueldos?{params}"
+    req = urllib.request.Request(url, headers={'X-Api-Key': FINANZAS_API_KEY})
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=3.5)
-        if resp.status_code == 200:
-            return resp.json(), True, None
-        elif resp.status_code == 404:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode('utf-8'))
+                return data, True, None
+            return None, False, f"Respuesta inesperada ({resp.status})"
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
             return None, False, "API de Empleados aún no implementada o ruta inexistente (404)"
-        elif resp.status_code in (401, 403):
+        elif e.code in (401, 403):
             return None, False, "Token de autorización inválido en API de Empleados"
-        return None, False, f"Respuesta inesperada ({resp.status_code})"
-    except requests.exceptions.Timeout:
-        return None, False, "Tiempo de espera agotado al conectar con Empleados"
+        return None, False, f"Error HTTP {e.code}"
+    except urllib.error.URLError as e:
+        return None, False, f"No se pudo conectar con Empleados: {e.reason}"
     except Exception as e:
         return None, False, f"No se pudo conectar con Empleados: {e}"
 

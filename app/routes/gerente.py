@@ -1367,9 +1367,7 @@ def finanzas():
     total_adelantos = float(empleados_data.get('total_adelantos', 0.0)) if (empleados_ok and empleados_data) else 0.0
     detalle_adelantos = empleados_data.get('detalle_adelantos', []) if (empleados_ok and empleados_data) else []
 
-    # Desglose de gastos sucursales (caja chica vs fijos)
-    total_gastos_caja_suc = float(sucursales_data.get('total_gastos_caja', total_gastos_sucursales)) if (sucursales_ok and sucursales_data) else 0.0
-    total_gastos_fijos_suc = float(sucursales_data.get('total_gastos_fijos', 0.0)) if (sucursales_ok and sucursales_data) else 0.0
+    # Gastos de sucursales por categoría (informativo)
     gastos_fijos_cat_suc = sucursales_data.get('gastos_fijos_por_categoria', {}) if (sucursales_ok and sucursales_data) else {}
 
     # Formulario para modal de nuevo gasto general
@@ -1419,8 +1417,6 @@ def finanzas():
         sucursales_data=sucursales_data,
         total_ventas_sucursales=total_ventas_sucursales,
         total_gastos_sucursales=total_gastos_sucursales,
-        total_gastos_caja_suc=total_gastos_caja_suc,
-        total_gastos_fijos_suc=total_gastos_fijos_suc,
         gastos_fijos_cat_suc=gastos_fijos_cat_suc,
         # Empleados
         empleados_ok=empleados_ok,

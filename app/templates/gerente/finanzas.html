@@ -662,10 +662,7 @@
                             <div class="border rounded-4 p-3 bg-light h-100">
                                 <h6 class="fw-bold text-danger mb-1"><i class="fas fa-receipt me-1"></i> Gastos de Sucursales</h6>
                                 <h4 class="fw-bold text-danger mb-2">${{ total_gastos_sucursales|formato_peso }}</h4>
-                                <div class="small text-muted d-flex flex-wrap gap-1">
-                                    <span class="badge bg-white text-danger border">Caja Chica: ${{ total_gastos_caja_suc|formato_peso }}</span>
-                                    <span class="badge bg-white text-danger border">Fijos/Servicios: ${{ total_gastos_fijos_suc|formato_peso }}</span>
-                                </div>
+                                <small class="text-muted">Total de egresos registrados en las sucursales</small>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -682,7 +679,7 @@
                     {% if gastos_fijos_cat_suc %}
                     <div class="card border-0 bg-light rounded-4 p-3 mb-4">
                         <h6 class="fw-bold small text-muted text-uppercase mb-2">
-                            <i class="fas fa-building me-1"></i> Gastos Fijos de Sucursales por Categoría (Excluyendo Sueldos):
+                            <i class="fas fa-tags me-1"></i> Desglose de Gastos por Categoría en Sucursales (Excluyendo Sueldos):
                         </h6>
                         <div class="d-flex flex-wrap gap-2">
                             {% for cat, monto in gastos_fijos_cat_suc.items() %}
@@ -701,9 +698,7 @@
                                 <tr>
                                     <th>Sucursal</th>
                                     <th class="text-end">Ventas ($)</th>
-                                    <th class="text-end">Gastos Caja ($)</th>
-                                    <th class="text-end">Gastos Fijos ($)</th>
-                                    <th class="text-end">Total Gastos ($)</th>
+                                    <th class="text-end">Gastos ($)</th>
                                     <th class="text-end">Neto Sucursal ($)</th>
                                 </tr>
                             </thead>
@@ -714,8 +709,6 @@
                                         <i class="fas fa-store text-muted me-1"></i> {{ s.sucursal }}
                                     </td>
                                     <td class="text-end text-success fw-semibold">${{ s.ventas|formato_peso }}</td>
-                                    <td class="text-end text-muted">${{ s.gastos_caja|formato_peso }}</td>
-                                    <td class="text-end text-muted">${{ s.gastos_fijos|formato_peso }}</td>
                                     <td class="text-end text-danger fw-semibold">${{ s.gastos|formato_peso }}</td>
                                     <td class="text-end fw-bold {% if (s.ventas - s.gastos) >= 0 %}text-primary{% else %}text-danger{% endif %}">
                                         ${{ (s.ventas - s.gastos)|formato_peso }}
